@@ -179,10 +179,17 @@ class LikeItem {
   bool get hasGif => media.any((m) => m.kind == MediaKind.gif);
 
   /// 网格里用来做缩略图的第一张图。
+  ///
+  /// 库里存的是 `?name=large`（约 2048px、几百 KB）。网格格子只有 200~300dp，
+  /// 直接拿 large 去铺一屏 60 张图就是几十 MB 流量 —— 这里换成 CDN 的
+  /// `name=small`（约 680px、几十 KB），肉眼几乎无差别。
   String? get thumbnailUrl {
     if (media.isEmpty) return null;
-    return media.first.url;
+    return withImageVariant(media.first.url, 'small');
   }
+
+  /// 详情/放大浏览用的原图（`name=orig`）。
+  String get fullImageUrl => withImageVariant(media.first.url, 'orig');
 
   LikeItem copyWith({
     LikeState? state,
@@ -207,4 +214,15 @@ class LikeItem {
         verifiedAt: verifiedAt ?? this.verifiedAt,
         raw: raw,
       );
+}
+
+/// 改写 X 图片 URL 的尺寸档位（`name=small|medium|large|orig`）。
+///
+/// 没有 `name` 参数的 URL（比如本地缓存或测试里的假地址）原样返回。
+String withImageVariant(String url, String name) {
+  final uri = Uri.tryParse(url);
+  if (uri == null) return url;
+  final params = uri.queryParameters;
+  if (!params.containsKey('name')) return url;
+  return uri.replace(queryParameters: {...params, 'name': name}).toString();
 }

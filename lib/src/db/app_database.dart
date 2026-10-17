@@ -11,6 +11,7 @@ library;
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:sqlite3/sqlite3.dart';
 
@@ -200,10 +201,22 @@ class AppDatabase {
   static AppDatabase open(String path) {
     final dir = Directory(File(path).parent.path);
     if (!dir.existsSync()) dir.createSync(recursive: true);
-    final db = sqlite3.open(path);
-    db.execute('PRAGMA journal_mode=WAL;');
+    return _configured(sqlite3.open(path), wal: true);
+  }
+
+  /// 内存库（测试用）：同样的 schema，进程结束即消失。
+  static AppDatabase openInMemory() =>
+      _configured(sqlite3.openInMemory(), wal: false);
+
+  static AppDatabase _configured(Database db, {required bool wal}) {
+    if (wal) db.execute('PRAGMA journal_mode=WAL;');
     db.execute('PRAGMA synchronous=NORMAL;');
     db.execute('PRAGMA foreign_keys=ON;');
+    // 5 万条 + 全文索引的库大约几十 MB，给 16 MB 页缓存能显著减少读盘；
+    // busy_timeout 让「边同步边浏览」时偶发的写锁等待不直接抛错。
+    db.execute('PRAGMA cache_size=-16000;');
+    db.execute('PRAGMA busy_timeout=3000;');
+    db.execute('PRAGMA temp_store=MEMORY;');
     final instance = AppDatabase._(db);
     instance._migrate();
     return instance;
@@ -327,6 +340,18 @@ class AppDatabase {
 
   String get ftsTokenizer => _kvGet('fts.tokenizer') ?? 'unicode61';
 
+  /// 记住的 GraphQL queryId（X 改版后我们会在请求失败时清掉它并重新发现）。
+  ///
+  /// 不记住的话，每次冷启动都要抓 x.com 首页 + 十几个 JS 文件才能发出第一个
+  /// 请求 —— 又慢又容易在弱网/代理下失败。
+  String? cachedQueryId(String operation) => _kvGet('queryId.$operation');
+
+  void saveQueryId(String operation, String queryId) =>
+      _kvSet('queryId.$operation', queryId);
+
+  void clearQueryId(String operation) =>
+      _db.execute('DELETE FROM kv WHERE key = ?', ['queryId.$operation']);
+
   // ------------------------------------------------------------ kv helpers
 
   String? _kvGet(String key) {
@@ -339,10 +364,6 @@ class AppDatabase {
       'INSERT INTO kv(key, value) VALUES(?, ?) '
       'ON CONFLICT(key) DO UPDATE SET value = excluded.value',
       [key, value]);
-
-  String? getValue(String key) => _kvGet(key);
-
-  void setValue(String key, String value) => _kvSet(key, value);
 
   // -------------------------------------------------------------- accounts
 
@@ -426,6 +447,40 @@ class AppDatabase {
     return rows.isNotEmpty;
   }
 
+  /// 批量判断哪些 id 已在本地（增量同步一页 100 条，以前是 100 次点查询）。
+  Set<String> existingTweetIds(Iterable<String> ids) {
+    final list = ids.toList();
+    if (list.isEmpty) return const {};
+    final out = <String>{};
+    for (var i = 0; i < list.length; i += 500) {
+      final chunk = list.sublist(i, math.min(i + 500, list.length));
+      final holders = List.filled(chunk.length, '?').join(',');
+      final rows = _db.select(
+          'SELECT tweet_id FROM likes WHERE tweet_id IN ($holders)', chunk);
+      out.addAll(rows.map((r) => r['tweet_id'] as String));
+    }
+    return out;
+  }
+
+  /// 批量取 seq（巡边器核对一页时用）。
+  Map<String, int> seqsOf(Iterable<String> ids) {
+    final list = ids.toList();
+    if (list.isEmpty) return const {};
+    final out = <String, int>{};
+    for (var i = 0; i < list.length; i += 500) {
+      final chunk = list.sublist(i, math.min(i + 500, list.length));
+      final holders = List.filled(chunk.length, '?').join(',');
+      final rows = _db.select(
+          'SELECT tweet_id, feed_seq FROM likes WHERE tweet_id IN ($holders)',
+          chunk);
+      for (final r in rows) {
+        final seq = r['feed_seq'] as int?;
+        if (seq != null) out[r['tweet_id'] as String] = seq;
+      }
+    }
+    return out;
+  }
+
   /// seq 之间的初始间隔：留出空隙，供「视口核对」把漏掉的条目插进中间。
   /// 相邻两条相差 10^6，插入时取中点，理论上可插 20 次再需要重排。
   static const int seqStep = 1000000;
@@ -445,7 +500,8 @@ class AppDatabase {
     var inserted = 0;
     _db.execute('BEGIN');
     try {
-      final existsStmt = _db.prepare('SELECT feed_seq FROM likes WHERE tweet_id = ?');
+      final existsStmt = _db.prepare(
+          'SELECT feed_seq, text, author_name, author_screen_name FROM likes WHERE tweet_id = ?');
       final insertStmt = _db.prepare('''
         INSERT INTO likes(tweet_id, account_id, feed_seq, rand_key, created_at, text, lang,
           author_id, author_name, author_screen_name, author_avatar, media_json,
@@ -471,15 +527,27 @@ class AppDatabase {
           'INSERT INTO likes_fts(tweet_id, text, author_name, author_screen_name) VALUES(?,?,?,?)');
       final ftsDelStmt = _db.prepare('DELETE FROM likes_fts WHERE tweet_id = ?');
 
+      final mediaTrimStmt =
+          _db.prepare('DELETE FROM media WHERE tweet_id = ? AND idx >= ?');
+
       try {
         for (final item in items) {
           final existing = existsStmt.select([item.tweetId]);
           final isNew = existing.isEmpty;
-          final seqValue =
-              isNew ? seq : (existing.first['feed_seq'] as int? ?? seq);
+          final row = isNew ? null : existing.first;
+          final seqValue = isNew
+              ? seq
+              : ((row!['feed_seq'] as int?) ?? seq);
           seq -= seqStep;
           final randKey = item.randKey ?? randomSortKey();
           final mediaJson = jsonEncode([for (final m in item.media) m.toJson()]);
+
+          // 刷新同一页时内容往往没变：此时跳过 FTS 的删+写，
+          // 回填 5 万条能省下几万次 B 树写入（trigram 索引很贵）。
+          final textUnchanged = row != null &&
+              row['text'] == item.text &&
+              (row['author_name'] ?? '') == (item.author?.name ?? '') &&
+              (row['author_screen_name'] ?? '') == (item.author?.screenName ?? '');
 
           if (isNew) {
             inserted++;
@@ -532,8 +600,7 @@ class AppDatabase {
           }
 
           // 媒体行：先清后插，避免残留旧索引
-          _db.execute('DELETE FROM media WHERE tweet_id = ? AND idx >= ?',
-              [item.tweetId, item.media.length]);
+          mediaTrimStmt.execute([item.tweetId, item.media.length]);
           for (var i = 0; i < item.media.length; i++) {
             final m = item.media[i];
             mediaStmt.execute([
@@ -546,19 +613,22 @@ class AppDatabase {
             ]);
           }
 
-          ftsDelStmt.execute([item.tweetId]);
-          ftsStmt.execute([
-            item.tweetId,
-            item.text,
-            item.author?.name ?? '',
-            item.author?.screenName ?? '',
-          ]);
+          if (!textUnchanged) {
+            ftsDelStmt.execute([item.tweetId]);
+            ftsStmt.execute([
+              item.tweetId,
+              item.text,
+              item.author?.name ?? '',
+              item.author?.screenName ?? '',
+            ]);
+          }
         }
       } finally {
         existsStmt.dispose();
         insertStmt.dispose();
         updateStmt.dispose();
         mediaStmt.dispose();
+        mediaTrimStmt.dispose();
         ftsStmt.dispose();
         ftsDelStmt.dispose();
       }
@@ -936,45 +1006,50 @@ class AppDatabase {
   /// 模式 A 的「估算时间轴」：把喜欢顺序切成 N 段，每段给出推文发布日期的中位数。
   ///
   /// 返回顺序**与列表一致**：最新的桶在前（seq 大 → 小）。
-  List<({int fromSeq, int toSeq, int count, DateTime? approxDate})> estimatedBuckets({
-    int bucketSize = 200,
-  }) {
-    final range = _db.select('SELECT MIN(feed_seq) mn, MAX(feed_seq) mx, COUNT(*) c FROM likes');
-    if (range.isEmpty) return const [];
-    final minSeq = range.first['mn'] as int?;
-    final maxSeq = range.first['mx'] as int?;
-    if (minSeq == null || maxSeq == null) return const [];
-
+  ///
+  /// 以前这里是「每个桶两次查询」（COUNT + 取 created_at 排序），5 万条时要跑
+  /// 500 条 SQL；现在改成一次全表扫描 + 内存分桶，首帧时间轴从数百毫秒降到十几毫秒。
+  List<({int fromSeq, int toSeq, int count, DateTime? approxDate})>
+      estimatedBuckets({int bucketSize = 200}) {
     final width = bucketSize * AppDatabase.seqStep;
-    final topBucket = (maxSeq / width).floor() * width;
-    final bottomBucket = (minSeq / width).floor() * width;
+    final rows = _db.select('SELECT feed_seq, created_at FROM likes');
+    if (rows.isEmpty) return const [];
 
-    final out = <({int fromSeq, int toSeq, int count, DateTime? approxDate})>[];
-    final stmt = _db.prepare('''
-      SELECT created_at FROM likes
-      WHERE feed_seq >= ? AND feed_seq < ? AND created_at IS NOT NULL
-      ORDER BY created_at
-    ''');
-    try {
-      for (var start = topBucket; start >= bottomBucket; start -= width) {
-        final end = start + width;
-        final rows = stmt.select([start, end]);
-        final count = _db.select(
-          'SELECT COUNT(*) c FROM likes WHERE feed_seq >= ? AND feed_seq < ?',
-          [start, end],
-        ).first['c'] as int;
-        if (count == 0) continue;
-        DateTime? approx;
-        if (rows.isNotEmpty) {
-          final median = rows[rows.length ~/ 2]['created_at'] as int;
-          approx = DateTime.fromMillisecondsSinceEpoch(median, isUtc: true);
-        }
-        out.add((fromSeq: start, toSeq: end, count: count, approxDate: approx));
+    final buckets = <int, ({int count, List<int> dates})>{};
+    for (final r in rows) {
+      final seq = r['feed_seq'] as int?;
+      if (seq == null) continue;
+      final start = (seq / width).floor() * width;
+      final cur = buckets[start];
+      final created = r['created_at'] as int?;
+      if (cur == null) {
+        buckets[start] = (
+          count: 1,
+          dates: created == null ? <int>[] : <int>[created],
+        );
+      } else {
+        if (created != null) cur.dates.add(created);
+        buckets[start] = (count: cur.count + 1, dates: cur.dates);
       }
-    } finally {
-      stmt.dispose();
     }
-    return out;
+
+    final starts = buckets.keys.toList()..sort((a, b) => b.compareTo(a));
+    return [
+      for (final start in starts)
+        (
+          fromSeq: start,
+          toSeq: start + width,
+          count: buckets[start]!.count,
+          approxDate: _medianDate(buckets[start]!.dates),
+        ),
+    ];
+  }
+
+  DateTime? _medianDate(List<int> values) {
+    if (values.isEmpty) return null;
+    final sorted = List<int>.of(values)..sort();
+    return DateTime.fromMillisecondsSinceEpoch(sorted[sorted.length ~/ 2],
+        isUtc: true);
   }
 
   /// 随机重洗：给所有条目重新分配 rand_key。
@@ -1038,18 +1113,6 @@ class AppDatabase {
     return rows.first['mx'] as int?;
   }
 
-  /// 按 seq 区间取最近发布日期（给估算时间轴的短标签用）。
-  DateTime? medianCreatedAt(int fromSeq, int toSeq) {
-    final rows = _db.select('''
-      SELECT created_at FROM likes
-      WHERE feed_seq >= ? AND feed_seq < ? AND created_at IS NOT NULL
-      ORDER BY created_at
-    ''', [fromSeq, toSeq]);
-    if (rows.isEmpty) return null;
-    return DateTime.fromMillisecondsSinceEpoch(
-        rows[rows.length ~/ 2]['created_at'] as int, isUtc: true);
-  }
-
   // ---------------------------------------------------------------- media
 
   /// 记录媒体已缓存到本地。
@@ -1110,27 +1173,6 @@ class AppDatabase {
     );
     if (rows.isEmpty) return null;
     return rows.first['local_path'] as String?;
-  }
-
-  /// 待缓存的媒体（按喜欢顺序）。
-  List<({String tweetId, int idx, String url, String? playbackUrl, String kind})>
-      pendingMedia({int limit = 50}) {
-    final rows = _db.select('''
-      SELECT m.tweet_id, m.idx, m.url, m.playback_url, m.kind
-      FROM media m JOIN likes l ON l.tweet_id = m.tweet_id
-      WHERE m.local_path IS NULL AND l.state = 'normal'
-      ORDER BY l.feed_seq ASC LIMIT ?
-    ''', [limit]);
-    return [
-      for (final r in rows)
-        (
-          tweetId: r['tweet_id'] as String,
-          idx: r['idx'] as int,
-          url: r['url'] as String,
-          playbackUrl: r['playback_url'] as String?,
-          kind: r['kind'] as String? ?? 'image',
-        ),
-    ];
   }
 
   // ---------------------------------------------------------------- helpers
@@ -1197,12 +1239,17 @@ class LikedStats {
   final int deleted;
   final DateTime? oldest;
   final DateTime? newest;
+
+  /// 还能正常显示的条数（「已删除」的那些不算）。
+  int get normal => total - deleted;
 }
 
 /// 随机键（53 位安全正整数）。
-int randomSortKey() {
-  final r = DateTime.now().microsecondsSinceEpoch;
-  var x = r ^ (r << 13) ^ (r << 27);
-  x = x & 0x1FFFFFFFFFFFFF;
-  return x == 0 ? 1 : x;
-}
+///
+/// 以前用「当前微秒 + 位移混合」当随机键：同一微秒内连续调用会得到**相同**的值，
+/// 而洗牌时 5 万条是在一个紧循环里分配的 —— 大量重复键会让随机模式的分页
+/// （`rand_key > ?`）一次性跳过成百上千条。现在改成一次性 seed 的 PRNG。
+final math.Random _rand = math.Random();
+
+int randomSortKey() =>
+    (_rand.nextInt(1 << 26) * (1 << 26)) + _rand.nextInt(1 << 26) + 1;
