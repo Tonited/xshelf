@@ -1,7 +1,9 @@
-/// 登录页：内嵌 WebView 登录（Android/iOS）+ 手动粘贴 cookie（全平台回退）。
+/// 登录页：内嵌 WebView 登录（Android/iOS/Windows）+ 手动粘贴 cookie（全平台回退）。
 ///
-/// 桌面端不提供内嵌登录：X 对嵌入式浏览器登录的限制更多，而且 Windows 侧的
-/// WebView2 登录态抓取尚未验证；桌面用户改用「浏览器登录 + 粘贴 cookie」。
+/// 内嵌登录只从 cookie jar 里取 `auth_token` / `ct0`，等同于用户自己在浏览器里
+/// 登录一次。Google 的「用 Google 账号登录」会被 Google 自己拦掉（不允许在
+/// 嵌入式浏览器里做 OAuth），所以默认先把 UA 里的 WebView 标记抹掉再试；
+/// 仍然被拦就退回邮箱密码 / 导入登录态。
 library;
 
 import 'dart:io';
@@ -12,6 +14,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../app_controller.dart';
+import '../core/browser_ua.dart';
 import '../core/l10n.dart';
 import '../sync/x_client.dart';
 
@@ -25,7 +28,10 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   bool _busy = false;
   String? _error;
-  final bool _webViewAvailable = Platform.isAndroid || Platform.isIOS;
+  /// Windows 也用 WebView2 内嵌登录：它的 UA 本来就是 Edge，没有 `wv` 标记，
+  /// Google 对它的拦截比 Android WebView 宽松得多。
+  final bool _webViewAvailable =
+      Platform.isAndroid || Platform.isIOS || Platform.isWindows;
 
   @override
   Widget build(BuildContext context) {
@@ -230,53 +236,116 @@ class _EmbeddedLoginPage extends StatefulWidget {
   State<_EmbeddedLoginPage> createState() => _EmbeddedLoginPageState();
 }
 
+/// UA 的两种来源：抹掉本机 WebView 标记（默认）/ 伪装成桌面 Chrome。
+enum _UaMode { cleaned, desktop }
+
 class _EmbeddedLoginPageState extends State<_EmbeddedLoginPage> {
+  /// null 表示还在向系统要默认 UA。
+  String? _defaultUa;
+  _UaMode _uaMode = _UaMode.cleaned;
+  InAppWebViewController? _controller;
   bool _capturing = false;
   bool _failed = false;
+  bool _done = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolveDefaultUa();
+  }
+
+  Future<void> _resolveDefaultUa() async {
+    var ua = '';
+    try {
+      ua = await InAppWebViewController.getDefaultUserAgent();
+    } catch (_) {
+      ua = '';
+    }
+    if (!mounted) return;
+    setState(() => _defaultUa = ua);
+  }
+
+  String? get _userAgent {
+    switch (_uaMode) {
+      case _UaMode.desktop:
+        return kDesktopChromeUserAgent;
+      case _UaMode.cleaned:
+        final d = _defaultUa ?? '';
+        // 拿不到系统 UA 就不要覆盖，交给 WebView 自己决定
+        if (d.isEmpty) return null;
+        return cleanWebViewUserAgent(d);
+    }
+  }
+
+  Future<void> _switchUaMode() async {
+    setState(() {
+      _uaMode = _uaMode == _UaMode.cleaned ? _UaMode.desktop : _UaMode.cleaned;
+      _failed = false;
+    });
+    final c = _controller;
+    if (c == null) return;
+    try {
+      await c.setSettings(
+        settings: InAppWebViewSettings(userAgent: _userAgent),
+      );
+      await c.reload();
+    } catch (_) {
+      // 切换失败不影响原页面继续用
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final ua = _defaultUa;
+    final masked = _uaMode == _UaMode.cleaned;
     return Scaffold(
       appBar: AppBar(
         title: Text(t('login.title')),
         actions: [
           if (_failed)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
               child: Center(
                 child: Text(
                   t('login.webviewRejected'),
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                  style: TextStyle(color: theme.colorScheme.error),
                 ),
               ),
             ),
+          IconButton(
+            tooltip: masked ? t('login.uaMasked') : t('login.uaNative'),
+            onPressed: _switchUaMode,
+            icon: Icon(masked ? Icons.masks : Icons.desktop_windows),
+          ),
         ],
       ),
-      body: InAppWebView(
-        initialUrlRequest:
-            URLRequest(url: WebUri('https://x.com/i/flow/login')),
-        initialSettings: InAppWebViewSettings(
-          isInspectable: false,
-          useShouldOverrideUrlLoading: false,
-          thirdPartyCookiesEnabled: true,
-          sharedCookiesEnabled: true,
-          userAgent:
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-              '(KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
-        ),
-        onLoadStop: (controller, url) async {
-          final u = url?.toString() ?? '';
-          if (!u.contains('x.com')) return;
-          // 登录成功后 X 会跳到 /home 或 /i/flow/... 完成页
-          if (!u.contains('/home') && !u.contains('/i/flow/')) return;
-          await _tryCapture();
-        },
-      ),
+      body: ua == null
+          ? const Center(child: CircularProgressIndicator())
+          : InAppWebView(
+              initialUrlRequest:
+                  URLRequest(url: WebUri('https://x.com/i/flow/login')),
+              initialSettings: InAppWebViewSettings(
+                isInspectable: false,
+                useShouldOverrideUrlLoading: false,
+                thirdPartyCookiesEnabled: true,
+                sharedCookiesEnabled: true,
+                userAgent: _userAgent,
+              ),
+              onWebViewCreated: (controller) => _controller = controller,
+              onLoadStop: (controller, url) async {
+                final u = url?.toString() ?? '';
+                if (!u.contains('x.com')) return;
+                // 登录成功后 X 会跳到 /home 或 /i/flow/... 完成页
+                if (!u.contains('/home') && !u.contains('/i/flow/')) return;
+                await _tryCapture();
+              },
+            ),
     );
   }
 
   Future<void> _tryCapture() async {
-    if (_capturing) return;
+    if (_capturing || _done) return;
     _capturing = true;
     try {
       final cookies =
@@ -302,6 +371,7 @@ class _EmbeddedLoginPageState extends State<_EmbeddedLoginPage> {
         _capturing = false;
         return;
       }
+      _done = true;
       final session = XSession(
         authToken: authToken,
         ct0: ct0,

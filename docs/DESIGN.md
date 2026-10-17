@@ -18,7 +18,7 @@
 | 播放器 | Windows `media_kit`(libmpv)；Android `video_player`(ExoPlayer) |
 | 写操作 | 仅「单个取消喜欢」，取消即删本地记录（不做批量、不做重新喜欢） |
 | 账号 | 单账号，`account_id` 字段预留多账号 |
-| 登录 | 内嵌 WebView（Windows WebView2 / Android WebView）登录取 `auth_token`+`ct0`；`flutter_secure_storage` 存储；**失败回退手动粘贴 cookie** |
+| 登录 | 内嵌 WebView（Windows WebView2 / Android WebView）登录取 `auth_token`+`ct0`；默认抹掉 UA 里的 WebView 标记（`; wv`、`Version/x`）绕开 Google 对嵌入式浏览器的 OAuth 拦截，可在登录页切回桌面 UA；`flutter_secure_storage` 存储；**失败回退手动粘贴 cookie / 跨设备导入登录态** |
 | 代理 | 默认跟随系统代理（WinINET/环境变量），可手动填 HTTP / SOCKS5（含认证）；视频共用；设置页带连通性自检 |
 | 媒体 | 仅 X 原生媒体，外链用浏览器打开；图片 + 视频离线缓存，上限 5GB 可调，LRU，可改存储目录 |
 | 播放器功能 | 进度条 / 音量 / 静音 / 0.5–2× / 全屏 / 上下切换 / 循环 |
@@ -128,7 +128,7 @@ likes_fts  -- FTS5(text, author_name, author_screen_name) tokenize='trigram'
 
 1. 登录态直连可能触发风控甚至封号。
 2. queryId 轮换导致接口失效。
-3. X 可能拒绝 WebView 内登录（已留手动粘贴回退）。
+3. X 可能拒绝 WebView 内登录；「用 Google 账号登录」这一步被 Google 的嵌入式浏览器策略拦（提示「此浏览器或应用可能不安全」），已通过抹掉 UA 标记尝试绕过，仍失败则回退邮箱密码 / 跨设备导入。
 4. ToS 24h 删除要求与本地缓存冲突（README 声明）。
 5. Android 仅系统 HTTP 代理（非 TUN）时部分请求可能漏，推荐 TUN 全局。
 6. Windows 原生构建需 VS C++（需管理员权限）。

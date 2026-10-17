@@ -23,9 +23,12 @@ const Map<String, String> _zh = {
   'login.title': '登录 X',
   'login.hint': '在下面用你自己的账号登录。应用只读取登录 cookie，不会接触你的密码。',
   'login.paste': '粘贴 cookie 登录',
-  'login.googleBlocked': '用 Google / Apple 账号登录会被 Google 拦在嵌入式浏览器之外'
-      '（提示「此浏览器或应用可能不安全」）—— 这是 Google 不允许在应用内浏览器里做 OAuth，'
-      '和本应用无关。请改用 X 的邮箱 + 密码登录；账号没有密码的话，在登录页点「忘记密码」设一个即可。',
+  'login.googleBlocked': '用 Google / Apple 账号登录可能被 Google 拦在应用内浏览器之外'
+      '（提示「此浏览器或应用可能不安全」）—— Google 不允许在嵌入式浏览器里做 OAuth。'
+      '内嵌登录已默认抹掉 WebView 标记（右上角可切换），若仍被拦：改用 X 的邮箱 + 密码'
+      '（没密码就在登录页点「忘记密码」设一个），或从另一台设备导入登录态。',
+  'login.uaMasked': '浏览器标识：已抹掉 WebView 标记（点一下换成桌面浏览器）',
+  'login.uaNative': '浏览器标识：桌面浏览器（点一下换回本机标识）',
   'login.withPassword': '用 X 账号密码登录',
   'login.openInBrowser': '在系统浏览器里打开 x.com（用于取 cookie）',
   'login.cookieSteps': '取 cookie 的步骤：在电脑上用 Chrome 打开 x.com 并登录 → F12 → '
@@ -132,10 +135,13 @@ const Map<String, String> _en = {
   'login.hint': 'Sign in with your own account below. The app only reads the '
       'session cookies; it never sees your password.',
   'login.paste': 'Sign in with cookies',
-  'login.googleBlocked': 'Signing in with Google / Apple is blocked inside embedded browsers '
-      '("This browser or app may not be secure") — that is Google\'s OAuth policy, not this app. '
-      'Use your X e-mail + password instead; if the account has no password, tap '
-      '"Forgot password" on the login page and set one.',
+  'login.googleBlocked': 'Signing in with Google / Apple may be blocked inside an embedded browser '
+      '("This browser or app may not be secure") — Google does not allow OAuth in embedded browsers. '
+      'The embedded login already strips the WebView markers (toggle in the top-right). If it is '
+      'still blocked, use your X e-mail + password (set one via "Forgot password"), or import the '
+      'session from another device.',
+  'login.uaMasked': 'Browser identity: WebView markers stripped (tap for desktop browser)',
+  'login.uaNative': 'Browser identity: desktop browser (tap to use this device again)',
   'login.withPassword': 'Sign in with X account',
   'login.openInBrowser': 'Open x.com in the system browser (to copy cookies)',
   'login.cookieSteps': 'How to get the cookies: log into x.com in desktop Chrome → F12 → '
