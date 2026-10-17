@@ -72,17 +72,25 @@ flutter doctor                  # Flutter / Android / VS(VC.Tools) 全绿
 flutter analyze                 # 0 issue
 flutter test                    # 46/46 通过
 .\tool\build_windows.ps1        # ✅ xlikemanage.exe + 便携 zip + Inno 安装包
-flutter build apk --release --target-platform android-arm64
-                                # ✅ 24.9 MB（含 INTERNET / ACCESS_NETWORK_STATE）
+flutter build apk --release --target-platform android-arm64 --split-per-abi
+                                # ✅ 21.7 MB，只含 arm64-v8a 库
+flutter build apk --release --target-platform android-arm   --split-per-abi
+                                # ✅ 19.3 MB，只含 armeabi-v7a 库
 ```
+
+注意 `--target-platform` 只接受 `android-arm` / `android-arm64` / `android-x64`
+（不是 `android-armeabi-v7a`）。不加 `--split-per-abi` 时，插件 AAR 里别的 ABI 的 .so
+也会被打进去，但不含 `libapp.so`/`libflutter.so` —— 那种包在另一种 CPU 的手机上能装上、一开就崩。
+**发布必须用 `--split-per-abi`，并且两个包分别装到对应机器上。**
 
 Windows 产物（Release）：
 - `build\windows\x64\runner\Release` 79 MB（libmpv 与 ANGLE 占大头）
 - `dist\xlikemanage-windows-portable.zip` 33 MB
 - `dist\xlikemanage-1.0.0-setup.exe` 25 MB（LZMA2，含中英文安装界面）
 
-**注意**：这台机器 C: 只剩 ~3 GB，`flutter build apk --split-per-abi` 一次要 ~3 GB 峰值，
-所以现在是「一次只出一个 ABI」，出完把 `build\` 清掉再出下一个。
+**注意磁盘**：C: 原本只剩 ~1.9 GB，一次 `--split-per-abi` 会失败在「拷 APK」一步（java.io.IOException:
+磁盘空间不足）。删掉 `C:\Users\Tonited\.gradle\caches`（2025 年的旧缓存，3.67 GB，跟本项目无关，
+项目用的是 `E:\dev\gradle`）之后可用空间到 ~5 GB，构建恢复。以后清缓存优先清它。
 
 **另外踩到的坑（后续可能复现）**：
 

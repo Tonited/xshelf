@@ -43,11 +43,15 @@ flutter run -d windows     # 或 -d <android-device-id>
   `build\windows\x64\runner\Release\xlikemanage.exe`（79 MB 目录）、
   `dist\xlikemanage-windows-portable.zip`（33 MB，解压即用）、
   `dist\xlikemanage-1.0.0-setup.exe`（25 MB，Inno Setup，中英文安装界面，可装到用户目录，无需管理员）。
-- **Android**：`flutter build apk --release --target-platform android-arm64` → 24.9 MB，
-  落在 `dist/`（`INTERNET` / `ACCESS_NETWORK_STATE` 已核对）。
-  自签 release keystore 由 `tool/build_apk.ps1` 首次运行时生成（`android/keystore/`，已 gitignore）。
-  需要 32 位包时把 `--target-platform` 换成 `android-armeabi-v7a` 再跑一次（本机 C: 只有 ~3 GB，
-  一次构建一个 ABI 最稳）。
+- **Android**（自签 release，`dist/`）：
+  `xlikemanage-arm64-v8a-release.apk` 21.7 MB（绝大多数手机）、
+  `xlikemanage-armeabi-v7a-release.apk` 19.3 MB（很老的 32 位机）。
+  两个都是 `--split-per-abi` 产物，**只含自己那个 ABI 的库**（混装会在另一种 CPU 上装完打不开）。
+  ```
+  flutter build apk --release --target-platform android-arm64 --split-per-abi
+  flutter build apk --release --target-platform android-arm   --split-per-abi
+  ```
+  keystore 由 `tool/build_apk.ps1` 首次运行时生成（`android/keystore/`，已 gitignore）。
 - **图标**：`tool/gen_icons.ps1`（Android mipmap）+ `tool/gen_ico.ps1`（多尺寸 ICO，exe 与安装包共用）。
 
 Windows 构建有两个本机特有的前置（详见 `docs/BUILD-ENV.md` 坑 13–16）：
