@@ -1,4 +1,9 @@
 /// 登录态存储：cookie 只落在系统安全存储（Windows DPAPI / Android Keystore）。
+///
+/// 安全存储不是「必须成功」的：某些 Android 机型/ROM 的 Keystore 会直接抛
+/// （坏掉的 EncryptedSharedPreferences 密钥、被 root 后禁用的硬件密钥等）。
+/// 那种情况下整条启动链会断掉，用户看到的就是「Sign-in failed」而毫无线索。
+/// 所以这里把失败降级成「这次运行不记忆登录态」，并把原因记在 [lastError] 里。
 library;
 
 import 'dart:convert';
@@ -19,10 +24,21 @@ class AuthStore {
 
   final FlutterSecureStorage _storage;
 
+  /// 最近一次安全存储操作的失败原因（null = 正常）。
+  String? lastError;
+  bool get degraded => lastError != null;
+
   static const _key = 'x.session.v1';
 
   Future<XSession?> load() async {
-    final raw = await _storage.read(key: _key);
+    final String? raw;
+    try {
+      raw = await _storage.read(key: _key);
+      lastError = null;
+    } catch (e) {
+      lastError = '$e';
+      return null;
+    }
     if (raw == null || raw.isEmpty) return null;
     try {
       final json = jsonDecode(raw);
@@ -35,8 +51,21 @@ class AuthStore {
     }
   }
 
-  Future<void> save(XSession session) =>
-      _storage.write(key: _key, value: jsonEncode(session.toJson()));
+  Future<void> save(XSession session) async {
+    try {
+      await _storage.write(key: _key, value: jsonEncode(session.toJson()));
+      lastError = null;
+    } catch (e) {
+      lastError = '$e';
+    }
+  }
 
-  Future<void> clear() => _storage.delete(key: _key);
+  Future<void> clear() async {
+    try {
+      await _storage.delete(key: _key);
+      lastError = null;
+    } catch (e) {
+      lastError = '$e';
+    }
+  }
 }

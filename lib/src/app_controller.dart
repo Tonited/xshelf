@@ -6,6 +6,7 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
@@ -25,6 +26,7 @@ import 'state/sync_state.dart';
 import 'sync/reconciler.dart';
 import 'sync/sync_service.dart';
 import 'sync/x_client.dart';
+import 'version.dart';
 
 class AppController extends ChangeNotifier {
   AppController();
@@ -57,12 +59,25 @@ class AppController extends ChangeNotifier {
 
   bool get loggedIn => session != null;
 
+  /// 启动卡在哪一步（报错时一起展示，免得只看到一句「登录失败」）。
+  String bootStage = '启动';
+
+  /// 启动链的任何一处都可能因为平台差异失败（Keystore 坏掉、数据库打不开…）。
+  /// 以前异常直接变成一句 bootError，用户在手机上只能看到「Sign-in failed」。
+  /// 现在记录阶段 + 后续步骤尽量降级，让 App 至少能打开并说清楚原因。
   Future<void> boot() async {
+    bootError = null;
+    booting = true;
+    notifyListeners();
     try {
+      bootStage = '读取设置';
       settings = await AppSettings.load();
+      bootStage = '定位应用目录';
       final support = await getApplicationSupportDirectory();
       final dbPath = p.join(support.path, 'likes.db');
+      bootStage = '打开本地数据库';
       db = AppDatabase.open(dbPath);
+      bootStage = '初始化安全存储';
       authStore = AuthStore();
       _mediaRoot = settings.cacheDir != null
           ? Directory(settings.cacheDir!)
@@ -79,9 +94,12 @@ class AppController extends ChangeNotifier {
 
       // 先把登录态读出来，再建客户端 —— 反过来的话 session 为 null，
       // 建出来的 client / syncService 都是空的，启动后同步与后台校验全失效。
+      // 安全存储失败不再致命：只是这次运行不记忆登录态（AuthStore 内部已降级）。
+      bootStage = '恢复登录态';
       final stored = await authStore.load();
       if (stored != null) session = stored;
 
+      bootStage = '建立网络客户端';
       await _rebuildClient();
       _refreshAccountId();
 
@@ -89,13 +107,52 @@ class AppController extends ChangeNotifier {
         // 有缓存先显示，网络校验放到后台，避免启动被墙/代理卡住。
         unawaited(_verifyInBackground());
       }
+      bootStage = '读取第一页';
       browse.restoreFrom(settings.view);
       await browse.reload(reset: true);
-    } catch (e) {
-      bootError = '$e';
+    } catch (e, st) {
+      bootError = '[步骤: $bootStage] $e';
+      debugPrint('boot failed at $bootStage: $e\n$st');
     } finally {
       booting = false;
+      bootStage = '完成';
       notifyListeners();
+    }
+  }
+
+  /// 给「复制错误信息」按钮用：把设备/版本/失败阶段打成一坨，方便回帖。
+  String diagnostics() {
+    final buf = StringBuffer()
+      ..writeln('xlikemanage $kAppVersion')
+      ..writeln('platform: ${Platform.operatingSystem} ${Platform.operatingSystemVersion}')
+      ..writeln('locale: ${Platform.localeName}')
+      ..writeln('stage: $bootStage');
+    if (bootError != null) buf.writeln('error: $bootError');
+    final store = authStoreOrNull;
+    if (store?.lastError != null) {
+      buf.writeln('secureStore: ${store!.lastError}');
+    }
+    final s = settingsOrNull;
+    if (s?.storageError != null) buf.writeln('settings: ${s!.storageError}');
+    if (proxyWarning != null) buf.writeln('proxy: $proxyWarning');
+    return buf.toString();
+  }
+
+  /// boot 之前的 late 字段访问一律走这两个安全访问器。
+  AppSettings? get settingsOrNull {
+    try {
+      return settings;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// boot 之前读 authStore 会炸（late），这里给个安全访问器。
+  AuthStore? get authStoreOrNull {
+    try {
+      return authStore;
+    } catch (_) {
+      return null;
     }
   }
 
@@ -231,6 +288,36 @@ class AppController extends ChangeNotifier {
       return await XClient(session: s, httpClient: http).verify();
     } finally {
       http.close();
+    }
+  }
+
+  /// 把当前登录态导出成一段可复制的文本。
+  ///
+  /// 用途：手机上拿不到 cookie（Chrome 手机版没有 F12），而桌面端很容易 ——
+  /// 先在 Windows 端登录，导出这段文本，再粘到手机的登录页里。
+  String? exportSession() {
+    final s = session;
+    if (s == null) return null;
+    return 'XLI1:${base64Encode(utf8.encode(jsonEncode(s.toJson())))}';
+  }
+
+  /// 导入 [exportSession] 产出的文本；成功返回 null，失败返回提示文案。
+  Future<String?> importSession(String raw) async {
+    final text = raw.trim();
+    if (!text.startsWith('XLI1:')) return 'not an exported session';
+    try {
+      final decoded = utf8.decode(base64Decode(text.substring(5)));
+      final json = jsonDecode(decoded);
+      if (json is! Map) return 'corrupted payload';
+      final s = XSession.fromJson(Map<String, Object?>.from(json));
+      if (s.authToken.isEmpty || s.ct0.isEmpty) return 'payload has no cookies';
+      final verified = await verifySession(s);
+      await signIn(verified);
+      return null;
+    } on XRequestException catch (e) {
+      return e.message;
+    } catch (e) {
+      return '$e';
     }
   }
 

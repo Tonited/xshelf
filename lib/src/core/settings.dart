@@ -89,12 +89,31 @@ class ViewSnapshot {
 }
 
 class AppSettings {
-  AppSettings(this._prefs);
+  AppSettings(this._prefs) : _memory = <String, Object?>{};
 
-  final SharedPreferences _prefs;
+  AppSettings._memory(this._memory)
+      : _prefs = null;
 
-  static Future<AppSettings> load() async =>
-      AppSettings(await SharedPreferences.getInstance());
+  final SharedPreferences? _prefs;
+
+  /// SharedPreferences 不可用时的内存兜底（设置不落盘，但 App 能正常跑）。
+  final Map<String, Object?> _memory;
+
+  /// 设置层可用了没：null 表示正常，否则是降级原因。
+  String? storageError;
+
+  /// 平台差异（某些 ROM 的 DataStore/JNI 初始化会炸）不该让整个 App 打不开。
+  static Future<AppSettings> load() async {
+    try {
+      return AppSettings(await SharedPreferences.getInstance());
+    } catch (e) {
+      final fallback = AppSettings._memory(<String, Object?>{});
+      fallback.storageError = '$e';
+      return fallback;
+    }
+  }
+
+  bool get degraded => _prefs == null;
 
   static const _kProxy = 'proxy';
   static const _kAutoSync = 'autosync';
@@ -102,47 +121,67 @@ class AppSettings {
   static const _kCacheDir = 'cache.dir';
   static const _kCacheLimitMb = 'cache.limitMb';
 
+  String? _getString(String key) =>
+      _prefs?.getString(key) ?? _memory[key] as String?;
+
+  int? _getInt(String key) => _prefs?.getInt(key) ?? _memory[key] as int?;
+
+  Future<void> _setString(String key, String value) async {
+    _memory[key] = value;
+    await _prefs?.setString(key, value);
+  }
+
+  Future<void> _setInt(String key, int value) async {
+    _memory[key] = value;
+    await _prefs?.setInt(key, value);
+  }
+
+  Future<void> _remove(String key) async {
+    _memory.remove(key);
+    await _prefs?.remove(key);
+  }
+
   ProxyConfig get proxy {
-    final raw = _prefs.getString(_kProxy);
+    final raw = _getString(_kProxy);
     if (raw == null) return const ProxyConfig();
     return ProxyConfig.fromJson(
         Map<String, Object?>.from(jsonDecode(raw) as Map));
   }
 
   Future<void> setProxy(ProxyConfig cfg) =>
-      _prefs.setString(_kProxy, jsonEncode(cfg.toJson()));
+      _setString(_kProxy, jsonEncode(cfg.toJson()));
 
   AutoSyncSettings get autoSync {
-    final raw = _prefs.getString(_kAutoSync);
+    final raw = _getString(_kAutoSync);
     if (raw == null) return const AutoSyncSettings();
     return AutoSyncSettings.fromJson(
         Map<String, Object?>.from(jsonDecode(raw) as Map));
   }
 
   Future<void> setAutoSync(AutoSyncSettings s) =>
-      _prefs.setString(_kAutoSync, jsonEncode(s.toJson()));
+      _setString(_kAutoSync, jsonEncode(s.toJson()));
 
   ViewSnapshot get view {
-    final raw = _prefs.getString(_kView);
+    final raw = _getString(_kView);
     if (raw == null) return const ViewSnapshot();
     return ViewSnapshot.fromJson(
         Map<String, Object?>.from(jsonDecode(raw) as Map));
   }
 
   Future<void> setView(ViewSnapshot s) =>
-      _prefs.setString(_kView, jsonEncode(s.toJson()));
+      _setString(_kView, jsonEncode(s.toJson()));
 
-  String? get cacheDir => _prefs.getString(_kCacheDir);
+  String? get cacheDir => _getString(_kCacheDir);
 
   Future<void> setCacheDir(String? dir) async {
     if (dir == null) {
-      await _prefs.remove(_kCacheDir);
+      await _remove(_kCacheDir);
     } else {
-      await _prefs.setString(_kCacheDir, dir);
+      await _setString(_kCacheDir, dir);
     }
   }
 
-  int get cacheLimitMb => _prefs.getInt(_kCacheLimitMb) ?? 5120;
+  int get cacheLimitMb => _getInt(_kCacheLimitMb) ?? 5120;
 
-  Future<void> setCacheLimitMb(int mb) => _prefs.setInt(_kCacheLimitMb, mb);
+  Future<void> setCacheLimitMb(int mb) => _setInt(_kCacheLimitMb, mb);
 }

@@ -7,6 +7,7 @@ library;
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -40,12 +41,32 @@ class _LoginPageState extends State<LoginPage> {
             shrinkWrap: true,
             children: [
               Text(t('login.hint'), style: theme.textTheme.bodyMedium),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
+              // Google/Apple 第三方登录在 WebView 里一定会被拦（Google 的策略），
+              // 与其让用户以为是 App 坏了，不如直接讲清楚并给出替代路径。
+              Card(
+                color: theme.colorScheme.secondaryContainer,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.info_outline, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(t('login.googleBlocked'),
+                            style: theme.textTheme.bodySmall),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
               if (_webViewAvailable)
                 FilledButton.icon(
                   onPressed: _busy ? null : _openEmbeddedLogin,
                   icon: const Icon(Icons.login),
-                  label: Text(t('login.title')),
+                  label: Text(t('login.withPassword')),
                 ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
@@ -54,13 +75,19 @@ class _LoginPageState extends State<LoginPage> {
                 label: Text(t('login.paste')),
               ),
               const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: _busy ? null : _importSession,
+                icon: const Icon(Icons.move_to_inbox),
+                label: Text(t('login.importSession')),
+              ),
+              const SizedBox(height: 12),
               TextButton.icon(
                 onPressed: () => launchUrl(
                   Uri.parse('https://x.com/i/flow/login'),
                   mode: LaunchMode.externalApplication,
                 ),
                 icon: const Icon(Icons.open_in_browser),
-                label: Text(t('login.pasteHelp')),
+                label: Text(t('login.openInBrowser')),
               ),
               if (_busy) ...[
                 const SizedBox(height: 24),
@@ -90,25 +117,63 @@ class _LoginPageState extends State<LoginPage> {
     ));
   }
 
+  /// 从剪贴板导入另一台设备导出的登录态（桌面端登录 → 手机直接用）。
+  Future<void> _importSession() async {
+    final app = AppScope.of(context);
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final data = await Clipboard.getData(Clipboard.kTextPlain);
+      final text = data?.text?.trim() ?? '';
+      if (text.isEmpty) {
+        setState(() => _error = t('login.importEmpty'));
+        return;
+      }
+      final err = await app.importSession(text);
+      if (err != null) setState(() => _error = '${t("login.failed")}: $err');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _pasteCookie() async {
     final controller = TextEditingController();
     final raw = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(t('login.paste')),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(t('login.pasteField'),
-                style: Theme.of(ctx).textTheme.bodySmall),
-            const SizedBox(height: 8),
-            TextField(
-              controller: controller,
-              maxLines: 4,
-              decoration: const InputDecoration(hintText: 'auth_token=…; ct0=…'),
-            ),
-          ],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(t('login.cookieSteps'),
+                  style: Theme.of(ctx).textTheme.bodySmall),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                maxLines: 4,
+                decoration:
+                    const InputDecoration(hintText: 'auth_token=…; ct0=…'),
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: () async {
+                    final data = await Clipboard.getData(Clipboard.kTextPlain);
+                    final text = data?.text;
+                    if (text == null || text.isEmpty) return;
+                    controller.text = text;
+                  },
+                  icon: const Icon(Icons.content_paste_go, size: 18),
+                  label: Text(t('login.pasteFromClipboard')),
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(

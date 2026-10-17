@@ -2,6 +2,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../app_controller.dart';
 import '../core/l10n.dart';
@@ -68,19 +69,42 @@ class _SettingsPageState extends State<SettingsPage> {
           // ---------------- 账号
           _section(context, t('settings.account')),
           Card(
-            child: ListTile(
-              leading: app.session?.avatarUrl == null
-                  ? const CircleAvatar(child: Icon(Icons.person))
-                  : AuthorAvatar(url: app.session!.avatarUrl!, radius: 20),
-              title: Text(app.session?.displayName ?? ''),
-              subtitle: Text('@${app.session?.screenName ?? ''}'),
-              trailing: TextButton(
-                onPressed: () async {
-                  await app.signOut();
-                  if (context.mounted) Navigator.of(context).pop();
-                },
-                child: Text(t('action.logout')),
-              ),
+            child: Column(
+              children: [
+                ListTile(
+                  leading: app.session?.avatarUrl == null
+                      ? const CircleAvatar(child: Icon(Icons.person))
+                      : AuthorAvatar(url: app.session!.avatarUrl!, radius: 20),
+                  title: Text(app.session?.displayName ?? ''),
+                  subtitle: Text('@${app.session?.screenName ?? ''}'),
+                  trailing: TextButton(
+                    onPressed: () async {
+                      await app.signOut();
+                      if (context.mounted) Navigator.of(context).pop();
+                    },
+                    child: Text(t('action.logout')),
+                  ),
+                ),
+                // 手机 Chrome 没有 F12，取 cookie 很难；桌面端登录后导出这一段，
+                // 粘到手机登录页即可，省掉在手机上折腾开发者工具。
+                ListTile(
+                  leading: const Icon(Icons.ios_share),
+                  title: Text(t('settings.exportSession')),
+                  subtitle: Text(
+                    t('settings.exported'),
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  onTap: () async {
+                    final text = app.exportSession();
+                    if (text == null) return;
+                    await Clipboard.setData(ClipboardData(text: text));
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(t('settings.exported'))),
+                    );
+                  },
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 16),

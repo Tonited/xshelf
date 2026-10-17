@@ -23,6 +23,15 @@ const Map<String, String> _zh = {
   'login.title': '登录 X',
   'login.hint': '在下面用你自己的账号登录。应用只读取登录 cookie，不会接触你的密码。',
   'login.paste': '粘贴 cookie 登录',
+  'login.googleBlocked': '用 Google / Apple 账号登录会被 Google 拦在嵌入式浏览器之外'
+      '（提示「此浏览器或应用可能不安全」）—— 这是 Google 不允许在应用内浏览器里做 OAuth，'
+      '和本应用无关。请改用 X 的邮箱 + 密码登录；账号没有密码的话，在登录页点「忘记密码」设一个即可。',
+  'login.withPassword': '用 X 账号密码登录',
+  'login.openInBrowser': '在系统浏览器里打开 x.com（用于取 cookie）',
+  'login.cookieSteps': '取 cookie 的步骤：在电脑上用 Chrome 打开 x.com 并登录 → F12 → '
+      'Application（应用）→ Cookies → https://x.com → 复制 auth_token 与 ct0 的值，'
+      '按 auth_token=…; ct0=… 的格式粘进来。手机上可用带开发者工具的浏览器（例如 Kiwi）做同样的事。',
+  'login.pasteFromClipboard': '从剪贴板粘贴',
   'login.pasteHelp': '如果内嵌登录被 X 拒绝，可从浏览器开发者工具复制 '
       'auth_token 与 ct0 两个 cookie 粘贴到这里。',
   'login.pasteField': '粘贴 Cookie 字符串（auth_token=...; ct0=...）',
@@ -37,6 +46,9 @@ const Map<String, String> _zh = {
   'action.cancel': '取消',
   'action.confirm': '确定',
   'action.retry': '重试',
+  'error.copy': '复制诊断信息',
+  'error.copied': '已复制，粘贴到聊天里发我',
+  'error.hint': '如果一直失败：把上面那段复制发给我；也可以在设置里换「直连/代理」后重试。',
   'action.more': '加载更多',
   'sync.backfill': '全量回填',
   'sync.resume': '继续回填',
@@ -73,6 +85,10 @@ const Map<String, String> _zh = {
   'detail.openInBrowser': '在浏览器打开',
   'detail.noMedia': '这条推文没有媒体',
   'settings.account': '账号',
+  'settings.exportSession': '导出登录态（复制）',
+  'settings.exported': '已复制。在另一台设备的登录页点「从剪贴板导入登录态」即可。',
+  'login.importSession': '从剪贴板导入登录态',
+  'login.importEmpty': '剪贴板是空的',
   'settings.network': '网络',
   'settings.proxy': '代理',
   'settings.proxySystem': '跟随系统',
@@ -116,6 +132,16 @@ const Map<String, String> _en = {
   'login.hint': 'Sign in with your own account below. The app only reads the '
       'session cookies; it never sees your password.',
   'login.paste': 'Sign in with cookies',
+  'login.googleBlocked': 'Signing in with Google / Apple is blocked inside embedded browsers '
+      '("This browser or app may not be secure") — that is Google\'s OAuth policy, not this app. '
+      'Use your X e-mail + password instead; if the account has no password, tap '
+      '"Forgot password" on the login page and set one.',
+  'login.withPassword': 'Sign in with X account',
+  'login.openInBrowser': 'Open x.com in the system browser (to copy cookies)',
+  'login.cookieSteps': 'How to get the cookies: log into x.com in desktop Chrome → F12 → '
+      'Application → Cookies → https://x.com → copy the values of auth_token and ct0, then paste '
+      'them here as auth_token=…; ct0=… . On a phone use a browser with devtools (e.g. Kiwi).',
+  'login.pasteFromClipboard': 'Paste from clipboard',
   'login.pasteHelp': 'If X blocks the embedded login, copy the auth_token and '
       'ct0 cookies from your browser devtools and paste them here.',
   'login.pasteField': 'Paste cookie string (auth_token=...; ct0=...)',
@@ -130,6 +156,9 @@ const Map<String, String> _en = {
   'action.cancel': 'Cancel',
   'action.confirm': 'OK',
   'action.retry': 'Retry',
+  'error.copy': 'Copy diagnostics',
+  'error.copied': 'Copied — paste it into the chat',
+  'error.hint': 'If it keeps failing, send me the text above; you can also switch between direct/proxy in settings and retry.',
   'action.more': 'Load more',
   'sync.backfill': 'Backfill',
   'sync.resume': 'Resume backfill',
@@ -168,6 +197,10 @@ const Map<String, String> _en = {
   'detail.openInBrowser': 'Open in browser',
   'detail.noMedia': 'No media on this post',
   'settings.account': 'Account',
+  'settings.exportSession': 'Export session (copy)',
+  'settings.exported': 'Copied. On the other device, tap "Import session from clipboard" on the login page.',
+  'login.importSession': 'Import session from clipboard',
+  'login.importEmpty': 'Clipboard is empty',
   'settings.network': 'Network',
   'settings.proxy': 'Proxy',
   'settings.proxySystem': 'Follow system',
