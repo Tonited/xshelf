@@ -1,0 +1,121 @@
+# 双端构建。可以在没有 Windows/Linux 工具链的机器上出 exe 与 apk。
+#
+# 触发：推 tag（v*）或手动 workflow_dispatch。
+# 用到的仓库 secret（都不配置也能跑，只是产物会退化成 debug 签名）：
+#   ANDROID_KEYSTORE_BASE64  release.jks 的 base64
+#   ANDROID_KEYSTORE_PASSWORD
+#   ANDROID_KEY_ALIAS
+#   ANDROID_KEY_PASSWORD
+
+name: build
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Version from tag
+        id: ver
+        shell: pwsh
+        run: |
+          $v = "${{ github.ref_name }}" -replace '^v', ''
+          if (-not $v) { $v = '0.1.0' }
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      - name: Build Windows
+        run: flutter build windows --release
+
+      - name: Portable zip
+        shell: pwsh
+        run: |
+          Compress-Archive -Path 'build\windows\x64\runner\Release\*' `
+            -DestinationPath "dist\xlikemanage-${{ steps.ver.outputs.version }}-windows-portable.zip"
+
+      - name: Installer (Inno Setup)
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          & 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' `
+            "/DAppVersion=${{ steps.ver.outputs.version }}" `
+            "/DSourceDir=$((Resolve-Path 'build\windows\x64\runner\Release').Path)" `
+            'tool\installer\xlikemanage.iss'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            dist/*setup.exe
+            dist/*portable.zip
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Restore keystore (optional)
+        shell: bash
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          if [ -z "$KS_B64" ]; then
+            echo "no keystore secret -> release APK falls back to debug signing"
+            exit 0
+          fi
+          mkdir -p android/keystore
+          printf '%s' "$KS_B64" | base64 -d > android/keystore/release.jks
+          {
+            echo "storePassword=$KS_PASS"
+            echo "keyPassword=$KEY_PASS"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "storeFile=keystore/release.jks"
+          } > android/key.properties
+
+      - name: Analyze + test
+        run: |
+          flutter pub get
+          flutter analyze --no-fatal-infos --no-fatal-warnings
+          flutter test
+
+      - name: Build APKs
+        run: flutter build apk --release --split-per-abi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: build/app/outputs/flutter-apk/*.apk
+
+  release:
+    needs: [windows, android]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true
