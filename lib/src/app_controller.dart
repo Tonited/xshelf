@@ -18,6 +18,7 @@ import 'core/settings.dart';
 import 'db/app_database.dart';
 import 'model/like_item.dart';
 import 'net/proxy.dart';
+import 'sync/reconciler.dart';
 import 'sync/sync_service.dart';
 import 'sync/x_client.dart';
 
@@ -106,7 +107,50 @@ class AppController extends ChangeNotifier {
     } else {
       client = null;
       syncService = null;
+      reconciler?.stop();
+      reconciler = null;
     }
+    _autosyncTimer?.cancel();
+    _autosyncTimer = null;
+    if (session != null) _scheduleAutoSync();
+    notifyListeners();
+  }
+
+  /// 巡边器：让「滚到哪核到哪」和「陈段轮转」共用一个预算队列。
+  Reconciler? reconciler;
+
+  void _ensureReconciler() {
+    final acc = accountId;
+    final c = client;
+    if (acc == null || c == null) return;
+    reconciler ??= Reconciler(db: db, client: c, accountId: acc)..start();
+  }
+
+  /// UI 滚动停下时调用：把当前可见的一段标脏。
+  void markViewportDirty(int fromSeq, int toSeq) {
+    _ensureReconciler();
+    reconciler?.markViewportDirty(fromSeq, toSeq);
+  }
+
+  Timer? _autosyncTimer;
+
+  /// 自动同步：桌面/前台按间隔投一次预算；默认关。
+  void _scheduleAutoSync() {
+    final cfg = settings.autoSync;
+    if (!cfg.enabled) return;
+    _autosyncTimer?.cancel();
+    _autosyncTimer = Timer.periodic(
+      Duration(minutes: cfg.intervalMinutes),
+      (_) => unawaited(syncNew()),
+    );
+  }
+
+  Future<void> setAutoSync(AutoSyncSettings cfg) async {
+    await settings.setAutoSync(cfg);
+    _autosyncTimer?.cancel();
+    _autosyncTimer = null;
+    _scheduleAutoSync();
+    notifyListeners();
   }
 
   Future<void> applyProxy(ProxyConfig cfg) async {

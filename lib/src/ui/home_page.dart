@@ -60,8 +60,16 @@ class _HomePageState extends State<HomePage> {
       app.loadMore();
     }
     _saveDebounce?.cancel();
-    _saveDebounce = Timer(const Duration(milliseconds: 600), () {
+    _saveDebounce = Timer(const Duration(milliseconds: 1500), () {
       app.saveViewState(scrollOffset: _scroll.position.pixels);
+      // 停住就看：把当前已加载的这一段交给巡边器核对（内部有 1.5s/次、4 次/分 的预算）
+      if (app.items.isNotEmpty) {
+        final first = app.items.first.feedRank;
+        final last = app.items.last.feedRank;
+        if (first != null && last != null) {
+          app.markViewportDirty(last, first);
+        }
+      }
     });
   }
 

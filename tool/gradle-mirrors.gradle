@@ -1,0 +1,51 @@
+// Gradle 全局镜像（放在 GRADLE_USER_HOME/init.d/ 下自动生效）
+//
+// 作用：把每个工程（包括 Flutter SDK 里 includeBuild 的那部分）的
+// repo.maven.apache.org / dl.google.com 仓库替换成阿里云镜像。
+// 国内直连 Maven Central 经常卡在下载一半，构建看起来"没反应"就是这个原因。
+
+def mirrors = [
+  'https://maven.aliyun.com/repository/public',
+  'https://maven.aliyun.com/repository/google',
+  'https://maven.aliyun.com/repository/gradle-plugin'
+]
+
+def blocked = ['repo.maven.apache.org', 'repo1.maven.org', 'dl.google.com', 'jcenter.bintray.com']
+
+def redirect = { repos ->
+  def toRemove = []
+  repos.each { repo ->
+    try {
+      if (repo.hasProperty('url')) {
+        def u = repo.url.toString()
+        if (blocked.any { u.contains(it) }) { toRemove << repo }
+      }
+    } catch (ignored) { }
+  }
+  toRemove.each { repos.remove(it) }
+
+  def existing = repos.collect { it.name } as Set
+  mirrors.each { m ->
+    if (!existing.contains(m)) {
+      repos.maven { url = m; name = m }
+    }
+  }
+}
+
+allprojects { p ->
+  redirect(p.buildscript.repositories)
+  redirect(p.repositories)
+}
+
+settingsEvaluated { settings ->
+  try { redirect(settings.pluginManagement.repositories) } catch (ignored) { }
+  try { redirect(settings.dependencyResolutionManagement.repositories) } catch (ignored) { }
+  try {
+    settings.gradle.projectsLoaded {
+      settings.gradle.rootProject.allprojects { p ->
+        redirect(p.buildscript.repositories)
+        redirect(p.repositories)
+      }
+    }
+  } catch (ignored) { }
+}

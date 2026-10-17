@@ -425,16 +425,18 @@ class AppDatabase {
     return rows.isNotEmpty;
   }
 
+  /// seq 之间的初始间隔：留出空隙，供「视口核对」把漏掉的条目插进中间。
+  /// 相邻两条相差 10^6，插入时取中点，理论上可插 20 次再需要重排。
+  static const int seqStep = 1000000;
+
   /// 批量写入一页喜欢。
   ///
-  /// [assignSeq] 为 true 时给**新**条目分配递减的 seq（从 [startSeq] 开始往下减），
-  /// 已存在的条目保留原 seq（只刷新内容与 verified_at）。
-  /// 返回实际新增条数。
-  int insertPage(
+  /// 新条目从 [startSeq] 开始、每条递减 [seqStep]；已存在的条目保留原 seq
+  /// （只刷新内容与 verified_at）。返回新增条数和下一页应使用的起始 seq。
+  ({int inserted, int nextSeq}) insertPage(
     List<LikeItem> items, {
     required int accountId,
     required int startSeq,
-    bool assignSeq = true,
     DateTime? now,
   }) {
     final ts = (now ?? DateTime.now()).millisecondsSinceEpoch;
@@ -472,7 +474,9 @@ class AppDatabase {
         for (final item in items) {
           final existing = existsStmt.select([item.tweetId]);
           final isNew = existing.isEmpty;
-          final seqValue = isNew ? (seq--) : (existing.first['feed_seq'] as int? ?? seq--);
+          final seqValue =
+              isNew ? seq : (existing.first['feed_seq'] as int? ?? seq);
+          seq -= seqStep;
           final randKey = item.randKey ?? randomSortKey();
           final mediaJson = jsonEncode([for (final m in item.media) m.toJson()]);
 
@@ -481,7 +485,7 @@ class AppDatabase {
             insertStmt.execute([
               item.tweetId,
               accountId,
-              assignSeq ? seqValue : null,
+              seqValue,
               randKey,
               item.createdAt?.millisecondsSinceEpoch,
               item.text,
@@ -562,8 +566,172 @@ class AppDatabase {
       _db.execute('ROLLBACK');
       rethrow;
     }
-    return inserted;
+    return (inserted: inserted, nextSeq: seq);
   }
+
+  /// 在指定 seq 上插入单条（视口核对补缺口用）。
+  ///
+  /// 与相邻条目的 seq 太近（没有空隙）时返回 false，交给调用方决定是否重排。
+  bool insertAtSeq(LikeItem item, {required int accountId, required int seq}) {
+    if (hasTweet(item.tweetId)) return false;
+    return _writeSingle(item, accountId: accountId, seq: seq);
+  }
+
+  /// 计算夹在 [before]/[after] 之间的 seq；无空隙返回 null。
+  int? seqBetween(int? before, int? after) {
+    if (before == null && after == null) return 0;
+    if (before == null) return after! - 1;
+    if (after == null) return before + 1;
+    if (after - before <= 1) return null;
+    return before + ((after - before) ~/ 2);
+  }
+
+  /// 取相邻的 seq：比 [seq] 小的最大者、比 [seq] 大的最小者。
+  ({int? above, int? below}) neighborsOf(int seq) {
+    final above = _db.select(
+        'SELECT MAX(feed_seq) v FROM likes WHERE feed_seq < ?', [seq]);
+    final below = _db.select(
+        'SELECT MIN(feed_seq) v FROM likes WHERE feed_seq > ?', [seq]);
+    return (
+      above: above.first['v'] as int?,
+      below: below.first['v'] as int?,
+    );
+  }
+
+  bool _writeSingle(LikeItem item,
+      {required int accountId, required int seq}) {
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final randKey = item.randKey ?? randomSortKey();
+    _db.execute('BEGIN');
+    try {
+      _db.execute('''
+        INSERT INTO likes(tweet_id, account_id, feed_seq, rand_key, created_at, text, lang,
+          author_id, author_name, author_screen_name, author_avatar, media_json,
+          has_video, has_image, has_gif, sensitive, reply_to, quote_of, retweet_of,
+          state, fetched_at, verified_at, raw_json)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      ''', [
+        item.tweetId,
+        accountId,
+        seq,
+        randKey,
+        item.createdAt?.millisecondsSinceEpoch,
+        item.text,
+        item.lang,
+        item.author?.id,
+        item.author?.name,
+        item.author?.screenName,
+        item.author?.avatarUrl,
+        jsonEncode([for (final m in item.media) m.toJson()]),
+        item.hasVideo ? 1 : 0,
+        item.hasImage ? 1 : 0,
+        item.hasGif ? 1 : 0,
+        item.sensitive ? 1 : 0,
+        item.replyTo,
+        item.quoteOf,
+        item.retweetOf,
+        LikeState.normal.name,
+        ts,
+        ts,
+        item.raw == null ? null : jsonEncode(item.raw),
+      ]);
+      for (var i = 0; i < item.media.length; i++) {
+        final m = item.media[i];
+        _db.execute('''
+          INSERT INTO media(tweet_id, idx, kind, url, playback_url, duration_ms)
+          VALUES(?,?,?,?,?,?)
+          ON CONFLICT(tweet_id, idx) DO UPDATE SET
+            kind=excluded.kind, url=excluded.url, playback_url=excluded.playback_url,
+            duration_ms=excluded.duration_ms
+        ''', [item.tweetId, i, m.kind.name, m.url, m.bestPlaybackUrl, m.durationMs]);
+      }
+      _db.execute('DELETE FROM likes_fts WHERE tweet_id = ?', [item.tweetId]);
+      _db.execute(
+          'INSERT INTO likes_fts(tweet_id, text, author_name, author_screen_name) VALUES(?,?,?,?)',
+          [
+            item.tweetId,
+            item.text,
+            item.author?.name ?? '',
+            item.author?.screenName ?? '',
+          ]);
+      _db.execute('COMMIT');
+      return true;
+    } catch (_) {
+      _db.execute('ROLLBACK');
+      return false;
+    }
+  }
+
+  // -------------------------------------------------------------- segments
+
+  /// 记录/更新一个区段（供巡边器核对用）。[cursor] 是能重新翻到该段起点的游标。
+  void upsertSegment({
+    required int accountId,
+    required int startSeq,
+    required int endSeq,
+    String? cursor,
+    DateTime? verifiedAt,
+  }) {
+    _db.execute('''
+      INSERT INTO segments(account_id, start_seq, end_seq, cursor, verified_at)
+      VALUES(?,?,?,?,?)
+      ON CONFLICT(account_id, start_seq) DO UPDATE SET
+        end_seq = excluded.end_seq,
+        cursor = COALESCE(excluded.cursor, segments.cursor),
+        verified_at = COALESCE(excluded.verified_at, segments.verified_at)
+    ''', [
+      accountId,
+      startSeq,
+      endSeq,
+      cursor,
+      verifiedAt?.millisecondsSinceEpoch,
+    ]);
+  }
+
+  /// 最久没核对过的区段（点名给巡边器）。
+  List<({int startSeq, int endSeq, String? cursor, DateTime? verifiedAt})>
+      stalestSegments(int accountId, {int limit = 20}) {
+    final rows = _db.select('''
+      SELECT start_seq, end_seq, cursor, verified_at FROM segments
+      WHERE account_id = ? AND cursor IS NOT NULL
+      ORDER BY COALESCE(verified_at, 0) ASC LIMIT ?
+    ''', [accountId, limit]);
+    return [
+      for (final r in rows)
+        (
+          startSeq: r['start_seq'] as int,
+          endSeq: r['end_seq'] as int,
+          cursor: r['cursor'] as String?,
+          verifiedAt: r['verified_at'] == null
+              ? null
+              : DateTime.fromMillisecondsSinceEpoch(r['verified_at'] as int,
+                  isUtc: true),
+        ),
+    ];
+  }
+
+  /// 某条记录的 seq。
+  int? seqOf(String tweetId) {
+    final rows =
+        _db.select('SELECT feed_seq FROM likes WHERE tweet_id = ?', [tweetId]);
+    if (rows.isEmpty) return null;
+    return rows.first['feed_seq'] as int?;
+  }
+
+  /// 某区段登记的回填游标（巡边器用它重新翻到该段）。
+  String? segmentCursor(int accountId, int startSeq) {
+    final rows = _db.select(
+      'SELECT cursor FROM segments WHERE account_id = ? AND start_seq = ?',
+      [accountId, startSeq],
+    );
+    if (rows.isEmpty) return null;
+    return rows.first['cursor'] as String?;
+  }
+
+  /// 某条记录所在的区段起点（把任意 seq 对齐到区段边界）。
+  int segmentStartFor(int seq) =>
+      (seq / (AppDatabase.seqStep * 200)).floor() *
+      (AppDatabase.seqStep * 200);
 
   /// 把条目标记为「已删除」（作者删推 / 账号受保护）。
   void markDeleted(Iterable<String> tweetIds) {

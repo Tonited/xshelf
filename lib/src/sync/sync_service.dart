@@ -56,10 +56,11 @@ class SyncService {
   }) async {
     var state = db.loadSyncState(accountId);
     var cursor = state.backfillCursor;
-    var seqCursor = (state.minSeq ?? 1) - 1; // 下一个可分配的 seq（递减）
+    var seqCursor = (state.minSeq ?? AppDatabase.seqStep) - AppDatabase.seqStep;
     var pages = 0;
     var fetched = 0;
     var inserted = 0;
+    int? lastAligned;
 
     while (true) {
       if (cancel?.cancelled == true) {
@@ -85,14 +86,27 @@ class SyncService {
       }
 
       if (items.isNotEmpty) {
-        inserted += db.insertPage(
+        final res = db.insertPage(
           items,
           accountId: accountId,
           startSeq: seqCursor,
         );
-        seqCursor -= items.length;
+        inserted += res.inserted;
         fetched += items.length;
         pages++;
+
+        // 登记区段与它的起点游标，供巡边器将来重新翻到这一段。
+        final aligned = db.segmentStartFor(seqCursor);
+        if (aligned != lastAligned) {
+          db.upsertSegment(
+            accountId: accountId,
+            startSeq: aligned,
+            endSeq: aligned + AppDatabase.seqStep * 200,
+            cursor: page.topCursor,
+          );
+          lastAligned = aligned;
+        }
+        seqCursor = res.nextSeq;
       }
 
       // 时间范围到底：说明再翻也没有比 since 更新的了
@@ -102,10 +116,10 @@ class SyncService {
 
       cursor = page.bottomCursor;
       state = state.copyWith(
-        minSeq: seqCursor + 1,
+        minSeq: seqCursor + AppDatabase.seqStep,
         maxSeq: state.maxSeq == null
-            ? seqCursor + 1
-            : math.min(state.maxSeq!, seqCursor + 1),
+            ? seqCursor + AppDatabase.seqStep
+            : math.min(state.maxSeq!, seqCursor + AppDatabase.seqStep),
         backfillCursor: cursor,
       );
       db.saveSyncState(accountId, state);
@@ -147,7 +161,7 @@ class SyncService {
   }) async {
     var state = db.loadSyncState(accountId);
     var cursor = <String?>[null][0];
-    var seqCursor = (state.minSeq ?? 1) - 1;
+    var seqCursor = (state.minSeq ?? AppDatabase.seqStep) - AppDatabase.seqStep;
     var pages = 0;
     var fetched = 0;
     var inserted = 0;
@@ -167,17 +181,18 @@ class SyncService {
       final newItems =
           page.items.where((i) => fresh.contains(i.tweetId)).toList();
       if (newItems.isNotEmpty) {
-        inserted += db.insertPage(
+        final res = db.insertPage(
           newItems,
           accountId: accountId,
           startSeq: seqCursor,
         );
-        seqCursor -= newItems.length;
+        inserted += res.inserted;
+        seqCursor = res.nextSeq;
         fetched += newItems.length;
       }
       pages++;
 
-      state = state.copyWith(minSeq: seqCursor + 1);
+      state = state.copyWith(minSeq: seqCursor + AppDatabase.seqStep);
       db.saveSyncState(accountId, state);
 
       onProgress?.call(SyncProgress(

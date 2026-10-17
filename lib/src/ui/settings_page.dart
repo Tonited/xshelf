@@ -280,7 +280,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     onChanged: (v) async {
                       if (v == null) return;
                       setState(() => _auto = _auto.copyWith(intervalMinutes: v));
-                      await app.settings.setAutoSync(_auto);
+                      await app.setAutoSync(_auto);
                     },
                   ),
                 ),
@@ -297,7 +297,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       setState(() => _auto = v == null
                           ? _auto.copyWith(clearRange: true)
                           : _auto.copyWith(rangeDays: v));
-                      await app.settings.setAutoSync(_auto);
+                      await app.setAutoSync(_auto);
                     },
                   ),
                 ),
@@ -312,7 +312,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       onSubmitted: (v) async {
                         final n = int.tryParse(v) ?? 500;
                         setState(() => _auto = _auto.copyWith(maxItems: n));
-                        await app.settings.setAutoSync(_auto);
+                        await app.setAutoSync(_auto);
                       },
                     ),
                   ),
