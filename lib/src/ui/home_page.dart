@@ -375,6 +375,9 @@ class _ModeBar extends StatelessWidget {
               onDeleted: () => app.setFilter(app.filter.copyWith(clearSearch: true)),
             ),
           ],
+          const SizedBox(width: 8),
+          // 精确的年月跳转（顶部下拉），与右侧拖动刻度互补
+          if (app.mode != SortMode.random) _MonthJump(app: app),
           const SizedBox(width: 12),
           Center(
             child: Text(
@@ -515,8 +518,49 @@ class _ModeBar extends StatelessWidget {
       };
 }
 
-class _SearchField extends StatelessWidget {
-  const _SearchField({required this.controller, required this.onSubmitted});
+/// 顶部「跳到某年某月」下拉，与右侧刻度条互补：这里精确、那里快。
+class _MonthJump extends StatelessWidget {
+  const _MonthJump({required this.app});
+  final AppController app;
+
+  @override
+  Widget build(BuildContext context) {
+    final months = app.months();
+    if (months.isEmpty) return const SizedBox.shrink();
+    return Center(
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          hint: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.event, size: 16),
+                const SizedBox(width: 4),
+                Text(t('filter.dateRange'),
+                    style: Theme.of(context).textTheme.labelMedium),
+              ],
+            ),
+          ),
+          isDense: true,
+          menuMaxHeight: 420,
+          items: [
+            for (final m in months)
+              DropdownMenuItem(
+                value: m.month,
+                child: Text('${m.month}  (${m.count})'),
+              ),
+          ],
+          onChanged: (m) {
+            if (m != null) app.jumpToMonth(m);
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _SearchField extends StatelessWidget {  const _SearchField({required this.controller, required this.onSubmitted});
   final TextEditingController controller;
   final void Function(String) onSubmitted;
 

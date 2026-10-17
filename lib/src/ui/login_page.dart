@@ -1,5 +1,10 @@
-/// 登录页：内嵌 WebView 登录（首选）+ 手动粘贴 cookie（回退）。
+/// 登录页：内嵌 WebView 登录（Android/iOS）+ 手动粘贴 cookie（全平台回退）。
+///
+/// 桌面端不提供内嵌登录：X 对嵌入式浏览器登录的限制更多，而且 Windows 侧的
+/// WebView2 登录态抓取尚未验证；桌面用户改用「浏览器登录 + 粘贴 cookie」。
 library;
+
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -19,7 +24,7 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   bool _busy = false;
   String? _error;
-  final bool _webViewAvailable = true;
+  final bool _webViewAvailable = Platform.isAndroid || Platform.isIOS;
 
   @override
   Widget build(BuildContext context) {
