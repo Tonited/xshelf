@@ -63,12 +63,31 @@
 | 开发者模式 | 插件符号链接（目前不阻塞） | 同上脚本会开 |
 | Inno Setup 6 | 只有便携 zip，没有安装包 | `winget install JRSoftware.InnoSetup` |
 
-## 5. 验证清单
+## 5. 验证清单（实测结果，2026-10-17）
 
 ```powershell
-. .\tool\env.ps1
-flutter doctor            # 期望：Flutter/Android toolchain OK；VS 显示缺失
-flutter analyze           # 期望：0 error
-flutter test              # 期望：全绿
-flutter build apk --debug # 期望：build\app\outputs\flutter-apk\app-debug.apk
+. . .\tool\env.ps1
+flutter doctor            # Flutter / Android toolchain OK；VS 显示缺失（预期）
+flutter analyze           # 0 error / 0 warning
+flutter test              # 10/10 通过
+flutter build apk --debug # ✅ 169.5 MB（4 ABI，未裁剪）
+flutter build apk --release --split-per-abi
+                          # ✅ arm64 21.5 MB / armeabi-v7a 19.2 MB / x86_64 23.0 MB
 ```
+
+release 构建耗时约 8.7 分钟（8GB 内存，R8 是瓶颈）；debug 约 12.7 分钟（首次含依赖下载）。
+
+**另外踩到的坑（后续可能复现）**：
+
+8. **sqlite3 3.x 的 Dart build hooks 会卡死**：`hooks_runner/sqlite3/.../hook.dill` 进程
+   零 CPU、无网络、无输出地挂着。已回退到 `sqlite3 2.9.x + sqlite3_flutter_libs 0.5.x`（无 hooks）。
+   注意 2.x 是 `Database.dispose()`，3.x 才是 `close()`。
+9. **`android/key.properties` 不能带 BOM**：PowerShell `Set-Content -Encoding utf8` 会写 BOM，
+   导致 `keystoreProperties["storePassword"]` 读成 null，Gradle 报
+   `null cannot be cast to non-null type kotlin.String`。用 `UTF8Encoding($false)` 写。
+10. **AGP 会自己装 SDK 组件**：`android-35` 平台和 `CMake 3.22.1` 是在构建过程中自动下的（走直连，很快）。
+11. **NDK r28c 2.1 GB 已经躺在 `E:\dev\android-sdk\ndk\28.2.13676358`**：模板 `ndkVersion` 触发过，
+    现在 `ndkVersion` 已删除，不会再下；目录留着不影响构建。
+12. **国产网络下 Maven 走代理只有 125 KB/s，直连 dl.google.com 有 1.3 MB/s**：
+    `E:\dev\gradle\gradle.properties` 里用 `nonProxyHosts` 把 google/aliyun 排除在代理之外，速度差 10 倍。
+
