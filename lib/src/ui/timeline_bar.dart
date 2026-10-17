@@ -63,23 +63,23 @@ class _TimelineBarState extends State<TimelineBar> {
               child: Stack(
                 children: [
                   // 刻度
-                  for (final t in _ticks(context, height))
+                  for (final tick in _ticks(context, height))
                     Positioned(
-                      top: t.y,
+                      top: tick.y,
                       left: 6,
                       right: 6,
                       child: Row(
                         children: [
                           Container(
-                            width: t.major ? 12 : 6,
+                            width: tick.major ? 12 : 6,
                             height: 1.5,
                             color: theme.colorScheme.outlineVariant,
                           ),
-                          if (t.major) ...[
+                          if (tick.major) ...[
                             const SizedBox(width: 3),
                             Expanded(
                               child: Text(
-                                t.label,
+                                tick.label,
                                 style: theme.textTheme.labelSmall
                                     ?.copyWith(fontSize: 9),
                                 overflow: TextOverflow.clip,
@@ -143,7 +143,7 @@ class _TimelineBarState extends State<TimelineBar> {
       out.add((
         y: y,
         major: true,
-        label: d == null ? '' : '约${d.year % 100}/${d.month}',
+        label: d == null ? '' : '${t('timeline.about')}${d.year % 100}/${d.month}',
       ));
     }
     return out;
@@ -171,15 +171,15 @@ class _TimelineBarState extends State<TimelineBar> {
     final maxSeq = bounds.maxSeq;
     if (minSeq == null || maxSeq == null) return;
 
-    final t = (local.dy / height).clamp(0.0, 1.0);
+    final ratio = (local.dy / height).clamp(0.0, 1.0);
 
     if (app.mode == SortMode.publishDate) {
       final months = app.months();
       if (months.isEmpty) return;
-      final idx = (t * (months.length - 1)).round().clamp(0, months.length - 1);
+      final idx = (ratio * (months.length - 1)).round().clamp(0, months.length - 1);
       final m = months[idx];
       setState(() {
-        _hint = '${m.month} · ${m.count} 条';
+        _hint = '${m.month} · ${m.count} ${t('sync.items')}';
         _hintPos = local;
       });
       if (jump) app.jumpToMonth(m.month);
@@ -189,13 +189,13 @@ class _TimelineBarState extends State<TimelineBar> {
     // 模式 A：比例 → seq（seq 越小越新）
     final buckets = app.estimatedTimeline();
     if (buckets.isEmpty) return;
-    final idx = (t * (buckets.length - 1)).round().clamp(0, buckets.length - 1);
+    final idx = (ratio * (buckets.length - 1)).round().clamp(0, buckets.length - 1);
     final b = buckets[idx];
     final d = b.approxDate;
     setState(() {
       _hint = d == null
-          ? '${b.count} 条'
-          : '约 ${d.year}年${d.month}月 · ${b.count} 条';
+          ? '${b.count} ${t('sync.items')}'
+          : '${t('timeline.about')} ${d.year}/${d.month} · ${b.count} ${t('sync.items')}';
       _hintPos = local;
     });
     if (jump) app.jumpToSeq(b.fromSeq);

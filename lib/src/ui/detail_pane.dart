@@ -21,6 +21,18 @@ class DetailPane extends StatefulWidget {
 
 class _DetailPaneState extends State<DetailPane> {
   int _page = 0;
+  bool _saving = false;
+
+  Future<void> _saveOffline(
+      BuildContext context, AppController app, LikeItem item) async {
+    setState(() => _saving = true);
+    final err = await app.saveOffline(item);
+    if (!mounted) return;
+    setState(() => _saving = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(err == null ? t('detail.saved') : err)),
+    );
+  }
 
   @override
   void didUpdateWidget(covariant DetailPane oldWidget) {
@@ -111,6 +123,20 @@ class _DetailPaneState extends State<DetailPane> {
                             icon: const Icon(Icons.favorite_border, size: 18),
                             label: Text(t('detail.unlike')),
                           ),
+                          if (item.media.isNotEmpty)
+                            OutlinedButton.icon(
+                              onPressed:
+                                  _saving ? null : () => _saveOffline(context, app, item),
+                              icon: _saving
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Icon(Icons.download, size: 18),
+                              label: Text(
+                                  _saving ? t('detail.saving') : t('detail.save')),
+                            ),
                           TextButton.icon(
                             onPressed: () => launchUrl(
                               Uri.parse(

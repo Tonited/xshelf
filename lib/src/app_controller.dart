@@ -16,6 +16,7 @@ import 'package:path_provider/path_provider.dart';
 import 'auth/auth_store.dart';
 import 'core/settings.dart';
 import 'db/app_database.dart';
+import 'media/media_cache.dart';
 import 'model/like_item.dart';
 import 'net/proxy.dart';
 import 'sync/reconciler.dart';
@@ -32,6 +33,10 @@ class AppController extends ChangeNotifier {
   XSession? session;
   XClient? client;
   SyncService? syncService;
+  MediaCache? mediaCache;
+
+  /// 媒体缓存的根目录（设置里可改到别的盘）。
+  Directory? _mediaRoot;
 
   bool booting = true;
   String? bootError;
@@ -62,6 +67,9 @@ class AppController extends ChangeNotifier {
       final dbPath = p.join(support.path, 'likes.db');
       db = AppDatabase.open(dbPath);
       authStore = AuthStore();
+      _mediaRoot = settings.cacheDir != null
+          ? Directory(settings.cacheDir!)
+          : Directory(p.join(support.path, 'media'));
 
       await _rebuildClient();
 
@@ -101,6 +109,17 @@ class AppController extends ChangeNotifier {
     proxyWarning = resolution.warning;
     final httpClient = IOClient(resolution.client);
     final s = session;
+
+    // 媒体走独立的 HttpClient 实例（同一个底层连接池被两个 IOClient 共享后，
+    // 关闭其中一个会连带影响另一个）。
+    final mediaResolution = await buildHttpClient(proxyCfg);
+    mediaCache = MediaCache(
+      db: db,
+      httpClient: IOClient(mediaResolution.client),
+      rootDir: _mediaRoot ?? Directory.systemTemp,
+      maxBytes: settings.cacheLimitMb * 1024 * 1024,
+    );
+
     if (s != null) {
       client = XClient(session: s, httpClient: httpClient);
       syncService = SyncService(db: db, client: client!);
@@ -409,8 +428,27 @@ class AppController extends ChangeNotifier {
     return out;
   }
 
-  Future<String?> unlike(String tweetId) async {
-    final svc = syncService;
+  /// 把一条喜欢的所有媒体存到本地（离线可看）。
+  /// 返回 null 表示成功，否则返回错误文案。
+  Future<String?> saveOffline(LikeItem item) async {
+    final cache = mediaCache;
+    if (cache == null) return 'media cache not initialised';
+    if (item.media.isEmpty) return 'no media';
+    for (var i = 0; i < item.media.length; i++) {
+      final m = item.media[i];
+      final url = m.isPlayable ? (m.bestPlaybackUrl ?? m.url) : m.url;
+      final file = await cache.ensureCached(
+        tweetId: item.tweetId,
+        idx: i,
+        url: url,
+      );
+      if (file == null) return 'download failed: $url';
+    }
+    notifyListeners();
+    return null;
+  }
+
+  Future<String?> unlike(String tweetId) async {    final svc = syncService;
     if (svc == null) return '未登录';
     try {
       await svc.unlike(tweetId);

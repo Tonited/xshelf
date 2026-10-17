@@ -260,7 +260,7 @@ class _SettingsPageState extends State<SettingsPage> {
               children: [
                 SwitchListTile(
                   title: Text(t('settings.autoSync')),
-                  subtitle: const Text('移动端仅前台生效'),
+                  subtitle: Text(t('settings.foregroundOnly')),
                   value: _auto.enabled,
                   onChanged: (v) async {
                     setState(() => _auto = _auto.copyWith(enabled: v));
@@ -375,8 +375,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   Text('X Like Manage · 0.1.0', style: theme.textTheme.titleSmall),
                   const SizedBox(height: 8),
                   Text(
-                    '本项目使用 X 的非公开网页接口，可能导致账号被限流或封禁，'
-                    '请仅用自己的账号并自行承担风险。所有数据只存在本机。',
+                    t('settings.riskNote'),
                     style: theme.textTheme.bodySmall,
                   ),
                   const SizedBox(height: 8),

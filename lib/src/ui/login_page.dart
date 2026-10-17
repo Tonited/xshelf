@@ -126,7 +126,7 @@ class _LoginPageState extends State<LoginPage> {
 
     final parsed = parseCookieString(raw);
     if (parsed.authToken == null || parsed.ct0 == null) {
-      setState(() => _error = '缺少 auth_token 或 ct0');
+      setState(() => _error = t('login.missingCookies'));
       return;
     }
     await _finish(XSession(
@@ -180,7 +180,7 @@ class _EmbeddedLoginPageState extends State<_EmbeddedLoginPage> {
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Center(
                 child: Text(
-                  'X 拒绝了内嵌登录，请用「粘贴 cookie」',
+                  t('login.webviewRejected'),
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
               ),
