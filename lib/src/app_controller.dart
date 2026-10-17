@@ -71,12 +71,16 @@ class AppController extends ChangeNotifier {
           ? Directory(settings.cacheDir!)
           : Directory(p.join(support.path, 'media'));
 
-      await _rebuildClient();
-
+      // 先把登录态读出来，再建客户端 —— 反过来的话 session 为 null，
+      // 建出来的 client / syncService 都是空的，启动后同步与后台校验全失效。
       final stored = await authStore.load();
+      if (stored != null) session = stored;
+
+      await _rebuildClient();
+      _refreshAccountId();
+
       if (stored != null) {
-        session = stored;
-        // 有缓存就先显示，网络校验放到后台，避免启动被墙/代理卡住。
+        // 有缓存先显示，网络校验放到后台，避免启动被墙/代理卡住。
         unawaited(_verifyInBackground());
       }
       await _restoreView();
@@ -97,6 +101,7 @@ class AppController extends ChangeNotifier {
       final verified = await c.verify();
       session = verified;
       await authStore.save(verified);
+      _refreshAccountId();
       notifyListeners();
     } catch (_) {
       // 校验失败不踢人：可能是网络/代理问题，让 UI 提示即可。
@@ -182,6 +187,7 @@ class AppController extends ChangeNotifier {
     session = s;
     await authStore.save(s);
     await _rebuildClient();
+    _refreshAccountId();
     notifyListeners();
   }
 
@@ -189,6 +195,7 @@ class AppController extends ChangeNotifier {
     session = null;
     await authStore.clear();
     await _rebuildClient();
+    _accountId = null;
     items.clear();
     nextKey = null;
     notifyListeners();
@@ -201,15 +208,32 @@ class AppController extends ChangeNotifier {
     return c.verify();
   }
 
-  int? get accountId {
+  /// 当前账号在 `accounts` 表里的 id。
+  ///
+  /// 以前这里是 getter 里直接 upsert（写库），而 UI 在 build 里会反复读它 ——
+  /// 等于每次重绘都写一次数据库。现在只在登录态变化时算一次并缓存。
+  int? _accountId;
+  int? get accountId => _accountId;
+
+  void _refreshAccountId() {
     final s = session;
-    if (s == null) return null;
-    return db.upsertAccount(
+    if (s == null || s.userId.isEmpty) {
+      _accountId = null;
+      return;
+    }
+    _accountId = db.upsertAccount(
       xUserId: s.userId,
       screenName: s.screenName,
       displayName: s.displayName,
       avatarUrl: s.avatarUrl,
     );
+  }
+
+  /// 回填是否已经翻到底（决定菜单显示「全量回填」还是「继续回填」）。
+  bool get backfillDone {
+    final acc = _accountId;
+    if (acc == null) return false;
+    return db.loadSyncState(acc).backfillDone;
   }
 
   // ------------------------------------------------------------- 浏览与分页

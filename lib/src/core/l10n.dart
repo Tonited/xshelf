@@ -39,6 +39,7 @@ const Map<String, String> _zh = {
   'action.retry': '重试',
   'action.more': '加载更多',
   'sync.backfill': '全量回填',
+  'sync.resume': '继续回填',
   'sync.backfillConfirm': '将把你 X 上的所有喜欢拉到本地。约 5 万条需要 20 分钟，'
       '过程中可以暂停，下次会继续。是否开始？',
   'sync.backfillRunning': '正在回填',
@@ -130,6 +131,7 @@ const Map<String, String> _en = {
   'action.retry': 'Retry',
   'action.more': 'Load more',
   'sync.backfill': 'Backfill',
+  'sync.resume': 'Resume backfill',
   'sync.backfillConfirm': 'This pulls all of your X likes into the local '
       'database. ~50k items take about 20 minutes and can be paused and '
       'resumed. Start now?',

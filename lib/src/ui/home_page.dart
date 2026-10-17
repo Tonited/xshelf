@@ -132,7 +132,11 @@ class _HomePageState extends State<HomePage> {
               }
             },
             itemBuilder: (_) => [
-              PopupMenuItem(value: 'backfill', child: Text(t('sync.backfill'))),
+              PopupMenuItem(
+                  value: 'backfill',
+                  child: Text(app.backfillDone
+                      ? t('sync.backfill')
+                      : t('sync.resume'))),
               PopupMenuItem(
                   value: 'reshuffle', child: Text(t('mode.reshuffle'))),
               PopupMenuItem(value: 'settings', child: Text(t('action.settings'))),
