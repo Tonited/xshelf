@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:xlikemanage/src/db/app_database.dart';
 import 'package:xlikemanage/src/model/like_item.dart';
+import 'package:xlikemanage/src/ui/home_page.dart';
 import 'package:xlikemanage/src/ui/like_tile.dart';
 
 LikeItem _videoItem() => LikeItem(
@@ -67,6 +68,24 @@ void main() {
       expect(next.feedRank, -7);
       expect(next.tweetId, item.tweetId);
       expect(next.text, item.text);
+    });
+  });
+
+  group('responsive layout', () {
+    test('column count follows the width breakpoints', () {
+      expect(columnsForWidth(360), 2, reason: '手机竖屏');
+      expect(columnsForWidth(480), 2);
+      expect(columnsForWidth(600), 3, reason: '平板起点');
+      expect(columnsForWidth(899), 3);
+      expect(columnsForWidth(900), 4);
+      expect(columnsForWidth(1200), 5);
+      expect(columnsForWidth(1600), 6);
+      expect(columnsForWidth(2560), 6, reason: '再宽也不继续加列');
+    });
+
+    test('two-pane kicks in at the wide breakpoint', () {
+      expect(kBreakpointWide, greaterThan(kBreakpointMedium));
+      expect(kBreakpointMedium, 600);
     });
   });
 

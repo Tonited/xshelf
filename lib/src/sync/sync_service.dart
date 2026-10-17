@@ -8,6 +8,7 @@ import 'dart:math' as math;
 
 import '../db/app_database.dart';
 import '../model/like_item.dart';
+import 'likes_parser.dart';
 import 'x_client.dart';
 
 class SyncCancel {
@@ -37,6 +38,7 @@ class SyncService {
     required this.db,
     required this.client,
     this.pace = const Duration(milliseconds: 1500),
+    this.retryDelay,
   });
 
   final AppDatabase db;
@@ -44,6 +46,50 @@ class SyncService {
 
   /// 请求间隔（秒级节流，降低风控概率）。
   final Duration pace;
+
+  /// 被限流时的等待时间；null 表示按响应里的 `x-rate-limit-reset` 算。
+  /// 测试里注入 `Duration.zero` 以免真的等。
+  final Duration? retryDelay;
+
+  /// 最多重试几次（限流是暂时性的，值得等一次）。
+  static const int _maxRateLimitRetries = 2;
+
+  /// 取一页，遇到限流会退避重试。
+  Future<LikesPage> _fetchPage(
+    String? cursor, {
+    void Function(String message)? onNotice,
+  }) async {
+    var attempt = 0;
+    while (true) {
+      try {
+        return await client.fetchLikes(cursor: cursor);
+      } on XRequestException catch (e) {
+        if (e.kind != XErrorKind.rateLimited || attempt >= _maxRateLimitRetries) {
+          rethrow;
+        }
+        attempt++;
+        final wait = retryDelay ??
+            _resetIn(e.resetAt) ??
+            Duration(seconds: 15 * attempt);
+        onNotice?.call(
+            '被 X 限流，${wait.inSeconds}s 后重试（第 $attempt 次）');
+        await Future<void>.delayed(wait);
+      }
+    }
+  }
+
+  /// 从响应的 reset 时间推算要等多久（夹在 5 秒到 15 分钟之间）。
+  Duration? _resetIn(DateTime? resetAt) {
+    if (resetAt == null) return null;
+    final delta = resetAt.difference(DateTime.now().toUtc());
+    if (delta.isNegative) return const Duration(seconds: 5);
+    if (delta > const Duration(minutes: 15)) {
+      return const Duration(minutes: 15);
+    }
+    return delta < const Duration(seconds: 5)
+        ? const Duration(seconds: 5)
+        : delta;
+  }
 
   /// 全量回填：从最旧没抓过的位置继续。
   ///
@@ -76,7 +122,15 @@ class SyncService {
       }
       if (maxItems != null && fetched >= maxItems) break;
 
-      final page = await client.fetchLikes(cursor: cursor);
+      final page = await _fetchPage(
+        cursor,
+        onNotice: (msg) => onProgress?.call(SyncProgress(
+          pages: pages,
+          fetched: fetched,
+          inserted: inserted,
+          message: msg,
+        )),
+      );
       final items = since == null
           ? page.items
           : page.items
@@ -187,7 +241,15 @@ class SyncService {
       if (cancel?.cancelled == true) break;
       if (maxItems != null && fetched >= maxItems) break;
 
-      final page = await client.fetchLikes(cursor: cursor);
+      final page = await _fetchPage(
+        cursor,
+        onNotice: (msg) => onProgress?.call(SyncProgress(
+          pages: pages,
+          fetched: fetched,
+          inserted: 0,
+          message: msg,
+        )),
+      );
       var pageHasNew = false;
       for (final item in page.items) {
         if (db.hasTweet(item.tweetId)) {

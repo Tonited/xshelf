@@ -90,8 +90,8 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final app = AppScope.of(context);
     final width = MediaQuery.sizeOf(context).width;
-    final wide = width >= 1000;
-    final medium = width >= 600;
+    final wide = width >= kBreakpointWide;
+    final medium = width >= kBreakpointMedium;
     LikeItem? selected;
     for (final i in app.items) {
       if (i.tweetId == app.selectedTweetId) {
@@ -285,14 +285,21 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  int _columnsFor(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width;
-    if (width >= 1600) return 6;
-    if (width >= 1200) return 5;
-    if (width >= 900) return 4;
-    if (width >= 600) return 3;
-    return 2;
-  }
+  int _columnsFor(BuildContext context) =>
+      columnsForWidth(MediaQuery.sizeOf(context).width);
+}
+
+/// 响应式断点：宽度 ≥ 1000dp 是桌面双栏，≥ 600dp 是平板，再窄是手机单列。
+const double kBreakpointWide = 1000;
+const double kBreakpointMedium = 600;
+
+/// 网格列数（纯函数，方便单测）。
+int columnsForWidth(double width) {
+  if (width >= 1600) return 6;
+  if (width >= 1200) return 5;
+  if (width >= 900) return 4;
+  if (width >= kBreakpointMedium) return 3;
+  return 2;
 }
 
 class _EmptyState extends StatelessWidget {

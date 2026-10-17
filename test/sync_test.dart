@@ -260,6 +260,85 @@ void main() {
     });
   });
 
+  group('rate limiting', () {
+    test('waits and retries once when X answers 429', () async {
+      if (!sqliteReady) return;
+      final db = AppDatabase.open(':memory:');
+      addTearDown(db.dispose);
+
+      var calls = 0;
+      final httpClient = MockClient((request) async {
+        calls++;
+        if (calls == 1) {
+          final reset = DateTime.now().add(const Duration(seconds: 30));
+          return http.Response('', 429, headers: {
+            'x-rate-limit-reset':
+                '${reset.millisecondsSinceEpoch ~/ 1000}',
+          });
+        }
+        return http.Response(
+          jsonEncode(likesPage([tweet('after-retry')])),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+      final client = XClient(
+        session: const XSession(authToken: 'a', ct0: 'c', userId: '42'),
+        httpClient: httpClient,
+        presetQueryIds: const {'Likes': 'q1'},
+      );
+
+      final notices = <String>[];
+      final svc = SyncService(
+        db: db,
+        client: client,
+        pace: Duration.zero,
+        retryDelay: Duration.zero,
+      );
+      await svc.backfill(
+        accountId: 1,
+        onProgress: (p) {
+          if (p.message != null) notices.add(p.message!);
+        },
+      );
+
+      expect(calls, 2, reason: '第一次 429，第二次成功');
+      expect(db.getLike('after-retry'), isNotNull);
+      expect(notices.any((n) => n.contains('限流')), isTrue);
+    });
+
+    test('gives up after repeated 429s', () async {
+      if (!sqliteReady) return;
+      final db = AppDatabase.open(':memory:');
+      addTearDown(db.dispose);
+
+      var calls = 0;
+      final httpClient = MockClient((request) async {
+        calls++;
+        return http.Response('', 429, headers: {
+          'x-rate-limit-reset': '${DateTime.now().millisecondsSinceEpoch ~/ 1000}',
+        });
+      });
+      final client = XClient(
+        session: const XSession(authToken: 'a', ct0: 'c', userId: '42'),
+        httpClient: httpClient,
+        presetQueryIds: const {'Likes': 'q1'},
+      );
+      final svc = SyncService(
+        db: db,
+        client: client,
+        pace: Duration.zero,
+        retryDelay: Duration.zero,
+      );
+
+      await expectLater(
+        svc.backfill(accountId: 1),
+        throwsA(isA<XRequestException>()),
+      );
+      expect(calls, 3, reason: '1 次原始请求 + 2 次重试');
+    });
+  });
+
   group('reconciler', () {
     test('drops the like that disappeared and inserts the one it missed',
         () async {
