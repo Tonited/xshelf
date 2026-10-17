@@ -118,7 +118,7 @@ likes_fts  -- FTS5(text, author_name, author_screen_name) tokenize='trigram'
 
 ## 9. 默认掉的小项
 
-- 图片取 `name=large`，详情页按需 `orig`；视频取最高质量 mp4 ≤1080p，HLS 兜底。
+- 图片：网格取 `name=small`，详情取 `name=large`，放大看取 `name=orig`；视频取最高质量 mp4 ≤1080p，HLS 兜底。
 - 自动同步默认关；启动不自动拉。
 - 单轮核对 1–2 页；计数探针每 24h ≤1 次；调度器每分钟 ≤4 请求。
 - 随机洗牌仅手动触发。
@@ -144,7 +144,7 @@ likes_fts  -- FTS5(text, author_name, author_screen_name) tokenize='trigram'
 | 巡边器 | 四类任务源 | 已实现 **视口核对 + 陈段轮转**；计数探针留 TODO（需要服务端 likes 总数，X 暂未给稳定字段） | — |
 | 代理 | HTTP + SOCKS5 | **只实现 HTTP**；SOCKS5 会给出「暂不支持，请用 TUN」的提示 | `dart:io` 不支持 SOCKS，需要本地桥接，排在 M7 |
 | 媒体缓存 | 5GB LRU | `MediaCache` 已实现（按需下载 + `evictMediaCache`），UI 只接了「清空/上限」 | 播放当前走在线流 |
-| 状态管理 | 未指定 | 单个 `AppController extends ChangeNotifier` + `AppScope`（InheritedNotifier） | 依赖少、审起来快 |
+| 状态管理 | 未指定 | `AppController`（外壳：库/设置/登录/网络）+ `BrowseState` + `SyncController`，三者各自是 `Listenable`，UI 按需订阅 | 依赖少、审起来快；拆成三个是为了**收窄重建范围**（见 §12） |
 | 数据库层 | 未指定 | `package:sqlite3` 手写 SQL（不用 ORM/codegen） | 改起来快、无生成步骤 |
 | 构建环境 | 本机装全套 | Flutter/JDK/Android SDK 装在 `E:\dev`；Gradle 走阿里云镜像；**VS C++ 需管理员，待用户执行 `tool/setup_admin.ps1`** | 无提权能力 |
 
@@ -153,4 +153,53 @@ likes_fts  -- FTS5(text, author_name, author_screen_name) tokenize='trigram'
 - `packages/flutter_tools/gradle/settings.gradle.kts` 是独立的 includeBuild，且 `FAIL_ON_PROJECT_REPOS`，只能改它本身（`tool/patch-flutter-sdk-mirrors.ps1`）；`flutter upgrade` 会覆盖。
 - `.ps1` 脚本必须带 UTF-8 BOM，否则 Windows PowerShell 5.1 会把中文当 ANSI 解析失败。
 - 用 PowerShell 批量改 Dart 源文件会破坏 UTF-8（必须 `[System.IO.File]::ReadAllText(path, UTF8)` + `WriteAllText(..., UTF8Encoding($false))`），我因此重写过一个 1000 行文件。
+
+## 12. 结构与性能优化（第二轮）
+
+目标：5 万条级别的库上，滚动/同步/切模式都要「跟得上手」，并且各模块边界清楚、能单独测。
+
+### 12.1 状态分层（收窄重建范围）
+
+| 层 | 负责 | 谁订阅 |
+|---|---|---|
+| `AppController` | 启动、设置、登录态、HttpClient、媒体缓存、巡边器装配 | 根路由（登录/启动态）、设置页 |
+| `BrowseState` | 列表内容、排序模式、筛选、选中项、时间轴聚合缓存 | 网格、时间轴、模式条、详情栏 |
+| `SyncController` | 回填/增量/取消喜欢、进度、错误、结果摘要 | 顶栏刷新按钮、同步横幅 |
+
+以前是一个 `ChangeNotifier`：同步每抓一页 `notifyListeners()`，整个 `HomePage`（含上千张卡片 + 时间轴）全部重建。现在 `AppScope.read()` 只取服务不建依赖，各区块用 `ListenableBuilder` 订阅自己关心的那个。同步跑 20 分钟的过程中，网格一次都不重建。
+
+### 12.2 数据与媒体
+
+| 改动 | 以前 | 现在 |
+|---|---|---|
+| 网格缩略图 | `name=large`（约 2048px，几百 KB/张） | `name=small`（约 680px，几十 KB/张），解码宽度 480 |
+| 离线保存的图 | 仍然走网络 | `MediaImage` 先查本地文件，命中就 `Image.file` |
+| 本地文件查找 | 每张卡片每次 `SELECT` | `MediaCache._pathMemo` 记住，命中仍 `existsSync` 自校验 |
+| 视频下载 | `resp.bodyBytes` 整包进内存（上百 MB 会 OOM） | `send()` + 流式写 `.part` 再改名；同一文件并发请求合并 |
+| 图片尺寸档 | 详情页把 `large` 改写成 `orig`（更大） | 详情用 `large`、放大用 `orig`，按需选 |
+| 时间轴分桶 | 每桶 2 条 SQL，5 万条 ≈ 500 次查询 | 一次全表扫描后在内存分桶 |
+| 时间轴 seq 区间 | 悬停一次查一次 `MIN/MAX` | `BrowseState` 缓存，数据变了才失效 |
+| 翻页 | 每页重新 `COUNT(*)` 一次 | 只在 `reload/refresh/unlike` 时更新 |
+| FTS 写入 | 每次 upsert 都删+重写索引行 | 文本/作者没变就跳过（trigram 索引很贵） |
+| 增量同步判断「已存在」 | 每条一次点查询（一页 100 次） | 一页一次 `IN (...)` 批量查询 |
+| 巡边器核对 | 每条一次 `seqOf` | 一页一次批量取 seq |
+| 计数 | `COUNT(*)` 与 `stats()` 各扫一遍全表 | `stats()` 一次拿全，`total - deleted` 即有效条数 |
+| 随机键 | 用「当前微秒」混合，同微秒会重复 | 一次性 seed 的 PRNG（重复键会让随机分页整段跳过） |
+
+### 12.3 网络与自愈
+
+- **queryId 落库**：发现一次就记进 `kv`，冷启动不再「抓 x.com 首页 + 十几个 JS」。缓存失效（400/404）时自动丢弃、重新发现、重试一次，用户无感。
+- **连通性自检**：以前 new 了一个裸 `HttpClient`，配了代理的用户自检全红但其实能用；现在用解析出来的同一个 client，并且三个目标并发探测。
+- **代理认证**：`findProxy` 不带凭证，改成 `addProxyCredentials`（以前写进一个没人读的 holder，填了账号密码也永远 407）。
+- **临时 client**：`verifySession` / `diagnoseConnectivity` 用完即关。
+- **自动同步开关**：改设置时同步重启定时器（以前开了要下次启动才生效）。
+
+### 12.4 体验细节
+
+- 冷启动恢复位置：先用存下的锚点 `seq` 重新取一页，再套像素偏移 —— 只加载了第一页时 `jumpTo` 会被 `maxScrollExtent` 截断，等于永远回顶部。
+- `jumpToSeq` 包含锚点本身（此前的 `seq - 1` 会跳过被点的那个月份的第一条）。
+- 同步结束收掉进度条，改为一条可关闭的结果提示（以前 done 的横幅一直挂着，停止按钮变废按钮）。
+- 视频：换选中项时按 URL 换 key（以前会继续播上一条），加封面占位、错误提示，移动端补倍速与全屏。
+- 卡片徽标不再互相遮挡（GIF 左上、视频左下、已删除右上）。
+
 

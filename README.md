@@ -73,6 +73,8 @@ flutter doctor
 
 登录后用 WebView 拿到 X 的会话 cookie，直接调用 X 网页端自己的 GraphQL `Likes` 接口翻页取数，写进本地 SQLite；媒体走 `pbs.twimg.com` / `video.twimg.com` 公开 CDN，按需缓存。同步由一个「巡边器」统一调度：首次回填、增量更新、滚动到某区域时的顺手核对、以及后台慢速轮转核对，全部只是给同一个请求预算队列投任务。
 
+代码分层：`AppController`（外壳：库/设置/登录/网络）＋ `BrowseState`（看什么）＋ `SyncController`（数据怎么变），三者是独立的 `Listenable`，UI 只订阅自己关心的那一个；网格缩略图用 `name=small` 档位并按格子宽度解码，时间轴的聚合结果全部缓存。细节见 [docs/DESIGN.md](docs/DESIGN.md) §12。
+
 ### ⚠️ 风险声明（务必读）
 
 1. **本项目使用 X 的非公开网页接口**，不是官方 API。这不被 X 的开发者协议允许，**可能导致账号被限流、风控甚至封禁**。请自行评估，建议只使用自己的账号。
