@@ -3,7 +3,7 @@ library;
 
 import 'package:flutter/material.dart';
 
-import '../../model/like_item.dart';
+import '../model/like_item.dart';
 
 class LikeTile extends StatefulWidget {
   const LikeTile({

@@ -53,7 +53,8 @@ class _XVideoViewState extends State<XVideoView> {
     final player = Player();
     _player = player;
     _controller = VideoController(player);
-    await player.setLoopMode(widget.loop ? LoopMode.all : LoopMode.none);
+    await player.setPlaylistMode(
+        widget.loop ? PlaylistMode.single : PlaylistMode.none);
     await player.open(Media(widget.url), play: widget.autoPlay);
     if (mounted) setState(() {});
   }

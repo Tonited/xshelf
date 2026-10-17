@@ -92,10 +92,14 @@ class LikesFilter {
         authorScreenName: j['author'] as String?,
         from: j['from'] == null
             ? null
-            : DateTime.fromMillisecondsSinceEpoch((j['from'] as num).toInt()),
+            : DateTime.fromMillisecondsSinceEpoch(
+                (j['from'] as num).toInt(),
+                isUtc: true),
         to: j['to'] == null
             ? null
-            : DateTime.fromMillisecondsSinceEpoch((j['to'] as num).toInt()),
+            : DateTime.fromMillisecondsSinceEpoch(
+                (j['to'] as num).toInt(),
+                isUtc: true),
         search: j['search'] as String?,
       );
 }
@@ -374,7 +378,7 @@ class AppDatabase {
       backfillDone: (r['backfill_done'] as int? ?? 0) == 1,
       probeAt: r['probe_at'] == null
           ? null
-          : DateTime.fromMillisecondsSinceEpoch(r['probe_at'] as int),
+          : DateTime.fromMillisecondsSinceEpoch(r['probe_at'] as int, isUtc: true),
       probeRemoteCount: r['probe_remote_count'] as int?,
       rotateSeq: r['rotate_seq'] as int?,
     );
@@ -639,11 +643,12 @@ class AppDatabase {
       case SortMode.publishDate:
         orderBy = 'created_at DESC, tweet_id DESC';
         if (after?.publishedAt != null) {
+          final pubAt = after!.publishedAt;
           where.add('(created_at < ? OR (created_at = ? AND tweet_id < ?))');
           args
-            ..add(after!.publishedAt)
-            ..add(after!.publishedAt)
-            ..add(after!.tweetId ?? '');
+            ..add(pubAt)
+            ..add(pubAt)
+            ..add(after.tweetId ?? '');
         }
       case SortMode.random:
         orderBy = 'rand_key ASC';
@@ -654,15 +659,14 @@ class AppDatabase {
     }
 
     var sql = 'SELECT * FROM likes';
-    if (where.isNotEmpty) sql += ' WHERE ${where.join(' AND ')}';
+    final hasWhere = where.isNotEmpty;
+    if (hasWhere) sql += ' WHERE ${where.join(' AND ')}';
 
-    String? search = filter.search?.trim();
+    final String? search = filter.search?.trim();
     if (search != null && search.isNotEmpty) {
-      final ids = _searchIds(search);
-      if (ids.isEmpty) return const PageResult([], null);
-      sql += where.isEmpty ? ' WHERE ' : ' AND ';
-      sql += 'tweet_id IN (${List.filled(ids.length, '?').join(',')})';
-      args.addAll(ids);
+      final clause = _searchClause(search, args);
+      if (clause == null) return const PageResult([], null);
+      sql += hasWhere ? ' AND $clause' : ' WHERE $clause';
     }
 
     sql += ' ORDER BY $orderBy LIMIT ?';
@@ -688,29 +692,22 @@ class AppDatabase {
     return PageResult(items, next);
   }
 
-  /// 全文搜索：返回命中的 tweet_id（按相关性）。
+  /// 全文搜索条件：返回可直接拼进 WHERE 的子句，参数按顺序塞进 [args]。
   /// trigram 需要 ≥3 字符；短查询退回 LIKE。
-  List<String> _searchIds(String query) {
-    final q = query.replaceAll('"', '');
+  String? _searchClause(String query, List<Object?> args) {
+    final q = query.replaceAll('"', '').trim();
+    if (q.isEmpty) return null;
     if (q.length >= 3 && ftsTokenizer == 'trigram') {
-      try {
-        final rows = _db.select(
-          'SELECT tweet_id FROM likes_fts WHERE likes_fts MATCH ? LIMIT 20000',
-          ['"$q"'],
-        );
-        return [for (final r in rows) r['tweet_id'] as String];
-      } catch (_) {
-        // 继续走 LIKE
-      }
+      args.add('"$q"');
+      return 'tweet_id IN (SELECT tweet_id FROM likes_fts WHERE likes_fts MATCH ?)';
     }
     final like = '%${q.replaceAll('%', r'\%')}%';
-    final rows = _db.select(
-      'SELECT tweet_id FROM likes WHERE text LIKE ? ESCAPE \'\\\' '
-      'OR author_name LIKE ? ESCAPE \'\\\' '
-      'OR author_screen_name LIKE ? ESCAPE \'\\\' LIMIT 20000',
-      [like, like, like],
-    );
-    return [for (final r in rows) r['tweet_id'] as String];
+    args
+      ..add(like)
+      ..add(like)
+      ..add(like);
+    return "(text LIKE ? ESCAPE '\\' OR author_name LIKE ? ESCAPE '\\' "
+        "OR author_screen_name LIKE ? ESCAPE '\\')";
   }
 
   List<AuthorCount> topAuthors({int limit = 200}) {
@@ -775,7 +772,7 @@ class AppDatabase {
         DateTime? approx;
         if (rows.isNotEmpty) {
           final median = rows[rows.length ~/ 2]['created_at'] as int;
-          approx = DateTime.fromMillisecondsSinceEpoch(median);
+          approx = DateTime.fromMillisecondsSinceEpoch(median, isUtc: true);
         }
         out.add((fromSeq: start, toSeq: end, count: count, approxDate: approx));
       }
@@ -819,10 +816,10 @@ class AppDatabase {
       deleted: (r['deleted'] as int?) ?? 0,
       oldest: r['oldest'] == null
           ? null
-          : DateTime.fromMillisecondsSinceEpoch(r['oldest'] as int),
+          : DateTime.fromMillisecondsSinceEpoch(r['oldest'] as int, isUtc: true),
       newest: r['newest'] == null
           ? null
-          : DateTime.fromMillisecondsSinceEpoch(r['newest'] as int),
+          : DateTime.fromMillisecondsSinceEpoch(r['newest'] as int, isUtc: true),
     );
   }
 
@@ -855,7 +852,7 @@ class AppDatabase {
     ''', [fromSeq, toSeq]);
     if (rows.isEmpty) return null;
     return DateTime.fromMillisecondsSinceEpoch(
-        rows[rows.length ~/ 2]['created_at'] as int);
+        rows[rows.length ~/ 2]['created_at'] as int, isUtc: true);
   }
 
   // ---------------------------------------------------------------- media
@@ -961,7 +958,7 @@ class AppDatabase {
       text: r['text'] as String? ?? '',
       createdAt: r['created_at'] == null
           ? null
-          : DateTime.fromMillisecondsSinceEpoch(r['created_at'] as int),
+          : DateTime.fromMillisecondsSinceEpoch(r['created_at'] as int, isUtc: true),
       lang: r['lang'] as String?,
       author: r['author_id'] == null
           ? null
@@ -984,7 +981,7 @@ class AppDatabase {
       randKey: r['rand_key'] as int?,
       verifiedAt: r['verified_at'] == null
           ? null
-          : DateTime.fromMillisecondsSinceEpoch(r['verified_at'] as int),
+          : DateTime.fromMillisecondsSinceEpoch(r['verified_at'] as int, isUtc: true),
     );
   }
 }

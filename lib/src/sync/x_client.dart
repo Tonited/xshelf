@@ -248,7 +248,7 @@ class XClient {
         status: code,
         resetAt: reset == null
             ? null
-            : DateTime.fromMillisecondsSinceEpoch(reset * 1000),
+            : DateTime.fromMillisecondsSinceEpoch(reset * 1000, isUtc: true),
       );
     }
     if (code == 404 || code == 400) {
@@ -310,8 +310,9 @@ class XClient {
     if (home.statusCode != 200) return null;
 
     final scripts = <String>{};
-    for (final m in RegExp(r'https://abs\.twimg\.com/responsive-web/client-web[^"\'\s]+\.js')
-        .allMatches(home.body)) {
+    final jsUrlRe =
+        RegExp('https://abs\\.twimg\\.com/responsive-web/client-web[^"\'\\s]+\\.js');
+    for (final m in jsUrlRe.allMatches(home.body)) {
       scripts.add(m.group(0)!);
     }
     // 首页 HTML 里通常能看到 main.<hash>.js；再多拿几个兜底。

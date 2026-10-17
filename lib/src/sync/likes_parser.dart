@@ -135,11 +135,11 @@ LikesPage parseLikesPage(Object? json) {
   );
 }
 
-Object? _timelineInstructions(Map user) {
-  final result = user['result'];
-  if (result is! Map) return null;
-  return _dig(result, ['timeline_v2', 'timeline', 'instructions']) ??
+/// [result] 即 `data.user.result`（已解包一层）。
+List? _timelineInstructions(Map result) {
+  final v2 = _dig(result, ['timeline_v2', 'timeline', 'instructions']) ??
       _dig(result, ['timeline', 'instructions']);
+  return v2 is List ? v2 : null;
 }
 
 LikeItem? _parseTweet(Map tweet, String entryId) {

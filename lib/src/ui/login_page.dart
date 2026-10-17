@@ -19,12 +19,10 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   bool _busy = false;
   String? _error;
-  bool _webViewAvailable = true;
-  InAppWebViewController? _web;
+  final bool _webViewAvailable = true;
 
   @override
   Widget build(BuildContext context) {
-    final app = AppScope.of(context);
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -196,7 +194,6 @@ class _EmbeddedLoginPageState extends State<_EmbeddedLoginPage> {
               'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
               '(KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
         ),
-        onWebViewCreated: (controller) => _web = controller,
         onLoadStop: (controller, url) async {
           final u = url?.toString() ?? '';
           if (!u.contains('x.com')) return;
