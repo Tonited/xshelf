@@ -1,0 +1,40 @@
+# Flutter / Dart
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.iml
+.idea/
+.vscode/
+coverage/
+*.log
+
+# Windows
+windows/flutter/ephemeral/
+windows/**/generated_plugin_registrant.*
+windows/**/generated_plugins.cmake
+*.exe
+*.msi
+*.msix
+*.zip
+
+# Android
+android/.gradle/
+android/local.properties
+android/app/*.jks
+android/app/*.keystore
+android/key.properties
+android/.cxx/
+android/app/debug/
+android/app/profile/
+android/app/release/
+*.apk
+*.aab
+
+# Local secrets / build artifacts
+.env
+secrets/
+tools/local/
