@@ -37,6 +37,15 @@ flutter run -d windows     # 或 -d <android-device-id>
 .\tool\build_apk.ps1
 ```
 
+### 已验证的产物
+
+- **Android**：`flutter build apk --release --split-per-abi` 产物 19–23 MB，落在 `dist/`。
+  自签 release keystore 由 `tool/build_apk.ps1` 首次运行时生成（`android/keystore/`，已 gitignore）。
+- **Windows**：`tool/installer/xlikemanage.iss` 已用 Inno Setup 6 通过编译验证
+  （用户态安装 `winget install --id JRSoftware.InnoSetup --scope user` 即可）；
+  出 exe 还需要本机装一次 VS C++ 生成工具。
+- **图标**：`tool/gen_icons.ps1`（Android mipmap）+ `tool/gen_ico.ps1`（多尺寸 ICO）。
+
 ### 开发环境（本机约定）
 
 工具链统一装在 E 盘，不占系统盘：
