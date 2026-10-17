@@ -102,9 +102,38 @@ class Reconciler {
     final page = await client.fetchLikes(cursor: cursor);
     final remoteIds = {for (final i in page.items) i.tweetId};
 
+    // 先定位这一页在本地覆盖到哪：区段有 200 条，一页只有 100 条，
+    // 不先算覆盖范围就取差集会**误删**页外的本地条目。
+    final matchedSeqs = <int>[];
+    for (final item in page.items) {
+      final seq = db.seqOf(item.tweetId);
+      if (seq != null) matchedSeqs.add(seq);
+    }
+    if (matchedSeqs.isEmpty) {
+      // 这一页和本地完全对不上（可能游标漂了），不删任何东西，只标记已核对。
+      db.upsertSegment(
+        accountId: accountId,
+        startSeq: startSeq,
+        endSeq: endSeq,
+        cursor: cursor,
+        verifiedAt: DateTime.now(),
+      );
+      return ReconcileReport(
+        source: source,
+        fetched: page.items.length,
+        removed: 0,
+        inserted: 0,
+      );
+    }
+
+    final lowestMatched = matchedSeqs.reduce(math.min);
+    // 只比较「本页确实覆盖到」的那一段
+    final coveredLocalIds =
+        db.tweetIdsInSeqRange(startSeq, lowestMatched + 1);
+
     // 1) 本地有、服务端没有 → 已在别处取消喜欢
     var removed = 0;
-    for (final id in localIds.difference(remoteIds)) {
+    for (final id in coveredLocalIds.difference(remoteIds)) {
       db.deleteLike(id);
       removed++;
     }
@@ -113,11 +142,7 @@ class Reconciler {
     var inserted = 0;
     if (page.items.isNotEmpty) {
       // 先标出每条在本地是否已有 seq，便于把「未知条目」放进两个已知锚点之间
-      final seqs = [
-        for (final item in page.items) localIds.contains(item.tweetId)
-            ? db.seqOf(item.tweetId)
-            : null,
-      ];
+      final seqs = [for (final item in page.items) db.seqOf(item.tweetId)];
       // 段顶部边界：比 startSeq 更「新」的条目的 seq
       var upper = db.neighborsOf(startSeq).above ?? startSeq + AppDatabase.seqStep;
 

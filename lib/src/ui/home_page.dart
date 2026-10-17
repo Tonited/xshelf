@@ -27,11 +27,20 @@ class _HomePageState extends State<HomePage> {
   Timer? _saveDebounce;
   bool _restored = false;
 
+  /// 在 didChangeDependencies 里取一次，避免在滚动回调里依赖 InheritedWidget。
+  AppController? _app;
+
   @override
   void initState() {
     super.initState();
     _scroll.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) => _restoreScroll());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _app = AppScope.of(context);
   }
 
   @override
@@ -45,7 +54,8 @@ class _HomePageState extends State<HomePage> {
   void _restoreScroll() {
     if (_restored) return;
     _restored = true;
-    final app = AppScope.of(context);
+    final app = _app;
+    if (app == null || !mounted) return;
     final offset = app.settings.view.scrollOffset;
     if (offset > 0 && _scroll.hasClients) {
       final max = _scroll.position.maxScrollExtent;
@@ -56,12 +66,14 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _onScroll() {
-    final app = AppScope.of(context);
+    final app = _app;
+    if (app == null || !mounted || !_scroll.hasClients) return;
     if (_scroll.position.pixels >= _scroll.position.maxScrollExtent - 800) {
       app.loadMore();
     }
     _saveDebounce?.cancel();
     _saveDebounce = Timer(const Duration(milliseconds: 1500), () {
+      if (!mounted) return;
       app.saveViewState(scrollOffset: _scroll.position.pixels);
       // 停住就看：把当前已加载的这一段交给巡边器核对（内部有 1.5s/次、4 次/分 的预算）
       if (app.items.isNotEmpty) {
