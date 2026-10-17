@@ -17,6 +17,7 @@ import '../app_controller.dart';
 import '../core/browser_ua.dart';
 import '../core/l10n.dart';
 import '../sync/x_client.dart';
+import '../version.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -248,6 +249,10 @@ class _EmbeddedLoginPageState extends State<_EmbeddedLoginPage> {
   bool _failed = false;
   bool _done = false;
 
+  /// 诊断用：当前地址与最近一次主框架加载错误。白屏时靠它定位问题。
+  String _currentUrl = '';
+  String? _lastIssue;
+
   @override
   void initState() {
     super.initState();
@@ -330,10 +335,33 @@ class _EmbeddedLoginPageState extends State<_EmbeddedLoginPage> {
                 useShouldOverrideUrlLoading: false,
                 thirdPartyCookiesEnabled: true,
                 sharedCookiesEnabled: true,
+                // X 的「用 Google 登录」会 window.open 一个新窗口。默认
+                // 不支持多窗口时，这个弹窗请求会被静默丢掉 —— 表现就是点了
+                // 之后没反应、或者整页变白。
+                supportMultipleWindows: true,
                 userAgent: _userAgent,
               ),
               onWebViewCreated: (controller) => _controller = controller,
+              onCreateWindow: (controller, action) async {
+                if (action.request.url == null) return false;
+                _openPopup(action.windowId);
+                return true;
+              },
+              onLoadStart: (controller, url) {
+                setState(() => _currentUrl = url?.toString() ?? '');
+              },
+              onReceivedError: (controller, request, error) {
+                if (request.isForMainFrame != true) return;
+                setState(() => _lastIssue =
+                    '${error.type} ${error.description} (${request.url})');
+              },
+              onReceivedHttpError: (controller, request, response) {
+                if (request.isForMainFrame != true) return;
+                setState(() =>
+                    _lastIssue = 'HTTP ${response.statusCode} (${request.url})');
+              },
               onLoadStop: (controller, url) async {
+                setState(() => _currentUrl = url?.toString() ?? '');
                 final u = url?.toString() ?? '';
                 if (!u.contains('x.com')) return;
                 // 登录成功后 X 会跳到 /home 或 /i/flow/... 完成页
@@ -341,7 +369,81 @@ class _EmbeddedLoginPageState extends State<_EmbeddedLoginPage> {
                 await _tryCapture();
               },
             ),
+      bottomNavigationBar: _diagBar(theme),
     );
+  }
+
+  /// 底部一条窄诊断栏：白屏时把当前地址复制出来，就能知道卡在哪一步。
+  Widget _diagBar(ThemeData theme) {
+    final url = _currentUrl;
+    return SafeArea(
+      top: false,
+      child: Container(
+        color: theme.colorScheme.surfaceContainerHighest,
+        padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_lastIssue != null)
+                    Text(
+                      _lastIssue!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.colorScheme.error),
+                    ),
+                  Text(
+                    url.isEmpty ? '—' : url,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              tooltip: t('login.copyDiag'),
+              onPressed:
+                  url.isEmpty && _lastIssue == null ? null : _copyDiagnostics,
+              icon: const Icon(Icons.copy_all, size: 18),
+            ),
+            IconButton(
+              tooltip: t('login.openInBrowser'),
+              onPressed:
+                  url.isEmpty ? null : () => _openExternally(url),
+              icon: const Icon(Icons.open_in_browser, size: 18),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _copyDiagnostics() async {
+    await Clipboard.setData(ClipboardData(
+      text: 'v$kAppVersion | UA=${_uaMode.name} | url=$_currentUrl | '
+          'issue=${_lastIssue ?? '-'}',
+    ));
+    if (mounted) {
+      ScaffoldMessenger.maybeOf(context)
+          ?.showSnackBar(SnackBar(content: Text(t('error.copied'))));
+    }
+  }
+
+  Future<void> _openExternally(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  void _openPopup(int windowId) {
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => _PopupWebViewPage(windowId: windowId),
+    ));
   }
 
   Future<void> _tryCapture() async {
@@ -384,5 +486,33 @@ class _EmbeddedLoginPageState extends State<_EmbeddedLoginPage> {
     } finally {
       _capturing = false;
     }
+  }
+}
+
+/// X 的第三方登录会 `window.open` 一个新窗口。主 WebView 开了
+/// `supportMultipleWindows` 之后必须真的把这个窗口渲染出来，否则请求虽然被
+/// 接住却无处显示，用户看到的就是一片空白。
+class _PopupWebViewPage extends StatelessWidget {
+  const _PopupWebViewPage({required this.windowId});
+
+  final int windowId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(t('login.popup')),
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+      ),
+      body: InAppWebView(
+        windowId: windowId,
+        onCloseWindow: (controller) {
+          if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+        },
+      ),
+    );
   }
 }

@@ -29,6 +29,8 @@ const Map<String, String> _zh = {
       '（没密码就在登录页点「忘记密码」设一个），或从另一台设备导入登录态。',
   'login.uaMasked': '浏览器标识：已抹掉 WebView 标记（点一下换成桌面浏览器）',
   'login.uaNative': '浏览器标识：桌面浏览器（点一下换回本机标识）',
+  'login.copyDiag': '复制诊断信息（当前地址 + 错误）',
+  'login.popup': 'X 登录',
   'login.withPassword': '用 X 账号密码登录',
   'login.openInBrowser': '在系统浏览器里打开 x.com（用于取 cookie）',
   'login.cookieSteps': '取 cookie 的步骤：在电脑上用 Chrome 打开 x.com 并登录 → F12 → '
@@ -142,6 +144,8 @@ const Map<String, String> _en = {
       'session from another device.',
   'login.uaMasked': 'Browser identity: WebView markers stripped (tap for desktop browser)',
   'login.uaNative': 'Browser identity: desktop browser (tap to use this device again)',
+  'login.copyDiag': 'Copy diagnostics (current URL + error)',
+  'login.popup': 'X sign-in',
   'login.withPassword': 'Sign in with X account',
   'login.openInBrowser': 'Open x.com in the system browser (to copy cookies)',
   'login.cookieSteps': 'How to get the cookies: log into x.com in desktop Chrome → F12 → '
