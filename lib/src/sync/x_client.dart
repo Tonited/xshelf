@@ -134,10 +134,17 @@ class XRequestException implements Exception {
 }
 
 class XClient {
-  XClient({required this.session, required this.httpClient});
+  XClient({
+    required this.session,
+    required this.httpClient,
+    this.presetQueryIds = const {},
+  });
 
   final XSession session;
   final http.Client httpClient;
+
+  /// 预置的 queryId（测试用；线上靠 [_discoverQueryId] 发现）。
+  final Map<String, String> presetQueryIds;
 
   final Map<String, String> _queryIds = {};
 
@@ -285,8 +292,11 @@ class XClient {
     }
   }
 
-  /// 取操作的 queryId：内存缓存 → 本地已知表 → 从 x.com 前端 JS 抓。
+  /// 取操作的 queryId：预置 → 内存缓存 → 从 x.com 前端 JS 抓。
   Future<String> _queryId(String operation) async {
+    final preset = presetQueryIds[operation];
+    if (preset != null && preset.isNotEmpty) return preset;
+
     final cached = _queryIds[operation];
     if (cached != null) return cached;
 

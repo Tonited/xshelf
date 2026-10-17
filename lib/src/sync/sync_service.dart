@@ -61,6 +61,7 @@ class SyncService {
     var pages = 0;
     var fetched = 0;
     var inserted = 0;
+    var exhausted = false;
     int? lastAligned;
 
     while (true) {
@@ -123,6 +124,8 @@ class SyncService {
             ? seqCursor + AppDatabase.seqStep
             : math.max(state.maxSeq!, seqCursor + AppDatabase.seqStep),
         backfillCursor: cursor,
+        // copyWith 里 null 表示「不改」，所以末页要显式清空。
+        clearBackfillCursor: cursor == null,
       );
       db.saveSyncState(accountId, state);
 
@@ -132,14 +135,20 @@ class SyncService {
         inserted: inserted,
       ));
 
-      if (!page.hasMore || reachedSince) break;
+      if (!page.hasMore || reachedSince) {
+        exhausted = true;
+        break;
+      }
 
       await Future<void>.delayed(pace);
     }
 
+    // 只有真正翻到底才算「回填完成」；被 maxItems 截断/用户暂停时保持未完成，
+    // 否则下次启动会以为没事可做。
     state = state.copyWith(
-      backfillDone: true,
-      backfillCursor: null,
+      backfillDone: exhausted,
+      // 翻到底才清游标；被截断/暂停时保留，下次从这里继续。
+      clearBackfillCursor: exhausted,
       minSeq: db.minSeqOverall(),
       maxSeq: db.maxSeqOverall(),
     );
@@ -148,7 +157,8 @@ class SyncService {
       pages: pages,
       fetched: fetched,
       inserted: inserted,
-      done: true,
+      done: exhausted,
+      message: exhausted ? null : '已暂停（下次会从这里继续）',
     );
     onProgress?.call(done);
     return done;
