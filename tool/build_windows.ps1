@@ -26,18 +26,22 @@ try {
 
     # 2) Inno Setup 安装包（未装则跳过并提示）
     $iscc = @(
+        "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe",
         'C:\Program Files (x86)\Inno Setup 6\ISCC.exe',
         'C:\Program Files\Inno Setup 6\ISCC.exe',
         'E:\dev\inno\ISCC.exe'
     ) | Where-Object { Test-Path $_ } | Select-Object -First 1
 
     if ($iscc) {
-        & $iscc "/DAppVersion=$((Get-Content (Join-Path $root 'pubspec.yaml') |
-            Select-String '^version:').Line -replace '^version:\s*','' -replace '\+.*$','')" `
-            "/DSourceDir=$src" (Join-Path $root 'tool\installer\xlikemanage.iss')
-        Write-Host "安装包: $dist\*setup*.exe"
+        $version = (Get-Content (Join-Path $root 'pubspec.yaml') |
+            Select-String '^version:').Line -replace '^version:\s*', '' -replace '\+.*$', ''
+        & $iscc "/DAppVersion=$version" "/DSourceDir=$src" `
+            (Join-Path $root 'tool\installer\xlikemanage.iss')
+        if ($LASTEXITCODE -ne 0) { throw "ISCC 失败（exit $LASTEXITCODE）" }
+        Write-Host "安装包: $dist\xlikemanage-$version-setup.exe"
     } else {
-        Write-Warning '未找到 Inno Setup 6（ISCC.exe），跳过安装包。装好后重跑本脚本即可。'
+        Write-Warning '未找到 Inno Setup 6（ISCC.exe）。'
+        Write-Warning '用户态安装： winget install --id JRSoftware.InnoSetup --scope user'
     }
 } finally {
     Pop-Location
