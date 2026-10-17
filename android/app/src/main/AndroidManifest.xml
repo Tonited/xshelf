@@ -1,6 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- release 版必须自己声明：Flutter 模板只在 debug/profile 的清单里加了这条，
+         否则正式包完全没有网络权限（登录/回填/播放全废）。 -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <application
-        android:label="xlikemanage"
+        android:label="X Like Manage"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
