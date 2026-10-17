@@ -23,7 +23,10 @@ $paths = @(
     (Join-Path $XlDev 'flutter\bin'),
     (Join-Path $XlDev 'git\cmd'),
     (Join-Path $XlDev 'android-sdk\platform-tools'),
-    (Join-Path $XlDev 'android-sdk\cmdline-tools\latest\bin')
+    (Join-Path $XlDev 'android-sdk\cmdline-tools\latest\bin'),
+    # Windows 构建：flutter_inappwebview_windows 的 CMake 会用 nuget.exe 拉
+    # WebView2 / nlohmann.json，缺了会报 “NUGET-NOTFOUND”。
+    (Join-Path $XlDev 'nuget')
 )
 if ($env:JAVA_HOME) { $paths += (Join-Path $env:JAVA_HOME 'bin') }
 foreach ($p in $paths) {

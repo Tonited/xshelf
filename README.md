@@ -39,12 +39,20 @@ flutter run -d windows     # 或 -d <android-device-id>
 
 ### 已验证的产物
 
-- **Android**：`flutter build apk --release --split-per-abi` 产物 19–23 MB，落在 `dist/`。
+- **Windows**：`.\tool\build_windows.ps1` 一条命令出三样东西 ——
+  `build\windows\x64\runner\Release\xlikemanage.exe`（79 MB 目录）、
+  `dist\xlikemanage-windows-portable.zip`（33 MB，解压即用）、
+  `dist\xlikemanage-1.0.0-setup.exe`（25 MB，Inno Setup，中英文安装界面，可装到用户目录，无需管理员）。
+- **Android**：`flutter build apk --release --target-platform android-arm64` → 24.9 MB，
+  落在 `dist/`（`INTERNET` / `ACCESS_NETWORK_STATE` 已核对）。
   自签 release keystore 由 `tool/build_apk.ps1` 首次运行时生成（`android/keystore/`，已 gitignore）。
-- **Windows**：`tool/installer/xlikemanage.iss` 已用 Inno Setup 6 通过编译验证
-  （用户态安装 `winget install --id JRSoftware.InnoSetup --scope user` 即可）；
-  出 exe 还需要本机装一次 VS C++ 生成工具。
-- **图标**：`tool/gen_icons.ps1`（Android mipmap）+ `tool/gen_ico.ps1`（多尺寸 ICO）。
+  需要 32 位包时把 `--target-platform` 换成 `android-armeabi-v7a` 再跑一次（本机 C: 只有 ~3 GB，
+  一次构建一个 ABI 最稳）。
+- **图标**：`tool/gen_icons.ps1`（Android mipmap）+ `tool/gen_ico.ps1`（多尺寸 ICO，exe 与安装包共用）。
+
+Windows 构建有两个本机特有的前置（详见 `docs/BUILD-ENV.md` 坑 13–16）：
+`E:\dev\nuget\nuget.exe` 要在 PATH 上（`tool\env.ps1` 会加），以及
+`third_party/flutter_secure_storage_windows` 去掉 ATL 兼容层之后不需要 VS 的 ATL 组件。
 
 ### 开发环境（本机约定）
 

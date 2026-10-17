@@ -32,6 +32,8 @@ WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\{#AppExe}
+; 安装包自己的图标（仓库里那份由 tool/gen_ico.ps1 生成，和 exe/Android 图标同源）。
+SetupIconFile=..\..\windows\runner\resources\app_icon.ico
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 

@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "app" "\0"
-            VALUE "FileDescription", "xlikemanage" "\0"
+            VALUE "CompanyName", "xlikemanage contributors" "\0"
+            VALUE "FileDescription", "X Like Manage" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "xlikemanage" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 app. All rights reserved." "\0"
+            VALUE "LegalCopyright", "MIT License - (C) 2026 xlikemanage contributors" "\0"
             VALUE "OriginalFilename", "xlikemanage.exe" "\0"
-            VALUE "ProductName", "xlikemanage" "\0"
+            VALUE "ProductName", "X Like Manage" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

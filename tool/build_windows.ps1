@@ -1,18 +1,52 @@
 ﻿# 出 Windows 产物：便携 zip + Inno Setup 安装包
+#
 # 用法： .\tool\build_windows.ps1 [-SkipBuild]
+#
+# 关于 subst：Windows 的 MSBuild/CMake 对路径长度很敏感（`flutter_inappwebview_windows`
+# 的 `.tlog` 目录就能撞上 260 字符上限，报 MSB3491）。开 LongPathsEnabled 需要管理员，
+# 所以当项目所在路径较长时，这里自动挂一个短盘符再构建，结束后卸掉。
+#
+# 注意：映射的是**父目录**，然后进到 `X:\<项目名>` 里构建。
+# 如果直接把项目映射成盘符根（PROJECT_DIR = `X:`），CMake 会给 `cmake -E env`
+# 传一个被引号粘在一起的参数（`"PROJECT_DIR=X:";"FLUTTER_TARGET=lib\main.dart"`），
+# flutter 的 tool_backend.bat 拿去做 `cd /d` 就会 PathNotFoundException，构建必然失败。
+
 param([switch]$SkipBuild)
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot 'env.ps1')
+$leaf = Split-Path -Leaf $root
+$parent = Split-Path -Parent $root
 
-Push-Location $root
+# 实测：root 路径 ≥ 40 字符时，插件构建目录会超过 260。
+$shortDrive = $null
+if ($root.Length -ge 40) {
+    foreach ($c in 'X', 'Y', 'W', 'V', 'U', 'T') {
+        if (-not (Test-Path "${c}:\")) {
+            & subst "${c}:" $parent
+            if (Test-Path "${c}:\$leaf\pubspec.yaml") { $shortDrive = $c }
+            break
+        }
+    }
+    if (-not $shortDrive) { throw '找不到可用盘符挂 subst；请把项目移到更短的路径。' }
+    Write-Host "路径过长，已用 ${shortDrive}: 映射父目录后构建（subst）"
+}
+
+$buildRoot = if ($shortDrive) { "${shortDrive}:\$leaf" } else { $root }
+
+Push-Location $buildRoot
+# flutter / MSBuild 会往 stderr 写日志；PowerShell 7 在 ErrorActionPreference=Stop 下
+# 会把这些当终止错误（NativeCommandError）。这里临时放松，靠 $LASTEXITCODE 判断。
+$prevEap = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
 try {
     if (-not $SkipBuild) {
         flutter build windows --release
+        if ($LASTEXITCODE -ne 0) { throw "flutter build windows 失败（exit $LASTEXITCODE）" }
     }
 
-    $src = Join-Path $root 'build\windows\x64\runner\Release'
+    $src = Join-Path $buildRoot 'build\windows\x64\runner\Release'
     if (-not (Test-Path $src)) { throw "构建产物不存在：$src" }
 
     $dist = Join-Path $root 'dist'
@@ -44,5 +78,7 @@ try {
         Write-Warning '用户态安装： winget install --id JRSoftware.InnoSetup --scope user'
     }
 } finally {
+    $ErrorActionPreference = $prevEap
     Pop-Location
+    if ($shortDrive) { & subst "${shortDrive}:" /d }
 }

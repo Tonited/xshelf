@@ -59,23 +59,30 @@
 
 | 缺什么 | 影响 | 怎么补 |
 |---|---|---|
-| VS 2022 生成工具 + C++ 工作负载 | `flutter build windows` 无法进行 | 管理员跑 `tool\setup_admin.ps1` |
-| 开发者模式 | 插件符号链接（目前不阻塞） | 同上脚本会开 |
-| Inno Setup 6 | 只有便携 zip，没有安装包 | `winget install JRSoftware.InnoSetup` |
+| ~~VS 2022 生成工具 + C++ 工作负载~~ | 已就绪（`C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools`，含 VC.Tools） | — |
+| ~~开发者模式~~ | 已开（`AllowDevelopmentWithoutDevLicense=1`） | — |
+| ~~Inno Setup 6~~ | 已装（用户态），`tool\build_windows.ps1` 能直接出安装包 | — |
+| VS 的 ATL 组件（`Microsoft.VisualStudio.Component.VC.ATL`） | **本机没装，但已经不需要**：`flutter_secure_storage_windows` 的 ATL 兼容层被我们裁掉（见坑 15） | 真要装：`setup.exe modify --installPath ... --add Microsoft.VisualStudio.Component.VC.ATL`（必须从提权终端运行 `--quiet`） |
 
-## 5. 验证清单（实测结果，2026-10-17）
+## 5. 验证清单（实测结果，2026-10-18）
 
 ```powershell
 . . .\tool\env.ps1
-flutter doctor            # Flutter / Android toolchain OK；VS 显示缺失（预期）
-flutter analyze           # 0 error / 0 warning
-flutter test              # 10/10 通过
-flutter build apk --debug # ✅ 169.5 MB（4 ABI，未裁剪）
-flutter build apk --release --split-per-abi
-                          # ✅ arm64 21.5 MB / armeabi-v7a 19.2 MB / x86_64 23.0 MB
+flutter doctor                  # Flutter / Android / VS(VC.Tools) 全绿
+flutter analyze                 # 0 issue
+flutter test                    # 46/46 通过
+.\tool\build_windows.ps1        # ✅ xlikemanage.exe + 便携 zip + Inno 安装包
+flutter build apk --release --target-platform android-arm64
+                                # ✅ 24.9 MB（含 INTERNET / ACCESS_NETWORK_STATE）
 ```
 
-release 构建耗时约 8.7 分钟（8GB 内存，R8 是瓶颈）；debug 约 12.7 分钟（首次含依赖下载）。
+Windows 产物（Release）：
+- `build\windows\x64\runner\Release` 79 MB（libmpv 与 ANGLE 占大头）
+- `dist\xlikemanage-windows-portable.zip` 33 MB
+- `dist\xlikemanage-1.0.0-setup.exe` 25 MB（LZMA2，含中英文安装界面）
+
+**注意**：这台机器 C: 只剩 ~3 GB，`flutter build apk --split-per-abi` 一次要 ~3 GB 峰值，
+所以现在是「一次只出一个 ABI」，出完把 `build\` 清掉再出下一个。
 
 **另外踩到的坑（后续可能复现）**：
 
@@ -90,4 +97,28 @@ release 构建耗时约 8.7 分钟（8GB 内存，R8 是瓶颈）；debug 约 12
     现在 `ndkVersion` 已删除，不会再下；目录留着不影响构建。
 12. **国产网络下 Maven 走代理只有 125 KB/s，直连 dl.google.com 有 1.3 MB/s**：
     `E:\dev\gradle\gradle.properties` 里用 `nonProxyHosts` 把 google/aliyun 排除在代理之外，速度差 10 倍。
+13. **Windows 构建需要 `nuget.exe` 在 PATH**：`flutter_inappwebview_windows` 的 CMake 会
+    `nuget install Microsoft.Web.WebView2 / nlohmann.json`，缺了就报 `NUGET-NOTFOUND`（MSB3073）。
+    现在放在 `E:\dev\nuget\nuget.exe`，`tool\env.ps1` 会把它加进 PATH。
+14. **项目路径太长 → MSB3491**：`flutter_inappwebview_windows` 的 `.tlog` 目录能撞上 260 字符上限。
+    开 `LongPathsEnabled` 需要管理员，所以 `tool\build_windows.ps1` 会自动 `subst` 一个短盘符。
+    **映射的必须是父目录**（`X:` → `myproject`，再进 `X:\xlikemanage`）；如果映射成盘符根，
+    `PROJECT_DIR` 会变成 `X:`，CMake 会给 `cmake -E env` 传一个被引号粘住的参数
+    （`"PROJECT_DIR=X:";"FLUTTER_TARGET=lib\main.dart"`），flutter 的 tool_backend 做 `cd /d` 时
+    就 `PathNotFoundException`，构建稳定失败。
+15. **`flutter_secure_storage_windows` 的 C++ 兼容层要 ATL**（`atlstr.h` → C1083）。
+    它的默认后端其实是**纯 Dart + DPAPI 文件**，C++ 那套只服务 `useBackwardCompatibility=true` 的老数据。
+    本项目没有历史数据，`third_party/flutter_secure_storage_windows` 里去掉了 `pluginClass:`，
+    只留 `dartPluginClass`，`AuthStore` 里显式 `WindowsOptions(useBackwardCompatibility: false)`。
+    结果：Windows 构建零 ATL 依赖。
+16. **media_kit 首次构建要下 mpv / ANGLE 两个 7z**（GitHub releases，共 ~13 MB），
+    走代理容易下断，断了会报 `ANGLE.7z Integrity check failed`。
+    直接 `curl -L --proxy ... -o build\windows\x64\ANGLE.7z <url>` 预置好（脚本里有 URL 和 MD5），
+    CMake 会自己校验并跳过下载。
+17. **CMake 缓存会记住错误的 `CMAKE_INSTALL_PREFIX`**：第一次配置被 MAX_PATH 打断后，
+    缓存里留下 `C:/Program Files/xlikemanage`，之后 `INSTALL` 步骤报 `file cannot create directory`
+    （MSB3073，exit 1），看起来像权限问题其实是脏缓存。删 `build\windows` 重新配置即可。
+18. **GUI 程序没法在这个 shell 里冒烟测试**：`Start-Process xlikemanage.exe` 会让宿主管道一直挂着，
+    job 永远不结束。改用「有没有 Application Error 事件」判断有没有启动崩溃。
+
 
