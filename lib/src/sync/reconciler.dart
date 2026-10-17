@@ -126,10 +126,10 @@ class Reconciler {
       );
     }
 
+    // 页从区段的「新」端进入（seq 大 → 小），最后一页/最后一条匹配到的最小 seq
+    // 才是本页真正覆盖到的下界。页外的更旧条目（seq 更小）一律不动。
     final lowestMatched = matchedSeqs.reduce(math.min);
-    // 只比较「本页确实覆盖到」的那一段
-    final coveredLocalIds =
-        db.tweetIdsInSeqRange(startSeq, lowestMatched + 1);
+    final coveredLocalIds = db.tweetIdsInSeqRange(lowestMatched, endSeq);
 
     // 1) 本地有、服务端没有 → 已在别处取消喜欢
     var removed = 0;
@@ -141,32 +141,32 @@ class Reconciler {
     // 2) 服务端有、本地没有 → 漏抓，按顺序插回（seq 取相邻中点）
     var inserted = 0;
     if (page.items.isNotEmpty) {
-      // 先标出每条在本地是否已有 seq，便于把「未知条目」放进两个已知锚点之间
+      // seq 越大越新：页内顺序就是 new → old，`newer` 记「上一条的 seq」。
       final seqs = [for (final item in page.items) db.seqOf(item.tweetId)];
-      // 段顶部边界：比 startSeq 更「新」的条目的 seq
-      var upper = db.neighborsOf(startSeq).above ?? startSeq + AppDatabase.seqStep;
+      // 段外更新方向的最近邻（seq > endSeq 中最小的那个）
+      var newer = db.neighborsOf(endSeq).below ?? endSeq + AppDatabase.seqStep;
 
       for (var i = 0; i < page.items.length; i++) {
         final known = seqs[i];
         if (known != null) {
-          upper = known;
+          newer = known;
           continue;
         }
-        int? lower;
+        int? older;
         for (var j = i + 1; j < page.items.length; j++) {
           if (seqs[j] != null) {
-            lower = seqs[j];
+            older = seqs[j];
             break;
           }
         }
         final seq = db.seqBetween(
-          lower ?? upper - AppDatabase.seqStep * 2,
-          upper,
+          older ?? newer - AppDatabase.seqStep * 2,
+          newer,
         );
         if (seq == null) continue;
         if (db.insertAtSeq(page.items[i], accountId: accountId, seq: seq)) {
           seqs[i] = seq;
-          upper = seq;
+          newer = seq;
           inserted++;
         }
       }

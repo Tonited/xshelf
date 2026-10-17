@@ -804,9 +804,11 @@ class AppDatabase {
     String orderBy;
     switch (mode) {
       case SortMode.likeOrder:
-        orderBy = 'feed_seq ASC';
+        // 约定：feed_seq 越大 = 越新。回填时从 0 往下递减分配，
+        // 增量时在 max_seq 之上递增分配。所以「最新在前」= DESC。
+        orderBy = 'feed_seq DESC';
         if (after?.seq != null) {
-          where.add('feed_seq > ?');
+          where.add('feed_seq < ?');
           args.add(after!.seq);
         }
       case SortMode.publishDate:
@@ -915,10 +917,10 @@ class AppDatabase {
   }
 
   /// 某个发布月份（`YYYY-MM`）里「喜欢顺序最靠前」的一条的 seq。
-  /// 时间轴跳到某个月时用它当锚点。
+  /// 时间轴跳到某个月时用它当锚点（seq 越大越新）。
   int? newestSeqInMonth(String month) {
     final rows = _db.select('''
-      SELECT MIN(feed_seq) seq FROM likes
+      SELECT MAX(feed_seq) seq FROM likes
       WHERE strftime('%Y-%m', created_at/1000, 'unixepoch') = ?
     ''', [month]);
     if (rows.isEmpty) return null;
@@ -932,14 +934,20 @@ class AppDatabase {
   }
 
   /// 模式 A 的「估算时间轴」：把喜欢顺序切成 N 段，每段给出推文发布日期的中位数。
+  ///
+  /// 返回顺序**与列表一致**：最新的桶在前（seq 大 → 小）。
   List<({int fromSeq, int toSeq, int count, DateTime? approxDate})> estimatedBuckets({
     int bucketSize = 200,
   }) {
-    final range = _db.select('SELECT MIN(feed_seq) mn, MAX(feed_seq) mx FROM likes');
+    final range = _db.select('SELECT MIN(feed_seq) mn, MAX(feed_seq) mx, COUNT(*) c FROM likes');
     if (range.isEmpty) return const [];
     final minSeq = range.first['mn'] as int?;
     final maxSeq = range.first['mx'] as int?;
     if (minSeq == null || maxSeq == null) return const [];
+
+    final width = bucketSize * AppDatabase.seqStep;
+    final topBucket = (maxSeq / width).floor() * width;
+    final bottomBucket = (minSeq / width).floor() * width;
 
     final out = <({int fromSeq, int toSeq, int count, DateTime? approxDate})>[];
     final stmt = _db.prepare('''
@@ -948,13 +956,14 @@ class AppDatabase {
       ORDER BY created_at
     ''');
     try {
-      for (var start = minSeq; start <= maxSeq; start += bucketSize) {
-        final end = start + bucketSize;
+      for (var start = topBucket; start >= bottomBucket; start -= width) {
+        final end = start + width;
         final rows = stmt.select([start, end]);
         final count = _db.select(
           'SELECT COUNT(*) c FROM likes WHERE feed_seq >= ? AND feed_seq < ?',
           [start, end],
         ).first['c'] as int;
+        if (count == 0) continue;
         DateTime? approx;
         if (rows.isNotEmpty) {
           final median = rows[rows.length ~/ 2]['created_at'] as int;

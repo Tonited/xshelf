@@ -7,6 +7,7 @@ library;
 import 'dart:math' as math;
 
 import '../db/app_database.dart';
+import '../model/like_item.dart';
 import 'x_client.dart';
 
 class SyncCancel {
@@ -117,9 +118,10 @@ class SyncService {
       cursor = page.bottomCursor;
       state = state.copyWith(
         minSeq: seqCursor + AppDatabase.seqStep,
+        // seq 越大越新：回填过程中 maxSeq 必须保持第一页那个值，不能往下掉。
         maxSeq: state.maxSeq == null
             ? seqCursor + AppDatabase.seqStep
-            : math.min(state.maxSeq!, seqCursor + AppDatabase.seqStep),
+            : math.max(state.maxSeq!, seqCursor + AppDatabase.seqStep),
         backfillCursor: cursor,
       );
       db.saveSyncState(accountId, state);
@@ -153,60 +155,89 @@ class SyncService {
   }
 
   /// 增量：从最新往回翻，翻到已有条目就停。
+  ///
+  /// seq 约定「越大越新」，新增的喜欢必须排到现有最大 seq 之上。
+  /// 因为整批条目是「新→旧」顺序、而 `insertPage` 是递减分配，
+  /// 所以先把整批收集齐，再从 `maxSeq + n * step` 往下分配。
   Future<SyncProgress> syncNew({
     required int accountId,
     int? maxItems,
     void Function(SyncProgress)? onProgress,
     SyncCancel? cancel,
   }) async {
-    var state = db.loadSyncState(accountId);
-    var cursor = <String?>[null][0];
-    var seqCursor = (state.minSeq ?? AppDatabase.seqStep) - AppDatabase.seqStep;
+    final state = db.loadSyncState(accountId);
+    String? cursor;
     var pages = 0;
     var fetched = 0;
-    var inserted = 0;
     var hitExisting = false;
+    final collected = <LikeItem>[];
+    final seen = <String>{};
 
     while (true) {
       if (cancel?.cancelled == true) break;
       if (maxItems != null && fetched >= maxItems) break;
 
       final page = await client.fetchLikes(cursor: cursor);
-      final fresh = <String>{};
+      var pageHasNew = false;
       for (final item in page.items) {
-        if (!db.hasTweet(item.tweetId)) fresh.add(item.tweetId);
+        if (db.hasTweet(item.tweetId)) {
+          hitExisting = true;
+          continue;
+        }
+        if (seen.add(item.tweetId)) {
+          collected.add(item);
+          pageHasNew = true;
+        }
       }
-      if (fresh.length < page.items.length) hitExisting = true;
-
-      final newItems =
-          page.items.where((i) => fresh.contains(i.tweetId)).toList();
-      if (newItems.isNotEmpty) {
-        final res = db.insertPage(
-          newItems,
-          accountId: accountId,
-          startSeq: seqCursor,
-        );
-        inserted += res.inserted;
-        seqCursor = res.nextSeq;
-        fetched += newItems.length;
+      if (page.deletedTweetIds.isNotEmpty) {
+        db.markDeleted(page.deletedTweetIds);
       }
       pages++;
-
-      state = state.copyWith(minSeq: seqCursor + AppDatabase.seqStep);
-      db.saveSyncState(accountId, state);
+      fetched = collected.length;
 
       onProgress?.call(SyncProgress(
         pages: pages,
         fetched: fetched,
-        inserted: inserted,
+        inserted: 0,
       ));
 
       cursor = page.bottomCursor;
-      if (hitExisting || !page.hasMore) break;
+      // 没有新条目、或已经撞上本地已有数据，就没必要继续翻
+      if (!pageHasNew || hitExisting || !page.hasMore) break;
       await Future<void>.delayed(pace);
     }
 
-    return SyncProgress(pages: pages, fetched: fetched, inserted: inserted, done: true);
+    var inserted = 0;
+    if (collected.isNotEmpty) {
+      final base = state.maxSeq ?? 0;
+      final startSeq = base + collected.length * AppDatabase.seqStep;
+      final res = db.insertPage(
+        collected,
+        accountId: accountId,
+        startSeq: startSeq,
+      );
+      inserted = res.inserted;
+      db.saveSyncState(
+        accountId,
+        state.copyWith(
+          maxSeq: db.maxSeqOverall(),
+          minSeq: db.minSeqOverall(),
+        ),
+      );
+    }
+
+    onProgress?.call(SyncProgress(
+      pages: pages,
+      fetched: collected.length,
+      inserted: inserted,
+      done: true,
+    ));
+    return SyncProgress(
+      pages: pages,
+      fetched: collected.length,
+      inserted: inserted,
+      done: true,
+    );
   }
 
   /// 取消喜欢：调接口 + 删本地记录。
