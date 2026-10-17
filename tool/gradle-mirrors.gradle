@@ -1,8 +1,10 @@
 // Gradle 全局镜像（放在 GRADLE_USER_HOME/init.d/ 下自动生效）
 //
-// 作用：把每个工程（包括 Flutter SDK 里 includeBuild 的那部分）的
-// repo.maven.apache.org / dl.google.com 仓库替换成阿里云镜像。
-// 国内直连 Maven Central 经常卡在下载一半，构建看起来"没反应"就是这个原因。
+// 作用：把仓库里的 repo.maven.apache.org / dl.google.com 换成阿里云镜像。
+// 国内直连 Maven Central 常常"看着没反应"，就是卡在下载上。
+//
+// 注意：工程可能配置了 "prefer settings repositories"，此时往 project 级仓库
+// 塞东西会直接报错，所以只按当前模式往对应层级加。
 
 def mirrors = [
   'https://maven.aliyun.com/repository/public',
@@ -32,20 +34,20 @@ def redirect = { repos ->
   }
 }
 
-allprojects { p ->
-  redirect(p.buildscript.repositories)
-  redirect(p.repositories)
-}
+def preferSettings = false
 
 settingsEvaluated { settings ->
   try { redirect(settings.pluginManagement.repositories) } catch (ignored) { }
-  try { redirect(settings.dependencyResolutionManagement.repositories) } catch (ignored) { }
   try {
-    settings.gradle.projectsLoaded {
-      settings.gradle.rootProject.allprojects { p ->
-        redirect(p.buildscript.repositories)
-        redirect(p.repositories)
-      }
-    }
+    redirect(settings.dependencyResolutionManagement.repositories)
+    preferSettings =
+        settings.dependencyResolutionManagement.repositoriesMode.get().toString() == 'PREFER_SETTINGS'
   } catch (ignored) { }
+}
+
+allprojects { p ->
+  redirect(p.buildscript.repositories)
+  if (!preferSettings) {
+    redirect(p.repositories)
+  }
 }

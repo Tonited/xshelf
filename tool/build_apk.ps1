@@ -1,4 +1,4 @@
-# 出 Android release APK（自签）
+﻿# 出 Android release APK（自签）
 # 首次运行会自动生成 keystore（存在 android/keystore/，已 gitignore）
 # 用法： .\tool\build_apk.ps1 [-SplitPerAbi]
 param([switch]$SplitPerAbi)

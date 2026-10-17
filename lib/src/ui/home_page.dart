@@ -12,6 +12,7 @@ import '../model/like_item.dart';
 import 'detail_pane.dart';
 import 'like_tile.dart';
 import 'settings_page.dart';
+import 'timeline_bar.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -139,20 +140,38 @@ class _HomePageState extends State<HomePage> {
           Expanded(
             child: Row(
               children: [
-                Expanded(child: _grid(context, app, onTap: (item) {
-                  app.select(item.tweetId);
-                  if (!wide) {
-                    Navigator.of(context).push(MaterialPageRoute<void>(
-                      builder: (_) => Scaffold(
-                        appBar: AppBar(),
-                        body: DetailPane(
-                          item: item,
-                          onClose: () => Navigator.of(context).pop(),
+                Expanded(
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: _grid(context, app, onTap: (item) {
+                          app.select(item.tweetId);
+                          if (!wide) {
+                            Navigator.of(context).push(MaterialPageRoute<void>(
+                              builder: (_) => Scaffold(
+                                appBar: AppBar(),
+                                body: DetailPane(
+                                  item: item,
+                                  onClose: () => Navigator.of(context).pop(),
+                                ),
+                              ),
+                            ));
+                          }
+                        }),
+                      ),
+                      // 时间轴：右侧竖向刻度（随机模式下自动隐藏）
+                      Positioned(
+                        right: 8,
+                        top: 12,
+                        bottom: 12,
+                        child: SizedBox(
+                          width: 44,
+                          child: TimelineBar(app: app),
                         ),
                       ),
-                    ));
-                  }
-                })),
+                    ],
+                  ),
+                ),
                 if (wide && selected != null) ...[
                   const VerticalDivider(width: 1),
                   SizedBox(
@@ -227,7 +246,7 @@ class _HomePageState extends State<HomePage> {
     final columns = _columnsFor(context);
     return GridView.builder(
       controller: _scroll,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(12, 12, 56, 12),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: columns,
         mainAxisSpacing: 10,

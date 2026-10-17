@@ -37,6 +37,29 @@ flutter run -d windows     # 或 -d <android-device-id>
 .\tool\build_apk.ps1
 ```
 
+### 开发环境（本机约定）
+
+工具链统一装在 E 盘，不占系统盘：
+
+| 组件 | 路径 |
+|---|---|
+| Flutter SDK | `E:\dev\flutter` |
+| Git（便携版） | `E:\dev\git` |
+| JDK 17 | `E:\dev\jdk\jdk-17.0.20.1+1` |
+| Android SDK | `E:\dev\android-sdk` |
+| Gradle 缓存 | `E:\dev\gradle` |
+
+```powershell
+. .\tool\env.ps1        # 把上面这些塞进当前会话的 PATH
+flutter doctor
+```
+
+- **Windows 桌面构建需要管理员装一次 VS C++ 生成工具**：
+  `powershell -File .\tool\setup_admin.ps1`（同时打开开发者模式）。
+- 国内网络：`tool\patch-flutter-sdk-mirrors.ps1` 把 Flutter SDK 自带子构建的仓库换成阿里云镜像；
+  本机 Gradle 还配了 `E:\dev\gradle\gradle.properties` 走本地代理。`flutter upgrade` 后需要重跑一次补丁脚本。
+- 内存 8GB 的机器务必保持 `android/gradle.properties` 里的 `-Xmx2048m`，模板默认的 8G 会让 JVM 直接崩。
+
 ### 实现方式
 
 登录后用 WebView 拿到 X 的会话 cookie，直接调用 X 网页端自己的 GraphQL `Likes` 接口翻页取数，写进本地 SQLite；媒体走 `pbs.twimg.com` / `video.twimg.com` 公开 CDN，按需缓存。同步由一个「巡边器」统一调度：首次回填、增量更新、滚动到某区域时的顺手核对、以及后台慢速轮转核对，全部只是给同一个请求预算队列投任务。

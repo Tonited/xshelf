@@ -1,4 +1,4 @@
-<#
+﻿<#
   需要管理员权限的一次性环境准备。用管理员 PowerShell 运行：
 
     powershell -NoProfile -ExecutionPolicy Bypass -File ".\tool\setup_admin.ps1"

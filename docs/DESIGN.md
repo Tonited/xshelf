@@ -132,3 +132,25 @@ likes_fts  -- FTS5(text, author_name, author_screen_name) tokenize='trigram'
 4. ToS 24h 删除要求与本地缓存冲突（README 声明）。
 5. Android 仅系统 HTTP 代理（非 TUN）时部分请求可能漏，推荐 TUN 全局。
 6. Windows 原生构建需 VS C++（需管理员权限）。
+
+## 11. 实现现状与设计偏差（持续更新）
+
+实现过程中对设计做了这些调整，均已落到代码：
+
+| 项 | 设计 | 实现 | 原因 |
+|---|---|---|---|
+| 喜欢顺序的键 | `feed_rank`（位置） | **`feed_seq`（首次入库时分配，间隔 `10^6` 递减）** | 位置会随新增喜欢整体下移，导致分页跳条、区段错位；间隔留白让「视口核对」能把漏抓的条目插回中间（`seqBetween` 取中点） |
+| 区段登记 | `segments(start,end,cursor)` | 回填每进入一个新区段就登记 `cursor = page.topCursor` | 巡边器要能重新翻到任意区段 |
+| 巡边器 | 四类任务源 | 已实现 **视口核对 + 陈段轮转**；计数探针留 TODO（需要服务端 likes 总数，X 暂未给稳定字段） | — |
+| 代理 | HTTP + SOCKS5 | **只实现 HTTP**；SOCKS5 会给出「暂不支持，请用 TUN」的提示 | `dart:io` 不支持 SOCKS，需要本地桥接，排在 M7 |
+| 媒体缓存 | 5GB LRU | `MediaCache` 已实现（按需下载 + `evictMediaCache`），UI 只接了「清空/上限」 | 播放当前走在线流 |
+| 状态管理 | 未指定 | 单个 `AppController extends ChangeNotifier` + `AppScope`（InheritedNotifier） | 依赖少、审起来快 |
+| 数据库层 | 未指定 | `package:sqlite3` 手写 SQL（不用 ORM/codegen） | 改起来快、无生成步骤 |
+| 构建环境 | 本机装全套 | Flutter/JDK/Android SDK 装在 `E:\dev`；Gradle 走阿里云镜像；**VS C++ 需管理员，待用户执行 `tool/setup_admin.ps1`** | 无提权能力 |
+
+**坑（写给未来的自己）**：
+- 8GB 内存机器上，Flutter 模板默认 `-Xmx8G` 会让 JVM malloc 失败 → 已在 `android/gradle.properties` 收到 2G。
+- `packages/flutter_tools/gradle/settings.gradle.kts` 是独立的 includeBuild，且 `FAIL_ON_PROJECT_REPOS`，只能改它本身（`tool/patch-flutter-sdk-mirrors.ps1`）；`flutter upgrade` 会覆盖。
+- `.ps1` 脚本必须带 UTF-8 BOM，否则 Windows PowerShell 5.1 会把中文当 ANSI 解析失败。
+- 用 PowerShell 批量改 Dart 源文件会破坏 UTF-8（必须 `[System.IO.File]::ReadAllText(path, UTF8)` + `WriteAllText(..., UTF8Encoding($false))`），我因此重写过一个 1000 行文件。
+

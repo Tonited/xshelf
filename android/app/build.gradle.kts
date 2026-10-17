@@ -17,7 +17,8 @@ if (keystorePropertiesFile.exists()) {
 android {
     namespace = "app.xlikemanage"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // 本项目没有任何原生代码，不需要 NDK。
+    // 保留 flutter.ndkVersion 会让 AGP 自动下载 ~2.5GB 的 NDK r28c。
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

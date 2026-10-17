@@ -1,4 +1,4 @@
-# 出 Windows 产物：便携 zip + Inno Setup 安装包
+﻿# 出 Windows 产物：便携 zip + Inno Setup 安装包
 # 用法： .\tool\build_windows.ps1 [-SkipBuild]
 param([switch]$SkipBuild)
 

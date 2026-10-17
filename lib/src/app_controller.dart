@@ -265,6 +265,33 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 时间轴跳转：把列表锚定到某个 seq（喜欢顺序）。
+  Future<void> jumpToSeq(int seq) async {
+    items.clear();
+    hasMore = true;
+    nextKey = PageKey(seq: seq - 1);
+    notifyListeners();
+    await loadMore();
+    await saveViewState();
+  }
+
+  /// 时间轴跳转：跳到某个发布月份（`YYYY-MM`）。
+  Future<void> jumpToMonth(String month) async {
+    if (mode == SortMode.random) {
+      await setMode(SortMode.publishDate);
+    }
+    final seq = db.newestSeqInMonth(month);
+    if (seq == null) return;
+    await jumpToSeq(seq);
+  }
+
+  /// 某段（按喜欢顺序）的估算标签，模式 A 用。
+  List<({int fromSeq, int toSeq, int count, DateTime? approxDate})>
+      estimatedTimeline() => db.estimatedBuckets();
+
+  /// 模式 B 的精确月份列表。
+  List<MonthBucket> months() => db.months();
+
   void select(String? tweetId) {
     selectedTweetId = tweetId;
     notifyListeners();

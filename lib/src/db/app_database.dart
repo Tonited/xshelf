@@ -209,7 +209,8 @@ class AppDatabase {
     return instance;
   }
 
-  void dispose() => _db.close();
+  // sqlite3 2.x 用 dispose()（3.x 才改名 close()）。
+  void dispose() => _db.dispose();
 
   // ---------------------------------------------------------------- schema
 
@@ -911,6 +912,23 @@ class AppDatabase {
           r['mx'] as int? ?? 0,
         ),
     ];
+  }
+
+  /// 某个发布月份（`YYYY-MM`）里「喜欢顺序最靠前」的一条的 seq。
+  /// 时间轴跳到某个月时用它当锚点。
+  int? newestSeqInMonth(String month) {
+    final rows = _db.select('''
+      SELECT MIN(feed_seq) seq FROM likes
+      WHERE strftime('%Y-%m', created_at/1000, 'unixepoch') = ?
+    ''', [month]);
+    if (rows.isEmpty) return null;
+    return rows.first['seq'] as int?;
+  }
+
+  /// 全局 seq 区间（时间轴把「拖动比例」映射成 seq 用）。
+  ({int? minSeq, int? maxSeq}) seqBounds() {
+    final r = _db.select('SELECT MIN(feed_seq) mn, MAX(feed_seq) mx FROM likes').first;
+    return (minSeq: r['mn'] as int?, maxSeq: r['mx'] as int?);
   }
 
   /// 模式 A 的「估算时间轴」：把喜欢顺序切成 N 段，每段给出推文发布日期的中位数。
