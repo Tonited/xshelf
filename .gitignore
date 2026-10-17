@@ -44,3 +44,7 @@ third_party/**/build/
 third_party/**/.dart_tool/
 third_party/**/.gradle/
 third_party/**/example/build/
+
+# 构建产物目录（apk/exe/图标/临时分享脚本都不入库）
+dist/
+
