@@ -1,14 +1,22 @@
 /// 主界面：自适应（桌面双栏 / 平板覆盖 / 手机单列）。
+///
+/// 重建范围刻意收到最小：
+/// - 网格 + 时间轴只订阅 [BrowseState]；
+/// - 顶栏按钮 + 同步横幅只订阅 [SyncController]。
+/// 这样同步每抓一页刷一次进度时，屏幕上的几十上百张卡片完全不动。
 library;
 
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 
 import '../app_controller.dart';
 import '../core/l10n.dart';
 import '../db/app_database.dart';
 import '../model/like_item.dart';
+import '../state/browse_state.dart';
+import '../state/sync_state.dart';
 import 'detail_pane.dart';
 import 'like_tile.dart';
 import 'settings_page.dart';
@@ -34,13 +42,13 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _scroll.addListener(_onScroll);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _restoreScroll());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _restorePosition());
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _app = AppScope.of(context);
+    _app = AppScope.read(context);
   }
 
   @override
@@ -51,80 +59,93 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  void _restoreScroll() {
+  /// 恢复上次的位置。
+  ///
+  /// 冷启动时只加载了第一页，直接按像素偏移 `jumpTo` 会被 `maxScrollExtent`
+  /// 截断（等于永远回到顶部）。所以先用存下来的锚点 seq 重新取一页，
+  /// 再套像素偏移 —— 5 万条的列表里这才是「上次看到哪」的真正含义。
+  Future<void> _restorePosition() async {
     if (_restored) return;
     _restored = true;
     final app = _app;
     if (app == null || !mounted) return;
-    final offset = app.settings.view.scrollOffset;
-    if (offset > 0 && _scroll.hasClients) {
-      final max = _scroll.position.maxScrollExtent;
-      _scroll.jumpTo(offset.clamp(0, max));
-    }
-    final q = app.filter.search;
+    final view = app.settings.view;
+    final browse = app.browse;
+
+    final q = browse.filter.search;
     if (q != null && q.isNotEmpty) _search.text = q;
+
+    final anchor = view.anchorSeq;
+    final firstSeq = browse.items.isNotEmpty ? browse.items.first.feedRank : null;
+    if (anchor != null && browse.items.isNotEmpty && anchor != firstSeq) {
+      await browse.jumpToSeq(anchor);
+      if (!mounted) return;
+    }
+    if (view.scrollOffset > 0 && _scroll.hasClients) {
+      final max = _scroll.position.maxScrollExtent;
+      _scroll.jumpTo(view.scrollOffset.clamp(0, max));
+    }
   }
 
   void _onScroll() {
     final app = _app;
     if (app == null || !mounted || !_scroll.hasClients) return;
-    if (_scroll.position.pixels >= _scroll.position.maxScrollExtent - 800) {
-      app.loadMore();
-    }
+    final browse = app.browse;
+    final pos = _scroll.position;
+    if (pos.pixels >= pos.maxScrollExtent - 800) browse.loadMore();
     _saveDebounce?.cancel();
-    _saveDebounce = Timer(const Duration(milliseconds: 1500), () {
+    _saveDebounce = Timer(const Duration(milliseconds: 1200), () {
       if (!mounted) return;
-      app.saveViewState(scrollOffset: _scroll.position.pixels);
-      // 停住就看：把当前已加载的这一段交给巡边器核对（内部有 1.5s/次、4 次/分 的预算）
-      if (app.items.isNotEmpty) {
-        final first = app.items.first.feedRank;
-        final last = app.items.last.feedRank;
-        if (first != null && last != null) {
-          app.markViewportDirty(last, first);
-        }
+      app.browse.saveView(scrollOffset: pos.pixels);
+      // 停住就看：把当前已加载的这一段交给巡边器核对（内部有 1.5s/次、4 次/分的预算）
+      if (browse.items.isNotEmpty) {
+        final first = browse.items.first.feedRank;
+        final last = browse.items.last.feedRank;
+        if (first != null && last != null) app.markViewportDirty(last, first);
       }
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final app = AppScope.of(context);
+    final app = AppScope.read(context);
     final width = MediaQuery.sizeOf(context).width;
     final wide = width >= kBreakpointWide;
     final medium = width >= kBreakpointMedium;
-    LikeItem? selected;
-    for (final i in app.items) {
-      if (i.tweetId == app.selectedTweetId) {
-        selected = i;
-        break;
-      }
-    }
 
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 12,
-        title: _SearchField(controller: _search, onSubmitted: (v) {
-          app.setFilter(app.filter.copyWith(
-            search: v.trim().isEmpty ? null : v.trim(),
-            clearSearch: v.trim().isEmpty,
-          ));
-        }),
+        title: _SearchField(
+          controller: _search,
+          onSubmitted: (v) {
+            final browse = app.browse;
+            browse.setFilter(browse.filter.copyWith(
+              search: v.trim().isEmpty ? null : v.trim(),
+              clearSearch: v.trim().isEmpty,
+            ));
+          },
+        ),
         actions: [
-          IconButton(
-            tooltip: t('action.refresh'),
-            onPressed: app.syncProgress != null
-                ? app.cancelSync
-                : () => app.syncNew(),
-            icon: Icon(app.syncProgress != null ? Icons.stop : Icons.refresh),
+          ListenableBuilder(
+            listenable: app.sync,
+            builder: (context, _) {
+              final busy = app.sync.busy;
+              return IconButton(
+                tooltip: t('action.refresh'),
+                onPressed: busy ? app.sync.cancel : () => app.sync.syncNew(),
+                icon: Icon(busy ? Icons.stop : Icons.refresh),
+              );
+            },
           ),
           PopupMenuButton<String>(
             onSelected: (v) async {
               switch (v) {
                 case 'backfill':
                   final ok = await _confirmBackfill(context);
-                  if (ok) await app.startBackfill();
+                  if (ok) await app.sync.startBackfill();
                 case 'reshuffle':
-                  await app.reshuffle();
+                  await app.browse.reshuffle();
                 case 'settings':
                   _openSettings(context);
                 case 'logout':
@@ -133,12 +154,11 @@ class _HomePageState extends State<HomePage> {
             },
             itemBuilder: (_) => [
               PopupMenuItem(
-                  value: 'backfill',
-                  child: Text(app.backfillDone
-                      ? t('sync.backfill')
-                      : t('sync.resume'))),
-              PopupMenuItem(
-                  value: 'reshuffle', child: Text(t('mode.reshuffle'))),
+                value: 'backfill',
+                child: Text(
+                    app.sync.backfillDone ? t('sync.backfill') : t('sync.resume')),
+              ),
+              PopupMenuItem(value: 'reshuffle', child: Text(t('mode.reshuffle'))),
               PopupMenuItem(value: 'settings', child: Text(t('action.settings'))),
               PopupMenuItem(value: 'logout', child: Text(t('action.logout'))),
             ],
@@ -146,59 +166,77 @@ class _HomePageState extends State<HomePage> {
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(52),
-          child: _ModeBar(app: app),
+          child: ListenableBuilder(
+            listenable: app.browse,
+            builder: (context, _) => _ModeBar(
+              browse: app.browse,
+              onOpenFilter: () => _openFilterSheet(context, app),
+            ),
+          ),
         ),
       ),
       body: Column(
         children: [
-          if (app.syncProgress != null || app.syncError != null)
-            _SyncBanner(app: app),
+          ListenableBuilder(
+            listenable: app.sync,
+            builder: (context, _) =>
+                _SyncBanner(sync: app.sync),
+          ),
           Expanded(
-            child: Row(
-              children: [
-                Expanded(
-                  child: Stack(
-                    children: [
-                      Positioned.fill(
-                        child: _grid(context, app, onTap: (item) {
-                          app.select(item.tweetId);
-                          if (!wide) {
-                            Navigator.of(context).push(MaterialPageRoute<void>(
-                              builder: (_) => Scaffold(
-                                appBar: AppBar(),
-                                body: DetailPane(
-                                  item: item,
-                                  onClose: () => Navigator.of(context).pop(),
-                                ),
-                              ),
-                            ));
-                          }
-                        }),
+            child: ListenableBuilder(
+              listenable: app.browse,
+              builder: (context, _) {
+                final browse = app.browse;
+                final selected = browse.selectedItem;
+                return Row(
+                  children: [
+                    Expanded(
+                      child: Stack(
+                        children: [
+                          Positioned.fill(
+                            child: _grid(app, onTap: (item) {
+                              browse.select(item.tweetId);
+                              if (!wide) {
+                                Navigator.of(context)
+                                    .push(MaterialPageRoute<void>(
+                                  builder: (_) => Scaffold(
+                                    appBar: AppBar(),
+                                    body: DetailPane(
+                                      item: item,
+                                      onClose: () =>
+                                          Navigator.of(context).pop(),
+                                    ),
+                                  ),
+                                ));
+                              }
+                            }),
+                          ),
+                          // 时间轴：右侧竖向刻度（随机模式下自动隐藏）
+                          Positioned(
+                            right: 8,
+                            top: 12,
+                            bottom: 12,
+                            child: SizedBox(
+                              width: 44,
+                              child: TimelineBar(browse: browse),
+                            ),
+                          ),
+                        ],
                       ),
-                      // 时间轴：右侧竖向刻度（随机模式下自动隐藏）
-                      Positioned(
-                        right: 8,
-                        top: 12,
-                        bottom: 12,
-                        child: SizedBox(
-                          width: 44,
-                          child: TimelineBar(app: app),
+                    ),
+                    if (wide && selected != null) ...[
+                      const VerticalDivider(width: 1),
+                      SizedBox(
+                        width: 440,
+                        child: DetailPane(
+                          item: selected,
+                          onClose: () => browse.select(null),
                         ),
                       ),
                     ],
-                  ),
-                ),
-                if (wide && selected != null) ...[
-                  const VerticalDivider(width: 1),
-                  SizedBox(
-                    width: 440,
-                    child: DetailPane(
-                      item: selected,
-                      onClose: () => app.select(null),
-                    ),
-                  ),
-                ],
-              ],
+                  ],
+                );
+              },
             ),
           ),
         ],
@@ -219,9 +257,6 @@ class _HomePageState extends State<HomePage> {
                     icon: const Icon(Icons.settings), label: t('nav.settings')),
               ],
             ),
-      floatingActionButton: app.items.isEmpty && app.syncProgress == null
-          ? null
-          : null,
     );
   }
 
@@ -250,160 +285,50 @@ class _HomePageState extends State<HomePage> {
     return ok ?? false;
   }
 
-  Widget _grid(BuildContext context, AppController app,
-      {required void Function(LikeItem) onTap}) {
-    if (app.items.isEmpty) {
-      if (app.loadingPage) {
+  Widget _grid(AppController app, {required void Function(LikeItem) onTap}) {
+    final browse = app.browse;
+    if (browse.items.isEmpty) {
+      if (browse.loadingPage) {
         return const Center(child: CircularProgressIndicator());
       }
-      return _EmptyState(app: app);
+      return _EmptyState(onBackfill: () async {
+        final ok = await _confirmBackfill(context);
+        if (ok) await app.sync.startBackfill();
+      });
     }
 
-    final columns = _columnsFor(context);
     return GridView.builder(
       controller: _scroll,
       padding: const EdgeInsets.fromLTRB(12, 12, 56, 12),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: columns,
+        crossAxisCount: columnsForWidth(MediaQuery.sizeOf(context).width),
         mainAxisSpacing: 10,
         crossAxisSpacing: 10,
         childAspectRatio: 1,
       ),
-      itemCount: app.items.length + (app.hasMore ? 1 : 0),
+      // 卡片有状态（悬停浮层），滚动离开后不必保活；预取半屏，快速滑动不空白。
+      addAutomaticKeepAlives: false,
+      scrollCacheExtent: const ScrollCacheExtent.viewport(0.5),
+      itemCount: browse.items.length + (browse.hasMore ? 1 : 0),
       itemBuilder: (context, index) {
-        if (index >= app.items.length) {
+        if (index >= browse.items.length) {
           return const Center(child: CircularProgressIndicator());
         }
-        final item = app.items[index];
+        final item = browse.items[index];
         return LikeTile(
           key: ValueKey(item.tweetId),
           item: item,
-          selected: item.tweetId == app.selectedTweetId,
+          cache: app.mediaCache,
+          selected: item.tweetId == browse.selectedTweetId,
           onTap: () => onTap(item),
         );
       },
     );
   }
 
-  int _columnsFor(BuildContext context) =>
-      columnsForWidth(MediaQuery.sizeOf(context).width);
-}
-
-/// 响应式断点：宽度 ≥ 1000dp 是桌面双栏，≥ 600dp 是平板，再窄是手机单列。
-const double kBreakpointWide = 1000;
-const double kBreakpointMedium = 600;
-
-/// 网格列数（纯函数，方便单测）。
-int columnsForWidth(double width) {
-  if (width >= 1600) return 6;
-  if (width >= 1200) return 5;
-  if (width >= 900) return 4;
-  if (width >= kBreakpointMedium) return 3;
-  return 2;
-}
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.app});
-  final AppController app;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.favorite_border, size: 56),
-          const SizedBox(height: 16),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Text(t('sync.empty'), textAlign: TextAlign.center),
-          ),
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: () async {
-              final ok = await showDialog<bool>(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  title: Text(t('sync.backfill')),
-                  content: Text(t('sync.backfillConfirm')),
-                  actions: [
-                    TextButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        child: Text(t('action.cancel'))),
-                    FilledButton(
-                        onPressed: () => Navigator.pop(ctx, true),
-                        child: Text(t('action.confirm'))),
-                  ],
-                ),
-              );
-              if (ok == true) await app.startBackfill();
-            },
-            icon: const Icon(Icons.cloud_download),
-            label: Text(t('sync.backfill')),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ModeBar extends StatelessWidget {
-  const _ModeBar({required this.app});
-  final AppController app;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 52,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        children: [
-          SegmentedButton<SortMode>(
-            segments: [
-              ButtonSegment(
-                  value: SortMode.likeOrder, label: Text(t('mode.likeOrder'))),
-              ButtonSegment(
-                  value: SortMode.publishDate,
-                  label: Text(t('mode.publishDate'))),
-              ButtonSegment(value: SortMode.random, label: Text(t('mode.random'))),
-            ],
-            selected: {app.mode},
-            onSelectionChanged: (s) => app.setMode(s.first),
-          ),
-          const SizedBox(width: 12),
-          FilterChip(
-            label: Text(app.filter.isEmpty
-                ? t('filter.title')
-                : '${t("filter.title")} (${app.filter.media.length})'),
-            selected: !app.filter.isEmpty,
-            onSelected: (_) => _openFilterSheet(context, app),
-          ),
-          if (app.filter.search != null && app.filter.search!.isNotEmpty) ...[
-            const SizedBox(width: 8),
-            Chip(
-              label: Text(app.filter.search!),
-              onDeleted: () => app.setFilter(app.filter.copyWith(clearSearch: true)),
-            ),
-          ],
-          const SizedBox(width: 8),
-          // 精确的年月跳转（顶部下拉），与右侧拖动刻度互补
-          if (app.mode != SortMode.random) _MonthJump(app: app),
-          const SizedBox(width: 12),
-          Center(
-            child: Text(
-              '${app.totalCount}',
-              style: Theme.of(context).textTheme.labelMedium,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _openFilterSheet(BuildContext context, AppController app) async {
-    final authors = app.db.topAuthors(limit: 100);
-    var filter = app.filter;
+    final authors = app.browse.topAuthors();
+    var filter = app.browse.filter;
     final from = await showModalBottomSheet<LikesFilter>(
       context: context,
       isScrollControlled: true,
@@ -501,8 +426,8 @@ class _ModeBar extends StatelessWidget {
                 Row(
                   children: [
                     TextButton(
-                      onPressed: () => Navigator.pop(
-                          ctx, const LikesFilter()),
+                      onPressed: () =>
+                          Navigator.pop(ctx, const LikesFilter()),
                       child: Text(t('filter.clear')),
                     ),
                     const Spacer(),
@@ -518,7 +443,7 @@ class _ModeBar extends StatelessWidget {
         },
       ),
     );
-    if (from != null) await app.setFilter(from);
+    if (from != null) await app.browse.setFilter(from);
   }
 
   String _mediaLabel(MediaFilter m) => switch (m) {
@@ -529,14 +454,113 @@ class _ModeBar extends StatelessWidget {
       };
 }
 
-/// 顶部「跳到某年某月」下拉，与右侧刻度条互补：这里精确、那里快。
-class _MonthJump extends StatelessWidget {
-  const _MonthJump({required this.app});
-  final AppController app;
+/// 响应式断点：宽度 ≥ 1000dp 是桌面双栏，≥ 600dp 是平板，再窄是手机单列。
+const double kBreakpointWide = 1000;
+const double kBreakpointMedium = 600;
+
+/// 网格列数（纯函数，方便单测）。
+int columnsForWidth(double width) {
+  if (width >= 1600) return 6;
+  if (width >= 1200) return 5;
+  if (width >= 900) return 4;
+  if (width >= kBreakpointMedium) return 3;
+  return 2;
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState({required this.onBackfill});
+  final VoidCallback onBackfill;
 
   @override
   Widget build(BuildContext context) {
-    final months = app.months();
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.favorite_border, size: 56),
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Text(t('sync.empty'), textAlign: TextAlign.center),
+          ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: onBackfill,
+            icon: const Icon(Icons.cloud_download),
+            label: Text(t('sync.backfill')),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModeBar extends StatelessWidget {
+  const _ModeBar({required this.browse, required this.onOpenFilter});
+  final BrowseState browse;
+  final VoidCallback onOpenFilter;
+
+  @override
+  Widget build(BuildContext context) {
+    final filter = browse.filter;
+    return SizedBox(
+      height: 52,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        children: [
+          SegmentedButton<SortMode>(
+            segments: [
+              ButtonSegment(
+                  value: SortMode.likeOrder, label: Text(t('mode.likeOrder'))),
+              ButtonSegment(
+                  value: SortMode.publishDate,
+                  label: Text(t('mode.publishDate'))),
+              ButtonSegment(value: SortMode.random, label: Text(t('mode.random'))),
+            ],
+            selected: {browse.mode},
+            onSelectionChanged: (s) => browse.setMode(s.first),
+          ),
+          const SizedBox(width: 12),
+          FilterChip(
+            label: Text(filter.isEmpty
+                ? t('filter.title')
+                : '${t("filter.title")} (${filter.media.length})'),
+            selected: !filter.isEmpty,
+            onSelected: (_) => onOpenFilter(),
+          ),
+          if (filter.search != null && filter.search!.isNotEmpty) ...[
+            const SizedBox(width: 8),
+            Chip(
+              label: Text(filter.search!),
+              onDeleted: () => browse.setFilter(filter.copyWith(clearSearch: true)),
+            ),
+          ],
+          const SizedBox(width: 8),
+          // 精确的年月跳转（顶部下拉），与右侧拖动刻度互补
+          if (browse.mode != SortMode.random)
+            _MonthJump(browse: browse),
+          const SizedBox(width: 12),
+          Center(
+            child: Text(
+              '${browse.totalCount}',
+              style: Theme.of(context).textTheme.labelMedium,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 顶部「跳到某年某月」下拉，与右侧刻度条互补：这里精确、那里快。
+class _MonthJump extends StatelessWidget {
+  const _MonthJump({required this.browse});
+  final BrowseState browse;
+
+  @override
+  Widget build(BuildContext context) {
+    final months = browse.months();
     if (months.isEmpty) return const SizedBox.shrink();
     return Center(
       child: DropdownButtonHideUnderline(
@@ -563,7 +587,7 @@ class _MonthJump extends StatelessWidget {
               ),
           ],
           onChanged: (m) {
-            if (m != null) app.jumpToMonth(m);
+            if (m != null) browse.jumpToMonth(m);
           },
         ),
       ),
@@ -571,7 +595,8 @@ class _MonthJump extends StatelessWidget {
   }
 }
 
-class _SearchField extends StatelessWidget {  const _SearchField({required this.controller, required this.onSubmitted});
+class _SearchField extends StatelessWidget {
+  const _SearchField({required this.controller, required this.onSubmitted});
   final TextEditingController controller;
   final void Function(String) onSubmitted;
 
@@ -596,45 +621,59 @@ class _SearchField extends StatelessWidget {  const _SearchField({required this.
 }
 
 class _SyncBanner extends StatelessWidget {
-  const _SyncBanner({required this.app});
-  final AppController app;
+  const _SyncBanner({required this.sync});
+  final SyncController sync;
 
   @override
   Widget build(BuildContext context) {
-    final p = app.syncProgress;
-    final error = app.syncError;
-    if (error != null) {
+    final p = sync.progress;
+    final error = sync.error;
+    final last = sync.lastResult;
+    if (p == null && error == null && last == null) {
+      return const SizedBox.shrink();
+    }
+    final scheme = Theme.of(context).colorScheme;
+
+    if (p == null) {
+      final isError = error != null;
+      final text = isError
+          ? '${t("sync.error")}: $error'
+          : last!.inserted > 0
+              ? '${t("sync.done")} · ${last.pages} ${t("sync.pages")} '
+                  '· +${last.inserted} ${t("sync.items")}'
+              : '${t("sync.done")} · ${t("sync.noNew")}';
       return Material(
-        color: Theme.of(context).colorScheme.errorContainer,
+        color: isError ? scheme.errorContainer : scheme.secondaryContainer,
         child: ListTile(
-          leading: const Icon(Icons.error_outline),
-          title: Text('${t("sync.error")}: $error'),
+          dense: true,
+          leading:
+              Icon(isError ? Icons.error_outline : Icons.check_circle_outline),
+          title: Text(text),
           trailing: IconButton(
             icon: const Icon(Icons.close),
-            onPressed: app.clearSyncError,
+            onPressed: sync.clear,
           ),
         ),
       );
     }
-    final total = p?.fetched ?? 0;
+
+    final total = p.fetched;
     return Material(
-      color: Theme.of(context).colorScheme.secondaryContainer,
+      color: scheme.secondaryContainer,
       child: Column(
         children: [
-          LinearProgressIndicator(
-            value: p?.done == true ? 1 : null,
-          ),
+          LinearProgressIndicator(value: p.done ? 1 : null),
           ListTile(
             dense: true,
             leading: const Icon(Icons.sync),
             title: Text(
-              p?.message ??
-                  '${t("sync.backfillRunning")} · ${p?.pages ?? 0} ${t("sync.pages")} '
-                      '· ${total} ${t("sync.items")} · +${p?.inserted ?? 0}',
+              p.message ??
+                  '${t("sync.backfillRunning")} · ${p.pages} ${t("sync.pages")} '
+                      '· $total ${t("sync.items")} · +${p.inserted}',
             ),
             trailing: IconButton(
               icon: const Icon(Icons.stop_circle_outlined),
-              onPressed: app.cancelSync,
+              onPressed: sync.cancel,
             ),
           ),
         ],

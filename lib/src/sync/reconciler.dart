@@ -104,9 +104,10 @@ class Reconciler {
 
     // 先定位这一页在本地覆盖到哪：区段有 200 条，一页只有 100 条，
     // 不先算覆盖范围就取差集会**误删**页外的本地条目。
+    final seqByid = db.seqsOf(page.items.map((i) => i.tweetId));
     final matchedSeqs = <int>[];
     for (final item in page.items) {
-      final seq = db.seqOf(item.tweetId);
+      final seq = seqByid[item.tweetId];
       if (seq != null) matchedSeqs.add(seq);
     }
     if (matchedSeqs.isEmpty) {
@@ -142,14 +143,14 @@ class Reconciler {
     var inserted = 0;
     if (page.items.isNotEmpty) {
       // seq 越大越新：页内顺序就是 new → old，`newer` 记「上一条的 seq」。
-      final seqs = [for (final item in page.items) db.seqOf(item.tweetId)];
+      final seqs = [for (final item in page.items) seqByid[item.tweetId]];
       // 段外更新方向的最近邻（seq > endSeq 中最小的那个）
       var newer = db.neighborsOf(endSeq).below ?? endSeq + AppDatabase.seqStep;
 
       for (var i = 0; i < page.items.length; i++) {
-        final known = seqs[i];
-        if (known != null) {
-          newer = known;
+        final knownSeq = seqs[i];
+        if (knownSeq != null) {
+          newer = knownSeq;
           continue;
         }
         int? older;
@@ -222,6 +223,4 @@ class Reconciler {
   }
 
   int get pendingViewportCount => _dirtySegments.length;
-
-  static int clampInt(int v, int lo, int hi) => math.min(math.max(v, lo), hi);
 }

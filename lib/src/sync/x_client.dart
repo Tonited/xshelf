@@ -21,6 +21,9 @@ const String kWebUserAgent =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
     '(KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36';
 
+/// 需要记 queryId 的 GraphQL 操作（缓存到本地，失效时自动重发现）。
+const List<String> kQueryIdOperations = ['Likes', 'UnfavoriteTweet'];
+
 class XSession {
   const XSession({
     required this.authToken,
@@ -137,16 +140,24 @@ class XClient {
   XClient({
     required this.session,
     required this.httpClient,
-    this.presetQueryIds = const {},
-  });
+    Map<String, String> presetQueryIds = const {},
+    this.onQueryId,
+    this.onQueryIdInvalid,
+  }) {
+    _queryIds.addAll(presetQueryIds);
+  }
 
   final XSession session;
   final http.Client httpClient;
 
-  /// 预置的 queryId（测试用；线上靠 [_discoverQueryId] 发现）。
-  final Map<String, String> presetQueryIds;
-
+  /// 预置的 queryId（来自本地缓存或测试）；发现成功后会通过 [onQueryId] 回写。
   final Map<String, String> _queryIds = {};
+
+  /// 发现到新的 queryId 时回调（落库，下次启动直接用）。
+  final void Function(String operation, String queryId)? onQueryId;
+
+  /// 缓存的 queryId 失效时回调（清库，下次重新抓 JS）。
+  final void Function(String operation)? onQueryIdInvalid;
 
   Map<String, String> get _baseHeaders => {
         'authorization': 'Bearer $kWebBearer',
@@ -180,7 +191,10 @@ class XClient {
   }
 
   /// 拉一页喜欢。
-  Future<LikesPage> fetchLikes({String? cursor, int count = 100}) async {
+  Future<LikesPage> fetchLikes({String? cursor, int count = 100}) =>
+      _withQueryIdRecovery('Likes', () => _fetchLikesOnce(cursor: cursor, count: count));
+
+  Future<LikesPage> _fetchLikesOnce({String? cursor, int count = 100}) async {
     final qid = await _queryId('Likes');
     final variables = <String, Object?>{
       'userId': session.userId,
@@ -203,7 +217,10 @@ class XClient {
   }
 
   /// 取消喜欢。
-  Future<void> unlike(String tweetId) async {
+  Future<void> unlike(String tweetId) =>
+      _withQueryIdRecovery('UnfavoriteTweet', () => _unlikeOnce(tweetId));
+
+  Future<void> _unlikeOnce(String tweetId) async {
     final qid = await _queryId('UnfavoriteTweet');
     final uri = Uri.https('x.com', '/i/api/graphql/$qid/UnfavoriteTweet');
     final payload = jsonEncode({
@@ -214,6 +231,24 @@ class XClient {
     final errors = graphqlErrors(body);
     if (errors.isNotEmpty) {
       throw XRequestException(XErrorKind.unknown, errors.join('; '));
+    }
+  }
+
+  /// 缓存的 queryId 会随 X 前端发版失效（表现是 400/404）。
+  ///
+  /// 这种失败是**可自愈**的：丢掉旧值、重新发现一次再试，用户完全无感。
+  /// 以前只有「本次运行内」的缓存，重启后又得去抓 JS。
+  Future<T> _withQueryIdRecovery<T>(
+      String operation, Future<T> Function() run) async {
+    try {
+      return await run();
+    } on XRequestException catch (e) {
+      if (e.kind != XErrorKind.apiChanged || !_queryIds.containsKey(operation)) {
+        rethrow;
+      }
+      _queryIds.remove(operation);
+      onQueryIdInvalid?.call(operation);
+      return run();
     }
   }
 
@@ -292,13 +327,10 @@ class XClient {
     }
   }
 
-  /// 取操作的 queryId：预置 → 内存缓存 → 从 x.com 前端 JS 抓。
+  /// 取操作的 queryId：内存/本地缓存 → 从 x.com 前端 JS 抓。
   Future<String> _queryId(String operation) async {
-    final preset = presetQueryIds[operation];
-    if (preset != null && preset.isNotEmpty) return preset;
-
     final cached = _queryIds[operation];
-    if (cached != null) return cached;
+    if (cached != null && cached.isNotEmpty) return cached;
 
     final discovered = await _discoverQueryId(operation);
     if (discovered == null) {
@@ -308,6 +340,7 @@ class XClient {
       );
     }
     _queryIds[operation] = discovered;
+    onQueryId?.call(operation, discovered);
     return discovered;
   }
 

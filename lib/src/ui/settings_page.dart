@@ -7,6 +7,7 @@ import '../app_controller.dart';
 import '../core/l10n.dart';
 import '../core/settings.dart';
 import '../net/proxy.dart';
+import 'media_image.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -68,14 +69,9 @@ class _SettingsPageState extends State<SettingsPage> {
           _section(context, t('settings.account')),
           Card(
             child: ListTile(
-              leading: CircleAvatar(
-                backgroundImage: app.session?.avatarUrl == null
-                    ? null
-                    : NetworkImage(app.session!.avatarUrl!),
-                child: app.session?.avatarUrl == null
-                    ? const Icon(Icons.person)
-                    : null,
-              ),
+              leading: app.session?.avatarUrl == null
+                  ? const CircleAvatar(child: Icon(Icons.person))
+                  : AuthorAvatar(url: app.session!.avatarUrl!, radius: 20),
               title: Text(app.session?.displayName ?? ''),
               subtitle: Text('@${app.session?.screenName ?? ''}'),
               trailing: TextButton(
@@ -264,7 +260,9 @@ class _SettingsPageState extends State<SettingsPage> {
                   value: _auto.enabled,
                   onChanged: (v) async {
                     setState(() => _auto = _auto.copyWith(enabled: v));
-                    await app.settings.setAutoSync(_auto);
+                    // 走 controller 而不是直接写 settings：否则自动同步的定时器
+                    // 不会跟着开关重启（开了也要等下次启动才生效）。
+                    await app.setAutoSync(_auto);
                   },
                 ),
                 ListTile(
@@ -329,7 +327,7 @@ class _SettingsPageState extends State<SettingsPage> {
               children: [
                 ListTile(
                   title: Text(t('settings.cacheLimit')),
-                  subtitle: Text('${_cacheLimitMb} MB'),
+                  subtitle: Text('$_cacheLimitMb MB'),
                   trailing: SizedBox(
                     width: 180,
                     child: Slider(
@@ -341,7 +339,14 @@ class _SettingsPageState extends State<SettingsPage> {
                       onChanged: (v) => setState(() => _cacheLimitMb = v.round()),
                       onChangeEnd: (v) async {
                         await app.settings.setCacheLimitMb(v.round());
-                        app.db.evictMediaCache(v.round() * 1024 * 1024);
+                        final cache = app.mediaCache;
+                        if (cache != null) {
+                          // 上限改了要立刻生效，不能等下次启动。
+                          cache.maxBytes = v.round() * 1024 * 1024;
+                          cache.enforceLimit();
+                        } else {
+                          app.db.evictMediaCache(v.round() * 1024 * 1024);
+                        }
                         if (mounted) setState(() {});
                       },
                     ),
@@ -350,10 +355,15 @@ class _SettingsPageState extends State<SettingsPage> {
                 ListTile(
                   title: Text(t('settings.cacheClear')),
                   subtitle: Text(
-                      '${(app.db.mediaCacheBytes() / 1024 / 1024).toStringAsFixed(1)} MB'),
+                      '${((app.mediaCache?.usedBytes ?? app.db.mediaCacheBytes()) / 1024 / 1024).toStringAsFixed(1)} MB'),
                   trailing: TextButton(
                     onPressed: () {
-                      app.db.evictMediaCache(0);
+                      final cache = app.mediaCache;
+                      if (cache != null) {
+                        cache.clear();
+                      } else {
+                        app.db.evictMediaCache(0);
+                      }
                       setState(() {});
                     },
                     child: Text(t('settings.cacheClear')),

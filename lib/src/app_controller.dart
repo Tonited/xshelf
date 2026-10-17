@@ -1,7 +1,8 @@
-/// 应用级状态：数据库、设置、登录态、网络客户端、分页游标。
+/// 应用外壳：数据库、设置、登录态、网络出口、媒体缓存 —— 也就是「跑起来要什么」。
 ///
-/// 刻意不引第三方状态管理：一个 ChangeNotifier + InheritedNotifier 足够，
-/// 依赖少、审起来快。
+/// 浏览状态（[BrowseState]）与同步状态（[SyncController]）各自是独立的
+/// [Listenable]，UI 只订阅自己关心的那一个：同步进度不会再把上千张卡片
+/// 一起重建。这个类只负责它们的装配与生命周期。
 library;
 
 import 'dart:async';
@@ -19,6 +20,8 @@ import 'db/app_database.dart';
 import 'media/media_cache.dart';
 import 'model/like_item.dart';
 import 'net/proxy.dart';
+import 'state/browse_state.dart';
+import 'state/sync_state.dart';
 import 'sync/reconciler.dart';
 import 'sync/sync_service.dart';
 import 'sync/x_client.dart';
@@ -29,6 +32,12 @@ class AppController extends ChangeNotifier {
   late AppSettings settings;
   late AppDatabase db;
   late AuthStore authStore;
+
+  /// 浏览状态（在 [boot] 里装配）。
+  late final BrowseState browse;
+
+  /// 同步状态（在 [boot] 里装配）。
+  late final SyncController sync;
 
   XSession? session;
   XClient? client;
@@ -46,22 +55,6 @@ class AppController extends ChangeNotifier {
   String? bootError;
   String? proxyWarning;
 
-  // ---- 浏览状态 ----
-  SortMode mode = SortMode.likeOrder;
-  LikesFilter filter = const LikesFilter();
-  final List<LikeItem> items = [];
-  PageKey? nextKey;
-  bool loadingPage = false;
-  bool hasMore = true;
-  int totalCount = 0;
-  LikedStats stats = const LikedStats(total: 0, videos: 0, images: 0, deleted: 0);
-  String? selectedTweetId;
-
-  // ---- 同步状态 ----
-  SyncProgress? syncProgress;
-  String? syncError;
-  SyncCancel? _cancel;
-
   bool get loggedIn => session != null;
 
   Future<void> boot() async {
@@ -75,6 +68,15 @@ class AppController extends ChangeNotifier {
           ? Directory(settings.cacheDir!)
           : Directory(p.join(support.path, 'media'));
 
+      browse = BrowseState(db: db, persistView: settings.setView);
+      sync = SyncController(
+        db: db,
+        serviceOf: () => syncService,
+        accountIdOf: () => accountId,
+        autoSyncOf: () => settings.autoSync,
+        onDataChanged: () => browse.refresh(),
+      );
+
       // 先把登录态读出来，再建客户端 —— 反过来的话 session 为 null，
       // 建出来的 client / syncService 都是空的，启动后同步与后台校验全失效。
       final stored = await authStore.load();
@@ -87,8 +89,8 @@ class AppController extends ChangeNotifier {
         // 有缓存先显示，网络校验放到后台，避免启动被墙/代理卡住。
         unawaited(_verifyInBackground());
       }
-      await _restoreView();
-      await reload(reset: true);
+      browse.restoreFrom(settings.view);
+      await browse.reload(reset: true);
     } catch (e) {
       bootError = '$e';
     } finally {
@@ -137,7 +139,16 @@ class AppController extends ChangeNotifier {
     );
 
     if (s != null) {
-      client = XClient(session: s, httpClient: httpClient);
+      client = XClient(
+        session: s,
+        httpClient: httpClient,
+        // 上次发现过的 queryId 直接用，省掉「抓首页 + 十几个 JS」的冷启动开销。
+        presetQueryIds: {
+          for (final op in kQueryIdOperations) op: ?db.cachedQueryId(op),
+        },
+        onQueryId: db.saveQueryId,
+        onQueryIdInvalid: db.clearQueryId,
+      );
       syncService = SyncService(db: db, client: client!);
     } else {
       client = null;
@@ -176,7 +187,7 @@ class AppController extends ChangeNotifier {
     _autosyncTimer?.cancel();
     _autosyncTimer = Timer.periodic(
       Duration(minutes: cfg.intervalMinutes),
-      (_) => unawaited(syncNew()),
+      (_) => unawaited(sync.syncNew()),
     );
   }
 
@@ -207,21 +218,20 @@ class AppController extends ChangeNotifier {
     await authStore.clear();
     await _rebuildClient();
     _accountId = null;
-    items.clear();
-    nextKey = null;
-    hasMore = false;
-    totalCount = 0;
-    stats = const LikedStats(total: 0, videos: 0, images: 0, deleted: 0);
-    selectedTweetId = null;
-    _invalidateTimelineCache();
+    sync.reset();
+    browse.resetAll();
     notifyListeners();
   }
 
   /// 用已有 cookie 校验一次（登录页/粘贴入口用）。
   Future<XSession> verifySession(XSession s) async {
     final resolution = await buildHttpClient(settings.proxy);
-    final c = XClient(session: s, httpClient: IOClient(resolution.client));
-    return c.verify();
+    final http = IOClient(resolution.client);
+    try {
+      return await XClient(session: s, httpClient: http).verify();
+    } finally {
+      http.close();
+    }
   }
 
   /// 当前账号在 `accounts` 表里的 id。
@@ -245,239 +255,59 @@ class AppController extends ChangeNotifier {
     );
   }
 
-  /// 回填是否已经翻到底（决定菜单显示「全量回填」还是「继续回填」）。
-  bool get backfillDone {
-    final acc = _accountId;
-    if (acc == null) return false;
-    return db.loadSyncState(acc).backfillDone;
-  }
+  // ------------------------------------------------------------------ 动作
 
-  // ------------------------------------------------------------- 浏览与分页
-
-  Future<void> _restoreView() async {
-    final v = settings.view;
-    mode = v.mode;
-    filter = v.filter;
-    selectedTweetId = v.selectedTweetId;
-  }
-
-  Future<void> saveViewState({double? scrollOffset}) async {
-    await settings.setView(ViewSnapshot(
-      mode: mode,
-      filter: filter,
-      anchorSeq: items.isNotEmpty ? items.first.feedRank : null,
-      selectedTweetId: selectedTweetId,
-      scrollOffset: scrollOffset ?? 0,
-    ));
-  }
-
-  Future<void> reload({bool reset = false}) async {
-    if (reset) {
-      items.clear();
-      nextKey = null;
-      hasMore = true;
-      _invalidateTimelineCache();
-    }
-    totalCount = db.countLikes(includeDeleted: false);
-    stats = db.stats();
-    await loadMore();
-  }
-
-  Future<void> loadMore() async {
-    if (loadingPage || !hasMore) return;
-    loadingPage = true;
-    notifyListeners();
-    try {
-      final page = db.fetchPage(
-        mode: mode,
-        filter: filter,
-        limit: 60,
-        after: nextKey,
-      );
-      items.addAll(page.items);
-      nextKey = page.key;
-      hasMore = page.key != null;
-      totalCount = db.countLikes(includeDeleted: false);
-    } finally {
-      loadingPage = false;
-      notifyListeners();
-    }
-  }
-
-  Future<void> setMode(SortMode m) async {
-    if (m == mode) return;
-    mode = m;
-    await reload(reset: true);
-    await saveViewState();
-  }
-
-  Future<void> setFilter(LikesFilter f) async {
-    filter = f;
-    await reload(reset: true);
-    await saveViewState();
-  }
-
-  Future<void> reshuffle() async {
-    db.reshuffle();
-    if (mode == SortMode.random) {
-      await reload(reset: true);
-    }
-    notifyListeners();
-  }
-
-  /// 时间轴跳转：把列表锚定到某个 seq（喜欢顺序）。
-  Future<void> jumpToSeq(int seq) async {
-    items.clear();
-    hasMore = true;
-    nextKey = PageKey(seq: seq - 1);
-    notifyListeners();
-    await loadMore();
-    await saveViewState();
-  }
-
-  /// 时间轴跳转：跳到某个发布月份（`YYYY-MM`）。
-  Future<void> jumpToMonth(String month) async {
-    if (mode == SortMode.random) {
-      await setMode(SortMode.publishDate);
-    }
-    final seq = db.newestSeqInMonth(month);
-    if (seq == null) return;
-    await jumpToSeq(seq);
-  }
-
-  /// 时间轴数据（模式 A 的分桶 / 模式 B 的月份）。
-  ///
-  /// 这两个查询每次都要扫全表（5 万条时约 500 次小查询），而 UI 在每次
-  /// notifyListeners 后都会重建时间轴 —— 所以必须缓存，只在数据真的变了时失效。
-  List<({int fromSeq, int toSeq, int count, DateTime? approxDate})>? _estimatedCache;
-  List<MonthBucket>? _monthsCache;
-
-  void _invalidateTimelineCache() {
-    _estimatedCache = null;
-    _monthsCache = null;
-  }
-
-  List<({int fromSeq, int toSeq, int count, DateTime? approxDate})>
-      estimatedTimeline() =>
-          _estimatedCache ??= db.estimatedBuckets();
-
-  List<MonthBucket> months() => _monthsCache ??= db.months();
-
-  void select(String? tweetId) {
-    selectedTweetId = tweetId;
-    notifyListeners();
-    unawaited(saveViewState());
-  }
-
-  // ------------------------------------------------------------------ 同步
-
-  Future<void> startBackfill({int? maxItems}) async {
-    final svc = syncService;
-    final acc = accountId;
-    if (svc == null || acc == null) return;
-    syncError = null;
-    _cancel = SyncCancel();
-    syncProgress = const SyncProgress(pages: 0, fetched: 0, inserted: 0);
-    notifyListeners();
-    try {
-      await svc.backfill(
-        accountId: acc,
-        maxItems: maxItems,
-        onProgress: (pr) {
-          syncProgress = pr;
-          notifyListeners();
-        },
-        cancel: _cancel,
-      );
-      await reload(reset: true);
-    } on XRequestException catch (e) {
-      syncError = e.message;
-      notifyListeners();
-    } catch (e) {
-      syncError = '$e';
-      notifyListeners();
-    } finally {
-      _cancel = null;
-    }
-  }
-
-  Future<void> syncNew() async {
-    final svc = syncService;
-    final acc = accountId;
-    if (svc == null || acc == null) return;
-    syncError = null;
-    _cancel = SyncCancel();
-    syncProgress = const SyncProgress(pages: 0, fetched: 0, inserted: 0);
-    notifyListeners();
-    try {
-      await svc.syncNew(
-        accountId: acc,
-        maxItems: settings.autoSync.maxItems,
-        onProgress: (pr) {
-          syncProgress = pr;
-          notifyListeners();
-        },
-        cancel: _cancel,
-      );
-      await reload(reset: true);
-    } on XRequestException catch (e) {
-      syncError = e.message;
-      notifyListeners();
-    } catch (e) {
-      syncError = '$e';
-      notifyListeners();
-    } finally {
-      _cancel = null;
-    }
-  }
-
-  void cancelSync() => _cancel?.cancel();
-
-  void clearSyncError() {
-    syncError = null;
-    syncProgress = null;
-    notifyListeners();
+  /// 取消喜欢：网络 + 本地删除，然后从列表里摘掉（不重查整页）。
+  Future<String?> unlike(String tweetId) async {
+    final err = await sync.unlike(tweetId);
+    if (err == null) browse.dropLocal(tweetId);
+    return err;
   }
 
   /// 连通性自检：分别探 x.com（接口）、pbs（图片）、video（视频）。
+  ///
+  /// 三个目标并发探（串行时最坏要 30 秒以上）；并且**必须**用解析出来的那个
+  /// client —— 以前这里 new 了一个裸 HttpClient，自检走的是直连，
+  /// 配了代理的用户会看到「全红」但其实能正常用。
   Future<List<({String host, bool ok, int ms, String? note})>>
       diagnoseConnectivity() async {
     final resolution = await buildHttpClient(settings.proxy);
-    final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 8);
-    final http = IOClient(client);
-    final targets = <String>[
+    final http = IOClient(resolution.client);
+    const targets = [
       'https://x.com/',
       'https://pbs.twimg.com/',
       'https://video.twimg.com/',
     ];
-    final out = <({String host, bool ok, int ms, String? note})>[];
-    for (final url in targets) {
-      final sw = Stopwatch()..start();
-      try {
-        final resp = await http
-            .get(Uri.parse(url), headers: const {'user-agent': kWebUserAgent})
-            .timeout(const Duration(seconds: 10));
-        sw.stop();
-        out.add((
-          host: Uri.parse(url).host,
-          ok: resp.statusCode < 500,
-          ms: sw.elapsedMilliseconds,
-          note: 'HTTP ${resp.statusCode}'
-              '${resolution.usedProxy != null ? " via ${resolution.usedProxy}" : " direct"}',
-        ));
-      } catch (e) {
-        sw.stop();
-        out.add((
-          host: Uri.parse(url).host,
-          ok: false,
-          ms: sw.elapsedMilliseconds,
-          note: '$e',
-        ));
-      }
+    try {
+      return await Future.wait([
+        for (final url in targets) _probe(http, url, resolution.usedProxy),
+      ]);
+    } finally {
+      http.close();
     }
-    http.close();
-    return out;
+  }
+
+  Future<({String host, bool ok, int ms, String? note})> _probe(
+    http.Client http,
+    String url,
+    String? usedProxy,
+  ) async {
+    final host = Uri.parse(url).host;
+    final sw = Stopwatch()..start();
+    try {
+      final resp = await http
+          .get(Uri.parse(url), headers: const {'user-agent': kWebUserAgent})
+          .timeout(const Duration(seconds: 10));
+      return (
+        host: host,
+        ok: resp.statusCode < 500,
+        ms: sw.elapsedMilliseconds,
+        note: 'HTTP ${resp.statusCode}'
+            '${usedProxy != null ? " via $usedProxy" : " direct"}',
+      );
+    } catch (e) {
+      return (host: host, ok: false, ms: sw.elapsedMilliseconds, note: '$e');
+    }
   }
 
   /// 把一条喜欢的所有媒体存到本地（离线可看）。
@@ -500,22 +330,17 @@ class AppController extends ChangeNotifier {
     return null;
   }
 
-  Future<String?> unlike(String tweetId) async {
-    final svc = syncService;
-    if (svc == null) return '未登录';
+  @override
+  void dispose() {
+    _autosyncTimer?.cancel();
+    reconciler?.stop();
+    _xHttp?.close();
+    _mediaHttp?.close();
+    // boot 失败时 db 可能还没建出来。
     try {
-      await svc.unlike(tweetId);
-      items.removeWhere((i) => i.tweetId == tweetId);
-      if (selectedTweetId == tweetId) selectedTweetId = null;
-      totalCount = db.countLikes(includeDeleted: false);
-      _invalidateTimelineCache();
-      notifyListeners();
-      return null;
-    } on XRequestException catch (e) {
-      return e.message;
-    } catch (e) {
-      return '$e';
-    }
+      db.dispose();
+    } catch (_) {}
+    super.dispose();
   }
 }
 
@@ -527,14 +352,18 @@ class AppScope extends InheritedNotifier<AppController> {
     required super.child,
   }) : super(notifier: controller);
 
+  /// 订阅外壳状态（登录/启动/代理），外壳变化时重建。
   static AppController of(BuildContext context) {
     final scope = context.dependOnInheritedWidgetOfExactType<AppScope>();
     assert(scope != null, 'AppScope 未挂载');
     return scope!.notifier!;
   }
+
+  /// 只读一次、不建立依赖：给「只拿服务、不关心外壳重建」的页面用。
+  /// 这些页面自己用 `ListenableBuilder` 订阅 [BrowseState] / [SyncController]。
+  static AppController read(BuildContext context) {
+    final scope = context.getInheritedWidgetOfExactType<AppScope>();
+    assert(scope != null, 'AppScope 未挂载');
+    return scope!.notifier!;
+  }
 }
-
-/// 便于在没有 context 的地方拿（比如后台任务）。
-AppController? appControllerGlobal;
-
-http.Client createPlainClient() => http.Client();

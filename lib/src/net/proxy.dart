@@ -5,7 +5,6 @@
 /// Android 上通常靠 TUN/VPN 全局模式，直连即可；手动代理也走这里。
 library;
 
-import 'dart:convert';
 import 'dart:io';
 
 enum ProxyType { http, socks5 }
@@ -211,21 +210,17 @@ Future<ProxyResolution> buildHttpClient(ProxyConfig config) async {
     );
   }
   final addr = '${proxy.host}:${proxy.port}';
-  // 带认证的 HTTP 代理：Dart 的 findProxy 不支持认证，需在请求头里加 Proxy-Authorization。
   client.findProxy = (uri) => 'PROXY $addr';
+  // 带认证的 HTTP 代理：findProxy 本身不带凭证，交给 HttpClient 的
+  // credentials 表 —— 以前这里只是把 header 记到一个没人读的 holder 里，
+  // 于是「填了用户名密码的代理」实际上永远 407。
   if (proxy.user != null && proxy.user!.isNotEmpty) {
-    final auth = base64Encode(utf8.encode('${proxy.user}:${proxy.pass ?? ''}'));
-    // 通过每次请求注入请求头更稳，这里暴露给调用方处理。
-    ProxyAuthHolder.instance.header = 'Basic $auth';
-  } else {
-    ProxyAuthHolder.instance.header = null;
+    client.addProxyCredentials(
+      proxy.host,
+      proxy.port,
+      'Basic',
+      HttpClientBasicCredentials(proxy.user!, proxy.pass ?? ''),
+    );
   }
   return ProxyResolution(client, addr, null);
-}
-
-/// 简单承载「给每个请求加 Proxy-Authorization」的状态（Dart 的 HttpClient 不直接支持）。
-class ProxyAuthHolder {
-  ProxyAuthHolder._();
-  static final instance = ProxyAuthHolder._();
-  String? header;
 }

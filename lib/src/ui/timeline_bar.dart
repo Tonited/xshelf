@@ -5,17 +5,20 @@
 /// - 模式 C（随机）：不显示。
 ///
 /// 交互：点一下跳到该位置；按住拖动时浮出「约 YYYY年M月 · N 条」气泡。
+///
+/// 数据都来自 [BrowseState] 的缓存（桶/月份/seq 区间）。以前每次悬停都会
+/// `SELECT MIN/MAX(feed_seq)` 一次 —— 鼠标在刻度上划过就是几十条 SQL。
 library;
 
 import 'package:flutter/material.dart';
 
-import '../app_controller.dart';
 import '../core/l10n.dart';
 import '../db/app_database.dart';
+import '../state/browse_state.dart';
 
 class TimelineBar extends StatefulWidget {
-  const TimelineBar({super.key, required this.app});
-  final AppController app;
+  const TimelineBar({super.key, required this.browse});
+  final BrowseState browse;
 
   @override
   State<TimelineBar> createState() => _TimelineBarState();
@@ -27,12 +30,12 @@ class _TimelineBarState extends State<TimelineBar> {
 
   @override
   Widget build(BuildContext context) {
-    final app = widget.app;
-    if (app.mode == SortMode.random || app.totalCount == 0) {
+    final browse = widget.browse;
+    if (browse.mode == SortMode.random || browse.totalCount == 0) {
       return const SizedBox.shrink();
     }
 
-    final bounds = app.db.seqBounds();
+    final bounds = browse.bounds();
     final minSeq = bounds.minSeq;
     final maxSeq = bounds.maxSeq;
     if (minSeq == null || maxSeq == null || maxSeq <= minSeq) {
@@ -117,11 +120,11 @@ class _TimelineBarState extends State<TimelineBar> {
   /// 生成刻度：模式 B 用真实月份，模式 A 用均分段 + 估算标签。
   List<({double y, bool major, String label})> _ticks(
       BuildContext context, double height) {
-    final app = widget.app;
+    final browse = widget.browse;
     final out = <({double y, bool major, String label})>[];
 
-    if (app.mode == SortMode.publishDate) {
-      final months = app.months();
+    if (browse.mode == SortMode.publishDate) {
+      final months = browse.months();
       if (months.length <= 1) return out;
       final oldest = months.last.month;
       final newest = months.first.month;
@@ -133,7 +136,7 @@ class _TimelineBarState extends State<TimelineBar> {
     }
 
     // 模式 A：约 12 个刻度
-    final buckets = app.estimatedTimeline();
+    final buckets = browse.estimatedTimeline();
     if (buckets.isEmpty) return out;
     final step = (buckets.length / 12).ceil().clamp(1, buckets.length);
     for (var i = 0; i < buckets.length; i += step) {
@@ -165,16 +168,14 @@ class _TimelineBarState extends State<TimelineBar> {
 
   void _probe(BuildContext context, Offset local, double height,
       {bool jump = false}) {
-    final app = widget.app;
-    final bounds = app.db.seqBounds();
-    final minSeq = bounds.minSeq;
-    final maxSeq = bounds.maxSeq;
-    if (minSeq == null || maxSeq == null) return;
+    final browse = widget.browse;
+    final bounds = browse.bounds();
+    if (bounds.minSeq == null || bounds.maxSeq == null) return;
 
     final ratio = (local.dy / height).clamp(0.0, 1.0);
 
-    if (app.mode == SortMode.publishDate) {
-      final months = app.months();
+    if (browse.mode == SortMode.publishDate) {
+      final months = browse.months();
       if (months.isEmpty) return;
       final idx = (ratio * (months.length - 1)).round().clamp(0, months.length - 1);
       final m = months[idx];
@@ -182,12 +183,12 @@ class _TimelineBarState extends State<TimelineBar> {
         _hint = '${m.month} · ${m.count} ${t('sync.items')}';
         _hintPos = local;
       });
-      if (jump) app.jumpToMonth(m.month);
+      if (jump) browse.jumpToMonth(m.month);
       return;
     }
 
     // 模式 A：比例 → seq（seq 越小越新）
-    final buckets = app.estimatedTimeline();
+    final buckets = browse.estimatedTimeline();
     if (buckets.isEmpty) return;
     final idx = (ratio * (buckets.length - 1)).round().clamp(0, buckets.length - 1);
     final b = buckets[idx];
@@ -198,6 +199,6 @@ class _TimelineBarState extends State<TimelineBar> {
           : '${t('timeline.about')} ${d.year}/${d.month} · ${b.count} ${t('sync.items')}';
       _hintPos = local;
     });
-    if (jump) app.jumpToSeq(b.fromSeq);
+    if (jump) browse.jumpToSeq(b.fromSeq);
   }
 }

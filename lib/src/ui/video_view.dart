@@ -36,12 +36,40 @@ class _XVideoViewState extends State<XVideoView> {
   // 移动端
   vp.VideoPlayerController? _mobile;
 
+  String? _error;
+  bool _ready = false;
+
   bool get _isDesktop =>
       Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 
   @override
   void initState() {
     super.initState();
+    _init();
+  }
+
+  /// 同一个 State 被复用到另一个视频时必须重新开流（详情栏是常驻的，
+  /// 只换 `item` 不换 widget 位置）。以前没有这一步，会出现「选了 B 却还在播 A」。
+  @override
+  void didUpdateWidget(covariant XVideoView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url) {
+      _teardown();
+      _error = null;
+      _ready = false;
+      _init();
+    }
+  }
+
+  void _teardown() {
+    _player?.dispose();
+    _player = null;
+    _controller = null;
+    _mobile?.dispose();
+    _mobile = null;
+  }
+
+  void _init() {
     if (_isDesktop) {
       _initDesktop();
     } else {
@@ -50,38 +78,69 @@ class _XVideoViewState extends State<XVideoView> {
   }
 
   Future<void> _initDesktop() async {
-    final player = Player();
-    _player = player;
-    _controller = VideoController(player);
-    await player.setPlaylistMode(
-        widget.loop ? PlaylistMode.single : PlaylistMode.none);
-    await player.open(Media(widget.url), play: widget.autoPlay);
-    if (mounted) setState(() {});
+    try {
+      final player = Player();
+      _player = player;
+      final controller = VideoController(player);
+      _controller = controller;
+      await player.setPlaylistMode(
+          widget.loop ? PlaylistMode.single : PlaylistMode.none);
+      if (!mounted) return;
+      setState(() => _ready = true);
+      await player.open(Media(widget.url), play: widget.autoPlay);
+    } catch (e) {
+      if (mounted) setState(() => _error = '$e');
+    }
   }
 
   Future<void> _initMobile() async {
-    final controller = vp.VideoPlayerController.networkUrl(Uri.parse(widget.url));
-    _mobile = controller;
-    controller.setLooping(widget.loop);
-    await controller.initialize();
-    if (widget.autoPlay) await controller.play();
-    if (mounted) setState(() {});
+    try {
+      final controller =
+          vp.VideoPlayerController.networkUrl(Uri.parse(widget.url));
+      _mobile = controller;
+      await controller.setLooping(widget.loop);
+      await controller.initialize();
+      if (!mounted) return;
+      setState(() => _ready = true);
+      if (widget.autoPlay) await controller.play();
+    } catch (e) {
+      if (mounted) setState(() => _error = '$e');
+    }
   }
 
   @override
   void dispose() {
-    _player?.dispose();
-    _mobile?.dispose();
+    _teardown();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_error != null) {
+      return _placeholder(
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.videocam_off_outlined, color: Colors.white70),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                _error!,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     if (_isDesktop) {
       final c = _controller;
-      if (c == null) {
-        return _placeholder(const CircularProgressIndicator());
-      }
+      if (c == null || !_ready) return _placeholder(const CircularProgressIndicator());
       return AspectRatio(
         aspectRatio: 16 / 9,
         child: Video(
@@ -102,39 +161,100 @@ class _XVideoViewState extends State<XVideoView> {
         alignment: Alignment.bottomCenter,
         children: [
           vp.VideoPlayer(m),
-          _MobileControls(controller: m),
+          MobileControls(
+            controller: m,
+            onFullscreen: () => _openFullscreen(m),
+          ),
         ],
       ),
     );
   }
 
+  /// 全屏：同一个 controller 换个全屏页面播放，返回时继续播。
+  Future<void> _openFullscreen(vp.VideoPlayerController m) async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => Scaffold(
+        backgroundColor: Colors.black,
+        body: SafeArea(
+          child: Center(
+            child: AspectRatio(
+              aspectRatio:
+                  m.value.aspectRatio == 0 ? 16 / 9 : m.value.aspectRatio,
+              child: Stack(
+                alignment: Alignment.bottomCenter,
+                children: [
+                  vp.VideoPlayer(m),
+                  MobileControls(controller: m),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ));
+  }
+
+  /// 黑底 + 封面图 + 转圈：缓冲时至少让用户知道点开的是哪条。
   Widget _placeholder(Widget child) => AspectRatio(
         aspectRatio: 16 / 9,
         child: ColoredBox(
           color: Colors.black,
-          child: Center(child: child),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (widget.posterUrl != null)
+                Opacity(
+                  opacity: 0.35,
+                  child: Image.network(
+                    widget.posterUrl!,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                  ),
+                ),
+              Center(child: child),
+            ],
+          ),
         ),
       );
 }
 
-/// 移动端的最小控制条：播放/暂停 + 进度。
-class _MobileControls extends StatefulWidget {
-  const _MobileControls({required this.controller});
+/// 移动端控制条：播放/暂停、进度、倍速、全屏。
+class MobileControls extends StatefulWidget {
+  const MobileControls({
+    super.key,
+    required this.controller,
+    this.onFullscreen,
+  });
+
   final vp.VideoPlayerController controller;
+  final VoidCallback? onFullscreen;
 
   @override
-  State<_MobileControls> createState() => _MobileControlsState();
+  State<MobileControls> createState() => _MobileControlsState();
 }
 
-class _MobileControlsState extends State<_MobileControls> {
+class _MobileControlsState extends State<MobileControls> {
+  bool _dragging = false;
+  double _dragValue = 0;
+
   @override
   void initState() {
     super.initState();
     widget.controller.addListener(_onTick);
   }
 
+  @override
+  void didUpdateWidget(covariant MobileControls oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_onTick);
+      widget.controller.addListener(_onTick);
+    }
+  }
+
   void _onTick() {
-    if (mounted) setState(() {});
+    // 拖动进度条时不要被播放进度覆盖。
+    if (mounted && !_dragging) setState(() {});
   }
 
   @override
@@ -147,7 +267,9 @@ class _MobileControlsState extends State<_MobileControls> {
   Widget build(BuildContext context) {
     final v = widget.controller.value;
     final total = v.duration.inMilliseconds;
-    final pos = v.position.inMilliseconds;
+    final pos = _dragging ? (_dragValue * total).round() : v.position.inMilliseconds;
+    final value = total == 0 ? 0.0 : (pos / total).clamp(0.0, 1.0);
+
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -156,7 +278,7 @@ class _MobileControlsState extends State<_MobileControls> {
           colors: [Colors.transparent, Colors.black54],
         ),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Row(
         children: [
           IconButton(
@@ -167,23 +289,55 @@ class _MobileControlsState extends State<_MobileControls> {
           ),
           Expanded(
             child: Slider(
-              value: total == 0 ? 0 : (pos / total).clamp(0.0, 1.0),
-              onChanged: (value) => widget.controller
-                  .seekTo(Duration(milliseconds: (value * total).round())),
+              value: value,
+              onChangeStart: (x) => setState(() {
+                _dragging = true;
+                _dragValue = x;
+              }),
+              onChanged: (x) => setState(() => _dragValue = x),
+              onChangeEnd: (x) async {
+                await widget.controller
+                    .seekTo(Duration(milliseconds: (x * total).round()));
+                if (mounted) setState(() => _dragging = false);
+              },
             ),
           ),
           Text(
-            '${_fmt(v.position)} / ${_fmt(v.duration)}',
-            style: const TextStyle(color: Colors.white, fontSize: 12),
+            '${_fmt(Duration(milliseconds: pos))} / ${_fmt(v.duration)}',
+            style: const TextStyle(color: Colors.white, fontSize: 11),
           ),
+          PopupMenuButton<double>(
+            color: Colors.black87,
+            tooltip: 'speed',
+            icon: Text(
+              '${v.playbackSpeed}x',
+              style: const TextStyle(color: Colors.white, fontSize: 11),
+            ),
+            onSelected: (s) => widget.controller.setPlaybackSpeed(s),
+            itemBuilder: (_) => [
+              for (final s in const [0.5, 0.75, 1.0, 1.25, 1.5, 2.0])
+                PopupMenuItem(
+                  value: s,
+                  child: Text('${s}x',
+                      style: const TextStyle(color: Colors.white)),
+                ),
+            ],
+          ),
+          if (widget.onFullscreen != null)
+            IconButton(
+              color: Colors.white,
+              icon: const Icon(Icons.fullscreen),
+              onPressed: widget.onFullscreen,
+            ),
         ],
       ),
     );
   }
 
   String _fmt(Duration d) {
+    final h = d.inHours;
     final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
     final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return '$m:$s';
+    return h > 0 ? '$h:$m:$s' : '$m:$s';
   }
 }

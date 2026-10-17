@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../app_controller.dart';
 import '../core/l10n.dart';
 import '../model/like_item.dart';
+import 'media_image.dart';
 import 'video_view.dart';
 
 class DetailPane extends StatefulWidget {
@@ -22,15 +23,18 @@ class DetailPane extends StatefulWidget {
 class _DetailPaneState extends State<DetailPane> {
   int _page = 0;
   bool _saving = false;
+  bool _unliking = false;
 
-  Future<void> _saveOffline(
-      BuildContext context, AppController app, LikeItem item) async {
+  /// 用 read：详情栏不需要跟着外壳状态重建，动作直接调 controller 的方法。
+  AppController get _app => AppScope.read(context);
+
+  Future<void> _saveOffline(LikeItem item) async {
     setState(() => _saving = true);
-    final err = await app.saveOffline(item);
+    final err = await _app.saveOffline(item);
     if (!mounted) return;
     setState(() => _saving = false);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(err == null ? t('detail.saved') : err)),
+      SnackBar(content: Text(err ?? t('detail.saved'))),
     );
   }
 
@@ -44,7 +48,7 @@ class _DetailPaneState extends State<DetailPane> {
   Widget build(BuildContext context) {
     final item = widget.item;
     final theme = Theme.of(context);
-    final app = AppScope.of(context);
+    final app = _app;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -74,7 +78,7 @@ class _DetailPaneState extends State<DetailPane> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _media(context, item),
+                _media(context, item, app),
                 if (item.state == LikeState.deleted)
                   Padding(
                     padding: const EdgeInsets.all(12),
@@ -94,11 +98,8 @@ class _DetailPaneState extends State<DetailPane> {
                       Row(
                         children: [
                           if (item.author?.avatarUrl != null)
-                            CircleAvatar(
-                              radius: 14,
-                              backgroundImage:
-                                  NetworkImage(item.author!.avatarUrl!),
-                            ),
+                            AuthorAvatar(
+                                url: item.author!.avatarUrl!, radius: 14),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
@@ -119,19 +120,29 @@ class _DetailPaneState extends State<DetailPane> {
                         spacing: 8,
                         children: [
                           OutlinedButton.icon(
-                            onPressed: () => _confirmUnlike(context, app, item),
-                            icon: const Icon(Icons.favorite_border, size: 18),
+                            onPressed: _unliking
+                                ? null
+                                : () => _confirmUnlike(app, item),
+                            icon: _unliking
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child:
+                                        CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.favorite_border, size: 18),
                             label: Text(t('detail.unlike')),
                           ),
                           if (item.media.isNotEmpty)
                             OutlinedButton.icon(
                               onPressed:
-                                  _saving ? null : () => _saveOffline(context, app, item),
+                                  _saving ? null : () => _saveOffline(item),
                               icon: _saving
                                   ? const SizedBox(
                                       width: 16,
                                       height: 16,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2),
                                     )
                                   : const Icon(Icons.download, size: 18),
                               label: Text(
@@ -159,14 +170,16 @@ class _DetailPaneState extends State<DetailPane> {
     );
   }
 
-  Widget _media(BuildContext context, LikeItem item) {
+  Widget _media(BuildContext context, LikeItem item, AppController app) {
     if (item.media.isEmpty) {
       return Padding(
         padding: const EdgeInsets.all(12),
         child: Text(t('detail.noMedia')),
       );
     }
-    if (item.media.length == 1) return _single(item.media.first);
+    if (item.media.length == 1) {
+      return _single(item, item.media.first, app);
+    }
 
     return Column(
       children: [
@@ -174,8 +187,10 @@ class _DetailPaneState extends State<DetailPane> {
           aspectRatio: 1,
           child: PageView.builder(
             itemCount: item.media.length,
-            onPageChanged: (i) => setState(() => _page = i),
-            itemBuilder: (_, i) => _single(item.media[i]),
+            onPageChanged: (i) {
+              if (i != _page) setState(() => _page = i);
+            },
+            itemBuilder: (_, i) => _single(item, item.media[i], app),
           ),
         ),
         Row(
@@ -197,19 +212,27 @@ class _DetailPaneState extends State<DetailPane> {
     );
   }
 
-  Widget _single(MediaItem m) {
+  Widget _single(LikeItem item, MediaItem m, AppController app) {
+    final idx = item.media.indexOf(m);
     if (m.isPlayable) {
-      final url = m.bestPlaybackUrl!;
-      return XVideoView(url: url, posterUrl: m.url);
+      // key 里带上地址：DetailPane 是常驻的，换一条选中项时如果沿用同一个
+      // State，播放器会继续播上一条视频（画面和内容对不上）。
+      return XVideoView(
+        key: ValueKey('video:${m.bestPlaybackUrl}'),
+        url: m.bestPlaybackUrl!,
+        posterUrl: m.url,
+      );
     }
     return InteractiveViewer(
       maxScale: 4,
-      child: Image.network(
-        m.url.replaceAll('name=large', 'name=orig'),
+      child: MediaImage(
+        key: ValueKey('image:${m.url}'),
+        url: withImageVariant(m.url, 'large'),
+        cache: app.mediaCache,
+        tweetId: item.tweetId,
+        idx: idx < 0 ? 0 : idx,
         fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => const Center(
-          child: Icon(Icons.broken_image_outlined),
-        ),
+        cacheWidth: 1200,
       ),
     );
   }
@@ -223,8 +246,7 @@ class _DetailPaneState extends State<DetailPane> {
         '${local.minute.toString().padLeft(2, '0')}';
   }
 
-  Future<void> _confirmUnlike(
-      BuildContext context, AppController app, LikeItem item) async {
+  Future<void> _confirmUnlike(AppController app, LikeItem item) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -242,10 +264,17 @@ class _DetailPaneState extends State<DetailPane> {
       ),
     );
     if (ok != true) return;
+    setState(() => _unliking = true);
     final err = await app.unlike(item.tweetId);
-    if (err != null && context.mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(err)));
+    if (!mounted) return;
+    setState(() => _unliking = false);
+    if (err != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+      return;
+    }
+    // 已经不在列表里了（手机端的独立路由）：关掉面板，别留一条幽灵内容。
+    if (app.browse.items.every((i) => i.tweetId != item.tweetId)) {
+      widget.onClose?.call();
     }
   }
 }

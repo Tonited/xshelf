@@ -251,8 +251,9 @@ class SyncService {
         )),
       );
       var pageHasNew = false;
+      final known = db.existingTweetIds(page.items.map((i) => i.tweetId));
       for (final item in page.items) {
-        if (db.hasTweet(item.tweetId)) {
+        if (known.contains(item.tweetId)) {
           hitExisting = true;
           continue;
         }
