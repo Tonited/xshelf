@@ -35,6 +35,10 @@ class AppController extends ChangeNotifier {
   SyncService? syncService;
   MediaCache? mediaCache;
 
+  /// 上一轮创建的连接池，重建时关掉。
+  http.Client? _xHttp;
+  http.Client? _mediaHttp;
+
   /// 媒体缓存的根目录（设置里可改到别的盘）。
   Directory? _mediaRoot;
 
@@ -109,18 +113,25 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> _rebuildClient() async {
+    // 切换代理/重新登录都会走这里；先把上一轮的连接池关掉，避免每次泄漏一个。
+    _xHttp?.close();
+    _mediaHttp?.close();
+
     final proxyCfg = settings.proxy;
     final resolution = await buildHttpClient(proxyCfg);
     proxyWarning = resolution.warning;
     final httpClient = IOClient(resolution.client);
+    _xHttp = httpClient;
     final s = session;
 
     // 媒体走独立的 HttpClient 实例（同一个底层连接池被两个 IOClient 共享后，
     // 关闭其中一个会连带影响另一个）。
     final mediaResolution = await buildHttpClient(proxyCfg);
+    final mediaHttp = IOClient(mediaResolution.client);
+    _mediaHttp = mediaHttp;
     mediaCache = MediaCache(
       db: db,
-      httpClient: IOClient(mediaResolution.client),
+      httpClient: mediaHttp,
       rootDir: _mediaRoot ?? Directory.systemTemp,
       maxBytes: settings.cacheLimitMb * 1024 * 1024,
     );
@@ -198,6 +209,11 @@ class AppController extends ChangeNotifier {
     _accountId = null;
     items.clear();
     nextKey = null;
+    hasMore = false;
+    totalCount = 0;
+    stats = const LikedStats(total: 0, videos: 0, images: 0, deleted: 0);
+    selectedTweetId = null;
+    _invalidateTimelineCache();
     notifyListeners();
   }
 
@@ -260,6 +276,7 @@ class AppController extends ChangeNotifier {
       items.clear();
       nextKey = null;
       hasMore = true;
+      _invalidateTimelineCache();
     }
     totalCount = db.countLikes(includeDeleted: false);
     stats = db.stats();
@@ -328,12 +345,23 @@ class AppController extends ChangeNotifier {
     await jumpToSeq(seq);
   }
 
-  /// 某段（按喜欢顺序）的估算标签，模式 A 用。
-  List<({int fromSeq, int toSeq, int count, DateTime? approxDate})>
-      estimatedTimeline() => db.estimatedBuckets();
+  /// 时间轴数据（模式 A 的分桶 / 模式 B 的月份）。
+  ///
+  /// 这两个查询每次都要扫全表（5 万条时约 500 次小查询），而 UI 在每次
+  /// notifyListeners 后都会重建时间轴 —— 所以必须缓存，只在数据真的变了时失效。
+  List<({int fromSeq, int toSeq, int count, DateTime? approxDate})>? _estimatedCache;
+  List<MonthBucket>? _monthsCache;
 
-  /// 模式 B 的精确月份列表。
-  List<MonthBucket> months() => db.months();
+  void _invalidateTimelineCache() {
+    _estimatedCache = null;
+    _monthsCache = null;
+  }
+
+  List<({int fromSeq, int toSeq, int count, DateTime? approxDate})>
+      estimatedTimeline() =>
+          _estimatedCache ??= db.estimatedBuckets();
+
+  List<MonthBucket> months() => _monthsCache ??= db.months();
 
   void select(String? tweetId) {
     selectedTweetId = tweetId;
@@ -472,13 +500,15 @@ class AppController extends ChangeNotifier {
     return null;
   }
 
-  Future<String?> unlike(String tweetId) async {    final svc = syncService;
+  Future<String?> unlike(String tweetId) async {
+    final svc = syncService;
     if (svc == null) return '未登录';
     try {
       await svc.unlike(tweetId);
       items.removeWhere((i) => i.tweetId == tweetId);
       if (selectedTweetId == tweetId) selectedTweetId = null;
       totalCount = db.countLikes(includeDeleted: false);
+      _invalidateTimelineCache();
       notifyListeners();
       return null;
     } on XRequestException catch (e) {

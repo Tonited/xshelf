@@ -231,14 +231,16 @@ class _EmbeddedLoginPageState extends State<_EmbeddedLoginPage> {
             userId = m?.group(1);
         }
       }
-      if (authToken == null || ct0 == null || (userId ?? '').isEmpty) {
+      // userId 不是必需的：拿不到 twid 时交给 verify_credentials 补全，
+      // 否则用户明明登录成功了却被卡在这里。
+      if (authToken == null || ct0 == null) {
         _capturing = false;
         return;
       }
       final session = XSession(
         authToken: authToken,
         ct0: ct0,
-        userId: userId!,
+        userId: userId ?? '',
       );
       if (mounted) Navigator.of(context).pop();
       widget.onSession(session);
