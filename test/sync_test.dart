@@ -165,7 +165,9 @@ void main() {
 
       final state = db.loadSyncState(1);
       expect(state.backfillDone, isTrue);
-      expect(state.backfillCursor, isNull);
+      // 到底了也**不清空**游标：下次点「继续回填」从最后一页重试一次就能确认，
+      // 而万一这次是误判（X 收紧过深度限制），还能从断点接着往下抓。
+      expect(state.backfillCursor, 'c1');
       expect(state.minSeq, -AppDatabase.seqStep * 2);
       expect(state.maxSeq, 0);
     });
@@ -239,7 +241,7 @@ void main() {
   });
 
   group('unlike', () {
-    test('removes the row locally after the API call succeeds', () async {
+    test('取消喜欢后列表里查不到，但数据还在（能点回喜欢）', () async {
       if (!sqliteReady) return;
       final db = AppDatabase.open(':memory:');
       addTearDown(db.dispose);
@@ -255,7 +257,15 @@ void main() {
       expect(db.getLike('a'), isNotNull);
 
       await svc.unlike('a');
-      expect(db.getLike('a'), isNull);
+      // 整行还在（重新喜欢能原样恢复、缓存也不丢）……
+      expect(db.getLike('a'), isNotNull);
+      // ……但任何列表查询都不再返回它（state = removed 被过滤掉）。
+      final page = db.fetchPage(
+        mode: SortMode.likeOrder,
+        filter: const LikesFilter(),
+        limit: 10,
+      );
+      expect(page.items.map((i) => i.tweetId), isNot(contains('a')));
     });
   });
 
@@ -330,10 +340,11 @@ void main() {
         retryDelay: Duration.zero,
       );
 
-      await expectLater(
-        svc.backfill(accountId: 1),
-        throwsA(isA<XRequestException>()),
-      );
+      final report = await svc.backfill(accountId: 1);
+      // 限流用尽只算「本轮暂停」：游标已落库，下次点继续就从这里接着抓。
+      // 以前这里 rethrow，用户只看到一个红色错误，以为同步坏了。
+      expect(report.done, isFalse);
+      expect(report.pages, 0);
       expect(calls, 3, reason: '1 次原始请求 + 2 次重试');
     });
   });

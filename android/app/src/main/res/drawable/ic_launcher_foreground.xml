@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Adaptive-icon foreground: X 的两个笔画（白色）+ 左下那一段用主题蓝 #6CC7F5。
+  几何和 tool/make_icons.ps1 里那套 PNG 完全一致（108x108 坐标系），
+  所以自适应图标和旧式 PNG 图标看着是同一个标。
+
+  所有顶点都在安全圆内（直径 66dp），圆形遮罩也切不到。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- "/"：右上 -> 左下 -->
+    <path
+        android:fillColor="#F7FAFC"
+        android:pathData="M66.6,31.3 L32.6,71.3 L41.4,78.7 L75.4,38.7 Z" />
+
+    <!-- "\"：左上 -> 右下 -->
+    <path
+        android:fillColor="#F7FAFC"
+        android:pathData="M32.6,38.7 L66.6,78.7 L75.4,71.3 L41.4,31.3 Z" />
+
+    <!-- "/" 的左下臂：蓝色强调 -->
+    <path
+        android:fillColor="#6CC7F5"
+        android:pathData="M44.8,57.0 L32.6,71.3 L41.4,78.7 L59.9,57.0 Z" />
+</vector>

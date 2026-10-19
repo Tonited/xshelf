@@ -16,15 +16,19 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import 'auth/auth_store.dart';
+import 'core/l10n.dart';
 import 'core/settings.dart';
 import 'db/app_database.dart';
 import 'media/media_cache.dart';
 import 'model/like_item.dart';
 import 'net/proxy.dart';
+import 'net/translate.dart';
 import 'state/browse_state.dart';
 import 'state/sync_state.dart';
 import 'sync/reconciler.dart';
+import 'sync/search_parser.dart';
 import 'sync/sync_service.dart';
+import 'sync/metrics.dart';
 import 'sync/x_client.dart';
 import 'version.dart';
 
@@ -43,6 +47,21 @@ class AppController extends ChangeNotifier {
 
   XSession? session;
   XClient? client;
+
+  /// 设置（导航项、显示项）改完之后通知一次，让依赖设置的页面重建。
+  void refreshSettings() => notifyListeners();
+
+  /// 推文的互动数据（回复/转发/喜欢/浏览）。来自 `raw_json` 里的快照，
+  /// v1.1 端点被 X 下线之后不再现拉。
+  late final MetricsStore metrics = MetricsStore();
+
+  /// 翻译（正文/搜索词）。走 App 自己的 HTTP 客户端，所以用户配的代理对它同样生效。
+  /// 译文落进 SQLite kv：同一条帖子只翻一次。
+  late final TranslationService translate = TranslationService(
+    () => _xHttp,
+    load: (key) => db.cachedTranslation(key),
+    save: (key, value) => db.saveTranslation(key, value),
+  );
   SyncService? syncService;
   MediaCache? mediaCache;
 
@@ -344,11 +363,103 @@ class AppController extends ChangeNotifier {
 
   // ------------------------------------------------------------------ 动作
 
-  /// 取消喜欢：网络 + 本地删除，然后从列表里摘掉（不重查整页）。
+  /// 取消喜欢：网络 + 本地标记 + 列表立刻不显示。
+  ///
+  /// 播放页里当前这条**不会**消失（心形变空心），点一下就能点回喜欢 ——
+  /// 所以列表这份视图单独过滤，见 [BrowseState.listItems]。
   Future<String?> unlike(String tweetId) async {
     final err = await sync.unlike(tweetId);
-    if (err == null) browse.dropLocal(tweetId);
-    return err;
+    if (err != null) return err;
+    browse.markRemoved(tweetId);
+    return null;
+  }
+
+  /// 重新喜欢（取消之后又点回来）：库里恢复 + 列表重新显示。
+  Future<String?> like(String tweetId) async {
+    final err = await sync.like(tweetId);
+    if (err != null) return err;
+    browse.unmarkRemoved(tweetId);
+    return null;
+  }
+
+  /// 远端「我正在关注的人」。失败返回空列表，调用方回退本地记录。
+  Future<List<({String id, String screenName, String name})>>
+      fetchFollowing() async {
+    final c = client;
+    if (c == null) return const [];
+    try {
+      return await c.fetchFollowing();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// 向 X 核对「是否已关注」。null = 查不到（未登录/网络/接口变了）。
+  Future<bool?> isFollowingRemote(String screenName) async {
+    final c = client;
+    if (c == null) return null;
+    return c.isFollowing(screenName);
+  }
+
+  /// 关注/取关作者。成功返回 null。
+  ///
+  /// 关注是**写操作**，失败原因要原样带给用户（限流 / queryId 失效 / 网络），
+  /// 所以这里不做静默降级 —— 由调用方决定是否提示「去 X 里手动点」。
+  Future<String?> setFollowing(String userId, bool following) async {
+    final c = client;
+    if (c == null) return t('error.network');
+    try {
+      if (following) {
+        await c.follow(userId);
+      } else {
+        await c.unfollow(userId);
+      }
+      db.setFollowing(userId, following);
+      notifyListeners();
+      return null;
+    } on XRequestException catch (e) {
+      return e.message;
+    } catch (e) {
+      return '$e';
+    }
+  }
+
+  /// 在 X 上搜索内容（全网，不是本地喜欢）。
+  Future<SearchResultPage> searchX({
+    required String rawQuery,
+    SearchProduct product = SearchProduct.latest,
+    String? cursor,
+  }) async {
+    final c = client;
+    if (c == null) {
+      throw XRequestException(XErrorKind.sessionExpired, t('error.network'));
+    }
+    return c.fetchSearch(rawQuery: rawQuery, product: product, cursor: cursor);
+  }
+
+  /// 保存播放偏好。
+  Future<void> setPlayback(PlaybackSettings cfg) async {
+    await settings.setPlayback(cfg);
+    notifyListeners();
+  }
+
+  /// 当前应当使用的界面语言。
+  ///
+  /// 设置里明确选了中文/英文就用它，否则跟随系统（`Platform.localeName`）——
+  /// 这里不用 `Localizations.localeOf`，因为该值要在 MaterialApp 之上决定。
+  AppLang get effectiveLang {
+    final code = settingsOrNull?.language;
+    if (code == 'zh') return AppLang.zh;
+    if (code == 'en') return AppLang.en;
+    return Platform.localeName.toLowerCase().startsWith('zh')
+        ? AppLang.zh
+        : AppLang.en;
+  }
+
+  /// 切换界面语言（null = 跟随系统）。切换后需要整树重建，见 main.dart。
+  Future<void> setLanguage(String? code) async {
+    await settings.setLanguage(code);
+    notifyListeners();
   }
 
   /// 连通性自检：分别探 x.com（接口）、pbs（图片）、video（视频）。
@@ -453,4 +564,12 @@ class AppScope extends InheritedNotifier<AppController> {
     assert(scope != null, 'AppScope 未挂载');
     return scope!.notifier!;
   }
+
+  /// 拿得到就拿，拿不到返回 null。
+  ///
+  /// 给「没有外壳也要能渲染」的组件用（PostCard 的互动数据行、MediaImage 的
+  /// 带 cookie 请求）：它们被单独放进测试或预览时不该因为少一层 InheritedWidget
+  /// 就整块崩掉，退化成「没有这项功能」更合适。
+  static AppController? maybeRead(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<AppScope>()?.notifier;
 }

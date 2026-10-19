@@ -151,7 +151,12 @@ void main() {
           accountId: 1, startSeq: db.maxSeqOverall()! + AppDatabase.seqStep);
       await browse.refresh();
 
-      expect(browse.items.first.tweetId, 't2', reason: '刷新不应把用户弹回顶部');
+      // center 那一条是用户当前看的位置，刷新不能把它顶走；新同步进来的条目
+      // 排在它**上方**（`_older`），所以 `items.first` 会变，但 center 不变。
+      expect(browse.items[browse.olderCount].tweetId, 't2',
+          reason: '刷新不应把用户弹回顶部');
+      expect(browse.items.first.tweetId, 'fresh',
+          reason: '新同步的条目应出现在 center 上方');
       expect(browse.totalCount, 8);
 
       await browse.reload(reset: true);

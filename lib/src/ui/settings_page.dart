@@ -8,6 +8,7 @@ import '../app_controller.dart';
 import '../core/l10n.dart';
 import '../core/settings.dart';
 import '../net/proxy.dart';
+import '../version.dart';
 import 'media_image.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -20,7 +21,9 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   late ProxyConfig _proxy;
   late AutoSyncSettings _auto;
+  late PlaybackSettings _play;
   late int _cacheLimitMb;
+  String? _lang;
   final _host = TextEditingController();
   final _port = TextEditingController();
   final _user = TextEditingController();
@@ -38,7 +41,9 @@ class _SettingsPageState extends State<SettingsPage> {
     final app = AppScope.of(context);
     _proxy = app.settings.proxy;
     _auto = app.settings.autoSync;
+    _play = app.settings.playback;
     _cacheLimitMb = app.settings.cacheLimitMb;
+    _lang = app.settings.language;
     _host.text = _proxy.host;
     _port.text = _proxy.port == 0 ? '' : '${_proxy.port}';
     _user.text = _proxy.username ?? '';
@@ -278,6 +283,37 @@ class _SettingsPageState extends State<SettingsPage> {
           Card(
             child: Column(
               children: [
+                // 全量回填从首页的溢出菜单搬到这里：它是「一次性大动作」，
+                // 不该和列表上的日常操作挤在同一个菜单里。
+                ListenableBuilder(
+                  listenable: app.sync,
+                  builder: (context, _) {
+                    final busy = app.sync.busy;
+                    final progress = app.sync.progress;
+                    return ListTile(
+                      leading: const Icon(Icons.cloud_download_outlined),
+                      title: Text(app.sync.backfillDone
+                          ? t('sync.backfill')
+                          : t('sync.resume')),
+                      subtitle: Text(
+                        busy && progress != null
+                            ? '${progress.pages} ${t('sync.pages')} · '
+                                '${progress.fetched} ${t('sync.items')} · '
+                                '+${progress.inserted}'
+                            : t('sync.backfillHint'),
+                        style: theme.textTheme.bodySmall,
+                      ),
+                      trailing: busy
+                          ? IconButton(
+                              icon: const Icon(Icons.stop_circle_outlined),
+                              onPressed: app.sync.cancel,
+                            )
+                          : const Icon(Icons.chevron_right),
+                      onTap: busy ? null : () => _startBackfill(app),
+                    );
+                  },
+                ),
+                const Divider(height: 1),
                 SwitchListTile(
                   title: Text(t('settings.autoSync')),
                   subtitle: Text(t('settings.foregroundOnly')),
@@ -338,6 +374,156 @@ class _SettingsPageState extends State<SettingsPage> {
                       },
                     ),
                   ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // ---------------- 界面语言
+          _section(context, t('settings.language')),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.translate),
+              title: Text(t('settings.language')),
+              trailing: DropdownButton<String?>(
+                value: _lang,
+                items: [
+                  DropdownMenuItem(
+                    value: null,
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: Text(t('settings.languageSystem')),
+                  ),
+                  DropdownMenuItem(
+                    value: 'zh',
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: Text(t('settings.languageChinese')),
+                  ),
+                  DropdownMenuItem(
+                    value: 'en',
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: Text(t('settings.languageEnglish')),
+                  ),
+                ],
+                onChanged: (v) async {
+                  setState(() => _lang = v);
+                  await app.setLanguage(v);
+                },
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // ---------------- 播放
+          _section(context, t('settings.playback')),
+          Card(
+            child: Column(
+              children: [
+                ListTile(
+                  title: Text(t('settings.doubleTapSeconds')),
+                  subtitle: Text('${_play.doubleTapSeconds}s'),
+                  trailing: SizedBox(
+                    width: 120,
+                    child: DropdownButton<int>(
+                      value: [5, 10, 15, 20, 30].contains(_play.doubleTapSeconds)
+                          ? _play.doubleTapSeconds
+                          : 10,
+                      items: const [5, 10, 15, 20, 30]
+                          .map((v) => DropdownMenuItem(
+                                value: v,
+                                alignment: AlignmentDirectional.centerEnd,
+                                child: Text('${v}s'),
+                              ))
+                          .toList(),
+                      onChanged: (v) {
+                        if (v == null) return;
+                        _savePlay(app, _play.copyWith(doubleTapSeconds: v));
+                      },
+                    ),
+                  ),
+                ),
+                ListTile(
+                  title: Text(t('settings.longPressSpeed')),
+                  trailing: DropdownButton<double>(
+                    value: _play.longPressSpeed,
+                    items: const [1.5, 2.0, 2.5, 3.0]
+                        .map((v) => DropdownMenuItem(
+                              value: v,
+                              alignment: AlignmentDirectional.centerEnd,
+                              child: Text('${v}x'),
+                            ))
+                        .toList(),
+                    onChanged: (v) {
+                      if (v == null) return;
+                      _savePlay(app, _play.copyWith(longPressSpeed: v));
+                    },
+                  ),
+                ),
+                // 「默认清晰度」也删了：清晰度是**当前这条**的即时选择，
+                // 在播放页的「⋯」里调，设一个全局默认反而容易和实际不符。
+                // 「自动升清晰 / 循环播放 / 保存到相册按钮」都搬到了播放页
+                // 右上角的「⋯」里：它们是**当前这条**的即时选择，放在设置页
+                // 既远又不像"设置"，改一次还得退出播放页。
+                SwitchListTile(
+                  title: Text(t('settings.autoPlayInList')),
+                  value: _play.autoPlayInList,
+                  onChanged: (v) =>
+                      _savePlay(app, _play.copyWith(autoPlayInList: v)),
+                ),
+                // 低数据模式：不切画质、不升档、不后台缓存视频。
+                // 本地有缓存就用缓存里最好的那档，没有就最低档。
+                SwitchListTile(
+                  title: Text(t('settings.lowData')),
+                  value: app.settings.lowDataMode,
+                  onChanged: (v) async {
+                    await app.settings.setLowDataMode(v);
+                    app.refreshSettings();
+                    if (mounted) setState(() {});
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // ---------------- 界面
+          _section(context, t('settings.ui')),
+          Card(
+            child: Column(
+              children: [
+                SwitchListTile(
+                  title: Text(t('settings.showMetrics')),
+                  value: app.settings.showMetrics,
+                  onChanged: (v) async {
+                    await app.settings.setShowMetrics(v);
+                    app.refreshSettings();
+                    if (mounted) setState(() {});
+                  },
+                ),
+                SwitchListTile(
+                  title: Text(t('settings.keepAwake')),
+                  value: app.settings.keepAwake,
+                  onChanged: (v) async {
+                    await app.settings.setKeepAwake(v);
+                    app.refreshSettings();
+                    if (mounted) setState(() {});
+                  },
+                ),
+                ListTile(
+                  title: Text(t('settings.navTabs')),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _editNavTabs(app),
+                ),
+                // 自动翻译：把列表里可见的外文正文显示成中文。
+                // 优先用 X 自带的译文（零请求），X 没给才走在线翻译兜底。
+                SwitchListTile(
+                  title: Text(t('settings.autoTranslate')),
+                  value: app.settings.autoTranslate,
+                  onChanged: (v) async {
+                    await app.settings.setAutoTranslate(v);
+                    app.refreshSettings();
+                    if (mounted) setState(() {});
+                  },
                 ),
               ],
             ),
@@ -406,7 +592,8 @@ class _SettingsPageState extends State<SettingsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('X Like Manage · 0.1.0', style: theme.textTheme.titleSmall),
+                  Text('X Like Manage · $kAppVersion',
+                      style: theme.textTheme.titleSmall),
                   const SizedBox(height: 8),
                   Text(
                     t('settings.riskNote'),
@@ -423,10 +610,54 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  /// 底部导航：哪些显示、按什么顺序。
+  ///
+  /// 每一项都能拖动排序；除「设置」外都能隐藏（设置是唯一的自救入口）。
+  Future<void> _editNavTabs(AppController app) async {
+    final result = await showDialog<
+        ({List<String> order, Set<String> hidden})>(
+      context: context,
+      builder: (_) => _NavTabsDialog(
+        initialOrder: app.settings.navOrder,
+        initialHidden: app.settings.navHidden,
+      ),
+    );
+    if (result == null) return;
+    await app.settings
+        .setNavConfig(order: result.order, hidden: result.hidden);
+    app.refreshSettings();
+    if (mounted) setState(() {});
+  }
+
   Widget _section(BuildContext context, String title) => Padding(
         padding: const EdgeInsets.only(bottom: 8, top: 8),
         child: Text(title, style: Theme.of(context).textTheme.titleSmall),
       );
+
+  Future<void> _startBackfill(AppController app) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(t('sync.backfill')),
+        content: Text(t('sync.backfillConfirm')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(t('action.cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(t('action.confirm')),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) await app.sync.startBackfill();
+  }
+
+  Future<void> _savePlay(AppController app, PlaybackSettings next) async {    setState(() => _play = next);
+    await app.setPlayback(next);
+  }
 
   Future<void> _saveProxy(AppController app) async {
     final port = int.tryParse(_port.text) ?? 0;
@@ -438,5 +669,131 @@ class _SettingsPageState extends State<SettingsPage> {
     );
     setState(() => _proxy = cfg);
     await app.applyProxy(cfg);
+  }
+}
+
+/// 底部导航配置：**每一项都能拖动排序**，除「设置」外都能隐藏。
+///
+/// 「设置」不能隐藏：关掉之后用户就再也进不来这个页面，没有自救的入口。
+/// 被隐藏的项仍然留在列表里（只是没勾），所以想放回来时位置还是原来的，
+/// 不用重新拖一遍。
+class _NavTabsDialog extends StatefulWidget {
+  const _NavTabsDialog({required this.initialOrder, required this.initialHidden});
+
+  final List<String> initialOrder;
+  final Set<String> initialHidden;
+
+  @override
+  State<_NavTabsDialog> createState() => _NavTabsDialogState();
+}
+
+class _NavTabsDialogState extends State<_NavTabsDialog> {
+  late final List<String> _order = _normalize(widget.initialOrder);
+  late final Set<String> _hidden = {
+    for (final key in widget.initialHidden)
+      if (AppSettings.allNavTabs.contains(key) &&
+          key != AppSettings.pinnedNavTab)
+        key,
+  };
+
+  static List<String> _normalize(List<String> input) {
+    final out = <String>[];
+    for (final key in input) {
+      if (!AppSettings.allNavTabs.contains(key) || out.contains(key)) continue;
+      out.add(key);
+    }
+    for (final key in AppSettings.allNavTabs) {
+      if (!out.contains(key)) out.add(key);
+    }
+    return out;
+  }
+
+  String label(String key) => switch (key) {
+        'search' => t('nav.search'),
+        'swipe' => t('nav.swipe'),
+        'grok' => t('nav.grok'),
+        'settings' => t('nav.settings'),
+        _ => t('nav.browse'),
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: Text(t('settings.navTabs')),
+      content: SizedBox(
+        width: double.maxFinite,
+        height: 400,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              t('settings.navTabsHint'),
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.outline),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: ReorderableListView.builder(
+                itemCount: _order.length,
+                // onReorderItem 已经把「先移除再插入」的下标偏移算好了。
+                onReorderItem: (oldIndex, newIndex) {
+                  setState(() {
+                    final key = _order.removeAt(oldIndex);
+                    _order.insert(newIndex.clamp(0, _order.length), key);
+                  });
+                },
+                itemBuilder: (context, i) {
+                  final key = _order[i];
+                  final pinned = key == AppSettings.pinnedNavTab;
+                  final shown = pinned || !_hidden.contains(key);
+                  return ListTile(
+                    key: ValueKey('nav-$key'),
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.drag_indicator),
+                    title: Text(label(key)),
+                    subtitle: pinned
+                        ? Text(
+                            t('settings.navTabsPinned'),
+                            style: theme.textTheme.bodySmall
+                                ?.copyWith(color: theme.colorScheme.outline),
+                          )
+                        : null,
+                    trailing: pinned
+                        // 「设置」用一把小锁代替勾选框：一看就知道它动不了。
+                        ? const Icon(Icons.lock_outline,
+                            size: 18, color: Colors.grey)
+                        : Checkbox(
+                            value: shown,
+                            onChanged: (v) => setState(() {
+                              if (v == true) {
+                                _hidden.remove(key);
+                              } else {
+                                _hidden.add(key);
+                              }
+                            }),
+                          ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(t('action.cancel')),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(
+            context,
+            (order: _order, hidden: _hidden),
+          ),
+          child: Text(t('action.confirm')),
+        ),
+      ],
+    );
   }
 }

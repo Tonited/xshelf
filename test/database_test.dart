@@ -324,6 +324,54 @@ void main() {
       expect(segStart, lessThanOrEqualTo(-AppDatabase.seqStep));
     });
   });
+
+  group('媒体画质记忆', () {
+    test('缓存文件记下自己的档位，最好档只升不降', () {
+      if (!available) return;
+      final db = newDb();
+      addTearDown(db.dispose);
+
+      db.insertPage([item('a', video: true)], accountId: 1, startSeq: 0);
+
+      // 高画质播过 → 记成最好档
+      db.rememberMediaVariant('a', 0, '720_2176000', 2176000);
+      expect(db.mediaBestVariant('a', 0), '720_2176000');
+
+      // 再播低画质不该把记忆降级
+      db.rememberMediaVariant('a', 0, '270_256000', 256000);
+      expect(db.mediaBestVariant('a', 0), '720_2176000');
+
+      // 缓存文件落盘：记录文件是哪一档
+      db.markMediaCached('a', 0, '/tmp/a.mp4', 1234,
+          variant: '720_2176000', rank: 2176000);
+      final row = db.mediaCacheRow('a', 0);
+      expect(row.path, '/tmp/a.mp4');
+      expect(row.cacheVariant, '720_2176000');
+      expect(row.bestVariant, '720_2176000');
+      expect(row.bestRank, 2176000);
+
+      // 重新同步同一条推文不能把缓存/画质记录冲掉
+      db.insertPage([item('a', video: true, text: 'updated')],
+          accountId: 1, startSeq: -999);
+      expect(db.mediaCacheRow('a', 0).cacheVariant, '720_2176000');
+    });
+
+    test('文件坏掉只清文件记录，画质记忆保留', () {
+      if (!available) return;
+      final db = newDb();
+      addTearDown(db.dispose);
+
+      db.insertPage([item('a', video: true)], accountId: 1, startSeq: 0);
+      db.markMediaCached('a', 0, '/tmp/a.mp4', 10,
+          variant: '720_2176000', rank: 2176000);
+      db.clearMediaPath('a', 0);
+
+      final row = db.mediaCacheRow('a', 0);
+      expect(row.path, isNull);
+      expect(row.cacheVariant, isNull);
+      expect(row.bestVariant, '720_2176000');
+    });
+  });
 }
 
 /// 直接调 AppDatabase 的静态辅助（避免为测试专门造实例）。

@@ -89,7 +89,7 @@ Windows 产物（Release）：
 - `dist\xlikemanage-1.0.0-setup.exe` 25 MB（LZMA2，含中英文安装界面）
 
 **注意磁盘**：C: 原本只剩 ~1.9 GB，一次 `--split-per-abi` 会失败在「拷 APK」一步（java.io.IOException:
-磁盘空间不足）。删掉 `C:\Users\Tonited\.gradle\caches`（2025 年的旧缓存，3.67 GB，跟本项目无关，
+磁盘空间不足）。删掉 `%USERPROFILE%\.gradle\caches`（旧的、跟本项目无关的全局缓存，
 项目用的是 `E:\dev\gradle`）之后可用空间到 ~5 GB，构建恢复。以后清缓存优先清它。
 
 **另外踩到的坑（后续可能复现）**：

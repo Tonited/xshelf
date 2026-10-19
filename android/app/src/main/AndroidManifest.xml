@@ -3,6 +3,11 @@
          否则正式包完全没有网络权限（登录/回填/播放全废）。 -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <!-- 保存到相册：API 29+ 走 MediaStore 不需要权限，26–28 需要写外部存储。
+         用 maxSdkVersion 限制，避免在新系统上多要一个敏感权限。 -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29"/>
     <application
         android:label="X Like Manage"
         android:name="${applicationName}"

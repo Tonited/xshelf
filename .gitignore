@@ -12,6 +12,12 @@ build/
 coverage/
 *.log
 
+# 根目录的临时输出（测试 / 分析的中间日志）
+/analyze-*.txt
+/analyze-*.log
+/test-*.txt
+/test-*.log
+
 # Windows
 windows/flutter/ephemeral/
 windows/**/generated_plugin_registrant.*
@@ -24,9 +30,10 @@ windows/**/generated_plugins.cmake
 # Android
 android/.gradle/
 android/local.properties
+android/key.properties
+android/keystore/
 android/app/*.jks
 android/app/*.keystore
-android/key.properties
 android/.cxx/
 android/app/debug/
 android/app/profile/
@@ -34,17 +41,19 @@ android/app/release/
 *.apk
 *.aab
 
-# Local secrets / build artifacts
+# 本地密钥 / 环境
 .env
 secrets/
 tools/local/
 
-# vendored 插件（third_party）里产生的构建产物
+# vendored 插件里产生的构建产物
 third_party/**/build/
 third_party/**/.dart_tool/
 third_party/**/.gradle/
 third_party/**/example/build/
 
-# ��������Ŀ¼��apk/exe/ͼ��/��ʱ�����ű�������⣩
+# 构建产物目录（APK / exe / 图标 / 临时分享脚本都不入库）
 dist/
 
+# 原始抓取数据与脱敏前的备份（只留在本机）
+build/_private/

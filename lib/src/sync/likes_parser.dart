@@ -4,6 +4,8 @@
 /// 结构对不上时抛 [LikesParseException]，让上层能区分「接口变了」和「没有更多数据」。
 library;
 
+import 'dart:isolate';
+
 import '../model/like_item.dart';
 import 'twitter_date.dart';
 
@@ -21,6 +23,8 @@ class LikesPage {
     this.bottomCursor,
     this.deletedTweetIds = const [],
     this.entryCount = 0,
+    this.terminatedBottom = false,
+    this.instructionTypes = const [],
   });
 
   final List<LikeItem> items;
@@ -30,6 +34,16 @@ class LikesPage {
   /// 已删除（tombstone）的推文 id：本地应保留记录但标记为 deleted。
   final List<String> deletedTweetIds;
   final int entryCount;
+
+  /// 服务端是否明确说「下面没有了」。
+  ///
+  /// 这个标志和 [bottomCursor] 是两件事：真实响应里出现过「既有 Bottom 游标、
+  /// 又有 TimelineTerminateTimeline」的页，早期版本据此把游标置空，回填于是在
+  /// 1000 条左右被误判成全量完成，并且把续传游标也清掉了。
+  final bool terminatedBottom;
+
+  /// 诊断用：本页出现过的 instruction 类型（排查「接口变了」时很有用）。
+  final List<String> instructionTypes;
 
   bool get hasMore => bottomCursor != null && bottomCursor!.isNotEmpty;
 }
@@ -44,6 +58,14 @@ List<String> graphqlErrors(Object? json) {
       if (e is Map) (e['message']?.toString() ?? e.toString()),
   ];
 }
+
+/// 在**后台 isolate** 里解析一页喜欢。
+///
+/// 一页 100 条喜欢的响应有几百 KB 到几 MB，`jsonDecode` + 遍历在 UI 线程上要
+/// 几十上百毫秒 —— 回填时列表正在滚动，这几十毫秒就是一次肉眼可见的卡顿。
+/// 解析只依赖入参、产出的又都是纯 Dart 对象，天然适合丢到后台线程。
+Future<LikesPage> parseLikesPageInBackground(Object? json) =>
+    Isolate.run(() => parseLikesPage(json));
 
 LikesPage parseLikesPage(Object? json) {
   if (json is! Map) throw LikesParseException('响应不是 JSON 对象');
@@ -69,13 +91,20 @@ LikesPage parseLikesPage(Object? json) {
   String? topCursor;
   String? bottomCursor;
   var entryCount = 0;
+  var terminatedBottom = false;
+  final instructionTypes = <String>[];
 
   for (final ins in instructions) {
     if (ins is! Map) continue;
     final type = ins['type'];
+    instructionTypes.add(type is String ? type : '$type');
     if (type == 'TimelineTerminateTimeline') {
-      // 没有更多了：把 bottomCursor 置空。
-      bottomCursor = null;
+      // 不能在这里把 bottomCursor 置空 —— 真实响应里存在「同一页既有 Bottom
+      // 游标、又有 terminate 指令」的情况，置空会让上层误判成「全量抓完了」
+      // 并且清掉续传游标（历史 bug：喜欢永远停在 1000 条左右）。
+      // 只记录标志，游标一律以实际解析到的为准。
+      final dir = ins['direction'] as String?;
+      if (dir == null || dir == 'Bottom') terminatedBottom = true;
       continue;
     }
     final entries = ins['entries'];
@@ -132,15 +161,35 @@ LikesPage parseLikesPage(Object? json) {
     bottomCursor: bottomCursor,
     deletedTweetIds: deleted,
     entryCount: entryCount,
+    terminatedBottom: terminatedBottom,
+    instructionTypes: instructionTypes,
   );
 }
 
 /// [result] 即 `data.user.result`（已解包一层）。
+///
+/// 2026-10 实测的 Likes 响应里，指令挂在 `user.timeline.timeline.instructions`
+/// （多了一层 `timeline`，且不再有 `timeline_v2`）。三种形态都试一遍，
+/// 免得 X 改一次就得跟着改。
 List? _timelineInstructions(Map result) {
-  final v2 = _dig(result, ['timeline_v2', 'timeline', 'instructions']) ??
-      _dig(result, ['timeline', 'instructions']);
-  return v2 is List ? v2 : null;
+  final candidates = [
+    _dig(result, ['timeline', 'timeline', 'instructions']),
+    _dig(result, ['timeline_v2', 'timeline', 'instructions']),
+    _dig(result, ['timeline', 'instructions']),
+  ];
+  for (final c in candidates) {
+    if (c is List) return c;
+  }
+  return null;
 }
+
+/// 供 `SearchTimeline`（以及将来的 `UserTweets` / `TweetDetail`）复用的推文解析入口。
+///
+/// 为什么只开一个包装而不直接改名：`_parseTweet` 是 Likes 的私有实现，直接对外
+/// 会把「Likes 的解析细节」变成公共契约；而复制第二份的代价更糟 —— 两个模块
+/// 迟早只改一边（改成只支持一种媒体结构之类）。包装一层，语义就此固定。
+LikeItem? parseTweetNode(Map tweet, {String? entryId}) =>
+    _parseTweet(tweet, entryId ?? '');
 
 LikeItem? _parseTweet(Map tweet, String entryId) {
   final tweetId = (tweet['rest_id'] as String?) ?? _tweetIdFromEntryId(entryId);

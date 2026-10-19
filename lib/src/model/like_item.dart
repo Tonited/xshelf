@@ -133,6 +133,30 @@ enum LikeState {
   deleted,
 }
 
+/// X **自带**的译文（服务端随喜欢列表一起下发）。
+///
+/// 关键点：它不是一个「翻译接口」，而是时间线里本来就带回来的字段
+/// （`grok_translated_post_with_availability`），所以：
+/// - **零额外请求**，不会因为翻译再打一次 X 的接口（少一分被限流的风险）；
+/// - 它存在 `raw_json` 里，重新打开 App 也还在，不用重翻。
+class PostTranslation {
+  const PostTranslation({
+    required this.text,
+    this.sourceLang,
+    this.destLang,
+  });
+
+  final String text;
+
+  /// 原文语言（`pt` / `en` / `ja` …）；X 没给就是 null。
+  final String? sourceLang;
+
+  /// X 翻成的语言（通常等于账号的语言设置）。
+  final String? destLang;
+
+  bool get isChinese => sourceLang == 'zh' || sourceLang == 'zh-cn';
+}
+
 class LikeItem {
   const LikeItem({
     required this.tweetId,
@@ -173,6 +197,31 @@ class LikeItem {
 
   /// X 返回的原始 JSON（保留，便于回溯字段与后续升级）。
   final Map<String, Object?>? raw;
+
+  /// X 自带的译文（没有就是 null）。
+  ///
+  /// 直接从 [raw] 里取，不落新列：`raw_json` 本来就整条存着，重启后照样能读。
+  PostTranslation? get translation {
+    final r = raw;
+    if (r == null) return null;
+    var node = r['grok_translated_post_with_availability'];
+    // 少数情况下再包一层 TweetWithVisibilityResults。
+    final inner = r['tweet'];
+    if (node == null && inner is Map) {
+      node = inner['grok_translated_post_with_availability'];
+    }
+    if (node is! Map) return null;
+    if (node['is_available'] == false) return null;
+    final data = node['data'];
+    if (data is! Map) return null;
+    final text = data['translation'];
+    if (text is! String || text.trim().isEmpty) return null;
+    return PostTranslation(
+      text: text,
+      sourceLang: data['source_language'] as String?,
+      destLang: data['destination_language'] as String?,
+    );
+  }
 
   bool get hasVideo => media.any((m) => m.kind != MediaKind.image);
   bool get hasImage => media.any((m) => m.kind == MediaKind.image);
@@ -222,7 +271,13 @@ class LikeItem {
 String withImageVariant(String url, String name) {
   final uri = Uri.tryParse(url);
   if (uri == null) return url;
-  final params = uri.queryParameters;
-  if (!params.containsKey('name')) return url;
-  return uri.replace(queryParameters: {...params, 'name': name}).toString();
+  // 只处理 X 的图片 CDN：本地文件路径、data: 之类原样返回。
+  if (!uri.host.endsWith('twimg.com')) return url;
+  // 关键：X 的 `media_url_https` **不带** `name`，以前这里只在参数已存在时
+  // 才替换，于是列表一直在下载原图（几百 KB），表现就是「封面经常加载不出来」。
+  // 现在主动补上，`small` 真的生效，列表快一个数量级。
+  return uri.replace(queryParameters: {
+    ...uri.queryParameters,
+    'name': name,
+  }).toString();
 }

@@ -1,11 +1,16 @@
 /// 登录页：内嵌 WebView 登录（Android/iOS/Windows）+ 手动粘贴 cookie（全平台回退）。
 ///
 /// 内嵌登录只从 cookie jar 里取 `auth_token` / `ct0`，等同于用户自己在浏览器里
-/// 登录一次。Google 的「用 Google 账号登录」会被 Google 自己拦掉（不允许在
-/// 嵌入式浏览器里做 OAuth），所以默认先把 UA 里的 WebView 标记抹掉再试；
-/// 仍然被拦就退回邮箱密码 / 导入登录态。
+/// 登录一次。支持「邮箱密码」和「通过 Google 继续」两条路：Google 会
+/// `window.open` 一个弹窗，所以 WebView 必须开多窗口并把弹窗真的渲染出来。
+///
+/// 捕获**不依赖 URL**：X 的登录流程地址改过好几次（`/i/flow/login` →
+/// `/i/jf/onboarding/web?mode=login`），而且 Google 登录是弹窗里 postMessage
+/// 回来的，主页面未必会跳转。因此改为轮询 cookie jar —— 只要 `auth_token` +
+/// `ct0` 出现就认为登录完成，这条路对两种登录方式都成立。
 library;
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -249,6 +254,10 @@ class _EmbeddedLoginPageState extends State<_EmbeddedLoginPage> {
   bool _failed = false;
   bool _done = false;
 
+  /// cookie 轮询：登录完成与否只看「auth_token + ct0 是否出现」，
+  /// 不依赖 URL（X 的登录页地址改过多次，Google 登录又是在弹窗里完成的）。
+  Timer? _pollTimer;
+
   /// 诊断用：当前地址与最近一次主框架加载错误。白屏时靠它定位问题。
   String _currentUrl = '';
   String? _lastIssue;
@@ -257,6 +266,17 @@ class _EmbeddedLoginPageState extends State<_EmbeddedLoginPage> {
   void initState() {
     super.initState();
     _resolveDefaultUa();
+    // 1.5 秒一次足够快（登录成功到进入主页基本无感），又不至于把 WebView 的
+    // cookie 查询压满。首次延迟 2 秒，给页面一点加载时间。
+    _pollTimer = Timer.periodic(const Duration(milliseconds: 1500), (_) {
+      if (!_done && !_capturing) _tryCapture();
+    });
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _resolveDefaultUa() async {
@@ -362,10 +382,10 @@ class _EmbeddedLoginPageState extends State<_EmbeddedLoginPage> {
               },
               onLoadStop: (controller, url) async {
                 setState(() => _currentUrl = url?.toString() ?? '');
+                // 主框架只要还在 X 域名下就尝试一次；真正的判定交给 cookie
+                // （轮询是主路径，这里只是让成功捕获更快一点）。
                 final u = url?.toString() ?? '';
                 if (!u.contains('x.com')) return;
-                // 登录成功后 X 会跳到 /home 或 /i/flow/... 完成页
-                if (!u.contains('/home') && !u.contains('/i/flow/')) return;
                 await _tryCapture();
               },
             ),
@@ -479,7 +499,10 @@ class _EmbeddedLoginPageState extends State<_EmbeddedLoginPage> {
         ct0: ct0,
         userId: userId ?? '',
       );
-      if (mounted) Navigator.of(context).pop();
+      // 把登录页和可能的 Google 登录弹窗一起关掉，回到外壳再切到已登录态。
+      if (mounted) {
+        Navigator.of(context).popUntil((r) => r.isFirst);
+      }
       widget.onSession(session);
     } catch (_) {
       setState(() => _failed = true);

@@ -6,6 +6,7 @@ import 'package:media_kit/media_kit.dart';
 
 import 'src/app_controller.dart';
 import 'src/core/l10n.dart';
+import 'src/ui/privacy_shield.dart';
 import 'src/ui/root.dart';
 
 void main() {
@@ -41,27 +42,34 @@ class _XLikeAppState extends State<XLikeApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'X Like Manage',
-      debugShowCheckedModeBanner: false,
-      theme: buildTheme(Brightness.light),
-      darkTheme: buildTheme(Brightness.dark),
-      themeMode: ThemeMode.system,
-      localizationsDelegates: const [
-        DefaultMaterialLocalizations.delegate,
-        DefaultWidgetsLocalizations.delegate,
-        DefaultCupertinoLocalizations.delegate,
-      ],
-      builder: (context, child) {
-        // 用系统语言决定界面语言（默认中文）。
-        final systemLocale = Localizations.maybeLocaleOf(context) ??
-            (Platform.localeName.contains('zh')
-                ? const Locale('zh')
-                : const Locale('en'));
-        currentLang = langFromLocale(systemLocale);
-        return AppScope(controller: widget.controller, child: child!);
+    // 语言变化要让整棵树重建（`t()` 是全局函数，不是 InheritedWidget，
+    // 光靠 notifyListeners 只会重绘订阅了 AppScope 的 widget）。
+    // 用 ListenableBuilder + 换 key 是最省事且不会漏改的方式；代价是切语言后
+    // 回到主界面 —— 这个操作本来就很少做。
+    return ListenableBuilder(
+      listenable: widget.controller,
+      builder: (context, _) {
+        final lang = widget.controller.effectiveLang;
+        currentLang = lang;
+        return MaterialApp(
+          key: ValueKey('app-${lang.name}'),
+          title: 'X Like Manage',
+          debugShowCheckedModeBanner: false,
+          theme: buildTheme(Brightness.light),
+          darkTheme: buildTheme(Brightness.dark),
+          themeMode: ThemeMode.system,
+          localizationsDelegates: const [
+            DefaultMaterialLocalizations.delegate,
+            DefaultWidgetsLocalizations.delegate,
+            DefaultCupertinoLocalizations.delegate,
+          ],
+          builder: (context, child) => AppScope(
+            controller: widget.controller,
+            child: PrivacyShield(child: child!),
+          ),
+          home: const RootPage(),
+        );
       },
-      home: const RootPage(),
     );
   }
 }
