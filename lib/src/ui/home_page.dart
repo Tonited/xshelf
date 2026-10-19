@@ -591,6 +591,9 @@ class _SourceListState extends State<_SourceList>
             center: _centerKey,
             controller: _scroll,
             physics: const AlwaysScrollableScrollPhysics(),
+            // 预建范围收小：配合 MediaImage 的延迟窗口，让「没露脸的图」不被下载。
+            // 默认 250 在快速滚动时会提前抓一批，白白占流量。
+            cacheExtent: 160,
             slivers: [
               SliverList(
                 delegate: SliverChildBuilderDelegate(

@@ -38,6 +38,7 @@ class MediaImage extends StatefulWidget {
     this.preferRemembered = false,
     this.cacheToDisk = false,
     this.cacheHighRes = false,
+    this.lazy = true,
   });
 
   /// 先显示的地址（通常是 `name=small`）。
@@ -67,6 +68,10 @@ class MediaImage extends StatefulWidget {
   /// 列表里那张图下次直接是清晰的。只给「真正打开看过」的地方开（播放页），
   /// 列表滚动时不升级 —— 否则滚一遍就是把整个库的高清图都下一遍。
   final bool cacheHighRes;
+
+  /// 进入视野并停留一小会儿才加载（列表里希望这样，避免预建时整批下载）。
+  /// 全屏看图已经是「用户主动打开」，传 false 立即加载。
+  final bool lazy;
 
   final int idx;
   final BoxFit fit;
@@ -115,13 +120,17 @@ class _MediaImageState extends State<MediaImage> {
   /// 已经在缓存里记过的档位，避免重复写。
   String? _recorded;
 
+  /// 延迟加载的计时器与状态（见 [_scheduleLoad]）。
+  Timer? _loadTimer;
+  bool _ready = false;
+
   @override
   void initState() {
     super.initState();
     _highUrl = widget.highResUrl;
     _startedHigh = _shouldStartHigh();
     if (_startedHigh) _showHighRes = true;
-    _ensureOnDisk();
+    _scheduleLoad();
   }
 
   /// 这颗图要落盘吗？（见 [MediaImage.cacheToDisk] 与 [MediaImage.cacheKey]）
@@ -143,6 +152,25 @@ class _MediaImageState extends State<MediaImage> {
     );
     // 落盘之后再刷一次：build 会改走 Image.file，断网也还在。
     if (file != null && mounted) setState(() {});
+  }
+
+  /// 懒加载：进入视野并**停留**一小会儿才真正发请求。
+  ///
+  /// `SliverList` 会预建缓存区内的条目（默认 250px），列表快速滚动时那些
+  /// 还没露脸的图也会被构建。这里给一个延迟窗口：立刻滚走的条目会先被回收，
+  /// 计时器也随之取消，于是「只有真正看到的那几张」才会下载。
+  void _scheduleLoad() {
+    _loadTimer?.cancel();
+    if (!widget.lazy) {
+      _ready = true;
+      _ensureOnDisk();
+      return;
+    }
+    _loadTimer = Timer(const Duration(milliseconds: 320), () {
+      if (!mounted) return;
+      setState(() => _ready = true);
+      _ensureOnDisk();
+    });
   }
 
   bool _shouldStartHigh() {
@@ -169,6 +197,8 @@ class _MediaImageState extends State<MediaImage> {
       _startedHigh = _shouldStartHigh();
       _showHighRes = _startedHigh;
       _recorded = null;
+      _ready = !widget.lazy;
+      _scheduleLoad();
       return;
     }
     if (oldWidget.highResUrl != widget.highResUrl) {
@@ -250,6 +280,11 @@ class _MediaImageState extends State<MediaImage> {
           : Theme.of(context).colorScheme.surfaceContainerHighest,
       child: Center(child: child),
     );
+
+    // 懒加载：还没到加载窗口就只画占位，连网络请求都不发。
+    if (!_ready) {
+      return fallback(const SizedBox.shrink());
+    }
 
     // 只认图片缓存：视频位置缓存的是 mp4，拿它去 Image.file 会解不出来，
     // 于是「播放过的视频在列表里没有封面」。
@@ -368,6 +403,7 @@ class _MediaImageState extends State<MediaImage> {
   @override
   void dispose() {
     _retryTimer?.cancel();
+    _loadTimer?.cancel();
     super.dispose();
   }
 }
