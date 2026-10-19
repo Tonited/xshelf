@@ -75,6 +75,21 @@ void main() {
       expect(r1.nextSeq, -AppDatabase.seqStep * 3);
     });
 
+    test('cancelling hides the row but keeps it for restoring', () {
+      if (!available) return;
+      final db = newDb();
+      addTearDown(db.dispose);
+      db.insertPage([item('a')], accountId: 1, startSeq: 0);
+
+      expect(db.hasVisibleTweet('a'), isTrue);
+      db.markRemoved(['a']);
+      // 行还在：界面标记必须消失，但恢复要用到它。
+      expect(db.hasVisibleTweet('a'), isFalse, reason: '取消掉的不该再显示成「已喜欢/已书签」');
+      expect(db.hasTweet('a'), isTrue, reason: '行保留，点回来能原样恢复');
+
+      db.restoreLike('a');
+      expect(db.hasVisibleTweet('a'), isTrue);
+    });
     test('re-inserting an existing tweet keeps its original seq', () {
       if (!available) return;
       final db = newDb();

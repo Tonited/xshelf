@@ -741,6 +741,22 @@ class AppDatabase {
     return rows.isNotEmpty;
   }
 
+  /// 这条在这个来源里**当前可见**吗（`state <> 'removed'`）。
+  ///
+  /// [hasTweet] 不看状态：取消掉的喜欢/书签**行还留着**（这样点回来能原样恢复），
+  /// 用它来判断「显示与否」就会出错 —— 取消书签之后，卡片上的书签标记还在、
+  /// 重进播放页也还显示「已书签」。凡是**界面上的状态标记**都用这个。
+  ///
+  /// 口径和列表一致（只排除 `removed`）：作者删掉的帖子（`deleted`）仍然是书签，
+  /// 只是卡片上会标「已删除」。
+  bool hasVisibleTweet(String tweetId, {String kind = 'like'}) {
+    final rows = _db.select(
+      "SELECT 1 FROM likes WHERE tweet_id = ? AND kind = ? AND state <> 'removed'",
+      [tweetId, kind],
+    );
+    return rows.isNotEmpty;
+  }
+
   /// 批量判断哪些 id 已在本地（增量同步一页 100 条，以前是 100 次点查询）。
   Set<String> existingTweetIds(Iterable<String> ids, {required String kind}) {
     final list = ids.toList();

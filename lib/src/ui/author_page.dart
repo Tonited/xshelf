@@ -294,9 +294,10 @@ class _AuthorListState extends State<_AuthorList>
                   cache: widget.cache,
                   bookmarked:
                       !isBookmarkTab &&
-                      db.hasTweet(item.tweetId, kind: 'bookmark'),
+                      db.hasVisibleTweet(item.tweetId, kind: 'bookmark'),
                   liked:
-                      isBookmarkTab && db.hasTweet(item.tweetId, kind: 'like'),
+                      isBookmarkTab &&
+                      db.hasVisibleTweet(item.tweetId, kind: 'like'),
                   onTap: () => Navigator.of(context).push(
                     // 播放页会带着「最后看的那条」pop 回来（<String>），
                     // 这里不接结果，但路由泛型要一致，否则 pop 会类型不匹配。

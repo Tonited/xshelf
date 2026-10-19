@@ -346,7 +346,10 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
     _handle.addListener(_onHandleChanged);
     // 画质档位来自全局设置（在任意一条视频上选过就全局生效），这里不用初始化。
     _following = _app.db.isFollowing(widget.item.author?.id ?? '');
-    _bookmarked = _app.db.hasTweet(widget.item.tweetId, kind: 'bookmark');
+    _bookmarked = _app.db.hasVisibleTweet(
+      widget.item.tweetId,
+      kind: 'bookmark',
+    );
     unawaited(_syncFollowState());
     if (widget.active) _cacheVideoInBackground();
   }
