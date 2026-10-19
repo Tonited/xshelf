@@ -364,17 +364,16 @@ class _SettingsPageState extends State<SettingsPage> {
                   },
                 ),
                 const Divider(height: 1),
-                // 书签接口的 queryId 兜底：X 把它们藏在懒加载 chunk 里，
-                // 自动发现基本抓不到，失效时只能手填。
+                // 书签接口参数：失效时点一下，自动去 X 网页学当前值。
                 ListTile(
                   leading: const Icon(Icons.key_outlined),
-                  title: Text(t('settings.bookmarkQueryId')),
+                  title: Text(t('settings.refreshQueryId')),
                   subtitle: Text(
                     t('settings.bookmarkQueryIdHint'),
                     style: theme.textTheme.bodySmall,
                   ),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _editQueryIds(app),
+                  onTap: () => _refreshQueryIds(app),
                 ),
                 const Divider(height: 1),
                 SwitchListTile(
@@ -741,85 +740,23 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   /// 手动填写书签相关操作的 queryId。
-  Future<void> _editQueryIds(AppController app) async {
+  /// 自动学习书签相关接口当前的 queryId。
+  ///
+  /// 不用手填：探针页会打开一张真实推文、自己点一次书签再撤销、最后打开书签页，
+  /// 从 WebView 拦到的 `/graphql/{queryId}/{operation}` 里把值读出来。
+  Future<void> _refreshQueryIds(AppController app) async {
     const ops = ['Bookmarks', 'CreateBookmark', 'DeleteBookmark'];
-    final ctrls = {
-      for (final op in ops)
-        op: TextEditingController(text: app.db.cachedQueryId(op) ?? ''),
-    };
-    var fetchNow = false;
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(t('settings.bookmarkQueryId')),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (final op in ops) ...[
-                TextField(
-                  controller: ctrls[op],
-                  autocorrect: false,
-                  decoration: InputDecoration(
-                    labelText: op,
-                    helperText: t('settings.bookmarkQueryIdHint'),
-                  ),
-                ),
-                const SizedBox(height: 10),
-              ],
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              fetchNow = true;
-              Navigator.pop(ctx, false);
-            },
-            child: Text(t('settings.autoFetchQueryId')),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(t('action.cancel')),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(t('action.confirm')),
-          ),
-        ],
+    // 拿本地第一条喜欢当「试验田」；没有就用书签页（只学得到 Bookmarks）。
+    final sample = app.browse.items.isEmpty
+        ? null
+        : app.browse.items.first.tweetId;
+    final found = await Navigator.of(context).push<Map<String, String>>(
+      MaterialPageRoute<Map<String, String>>(
+        builder: (_) => QueryIdProbePage(operations: ops, tweetId: sample),
       ),
     );
-
-    // 先取值再释放控制器，否则 dispose 之后读 text 会报错。
-    final values = <String, String>{};
-    if (saved == true) {
-      for (final op in ops) {
-        values[op] = ctrls[op]!.text.trim();
-      }
-    }
-    for (final c in ctrls.values) {
-      c.dispose();
-    }
     if (!mounted) return;
-
-    if (saved == true) {
-      for (final op in ops) {
-        final v = values[op] ?? '';
-        if (v.isEmpty) {
-          app.db.clearQueryId(op);
-        } else {
-          app.db.saveQueryId(op, v);
-        }
-      }
-      setState(() {});
-      return;
-    }
-    if (!fetchNow) return;
-
-    // 从 X 的懒加载 chunk 里现场抓（WebView 有登录态，能过 Cloudflare）。
-    final found = await _probeQueryIds(ops);
-    if (!mounted) return;
-    if (found.isEmpty) {
+    if (found == null || found.isEmpty) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(t('queryid.notFound'))));
       return;
@@ -831,15 +768,6 @@ class _SettingsPageState extends State<SettingsPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(tf('queryid.found', {'n': found.length}))),
     );
-  }
-
-  Future<Map<String, String>> _probeQueryIds(List<String> ops) async {
-    final r = await Navigator.of(context).push<Map<String, String>>(
-      MaterialPageRoute<Map<String, String>>(
-        builder: (_) => QueryIdProbePage(operations: ops),
-      ),
-    );
-    return r ?? const {};
   }
 
   Future<void> _savePlay(AppController app, PlaybackSettings next) async {

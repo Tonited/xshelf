@@ -63,10 +63,12 @@ const Map<String, String> _zh = {
   'list.title.likes': '喜欢',
   'list.title.bookmarks': '书签',
   'mode.bookmarkOrder': '书签顺序',
-  'sync.backfillBookmarks': '回填书签',
+  'sync.backfillBookmarks': '获取书签',
   'sync.backfillConfirmBookmarks': '将把你 X 上的所有书签拉到本地。过程可以暂停，下次会继续。是否开始？',
   'settings.bookmarkQueryId': '书签接口 QueryId',
-  'settings.bookmarkQueryIdHint': '回填「成功但 0 条」或加入/移除书签报错时，在这里填 X 当前的值。留空则用内置值。',
+  'settings.refreshQueryId': '刷新书签接口（自动）',
+  'settings.bookmarkQueryIdHint':
+      '加/删书签报 404 或获取书签「成功但 0 条」时点这里；会自动打开 X 网页学一次当前接口参数。',
   'settings.autoFetchQueryId': '从网页自动获取',
   'sync.backfillHintBookmarks': '把 X 上所有书签拉到本地；可暂停，下次从这里继续',
   'queryid.title': '获取 QueryId',
@@ -102,8 +104,8 @@ const Map<String, String> _zh = {
   'error.copied': '已复制，粘贴到聊天里发我',
   'error.hint': '如果一直失败：把上面那段复制发给我；也可以在设置里换「直连/代理」后重试。',
   'action.more': '加载更多',
-  'sync.backfill': '全量回填',
-  'sync.resume': '继续回填',
+  'sync.backfill': '获取喜欢',
+  'sync.resume': '继续获取喜欢',
   'sync.backfillConfirm':
       '将把你 X 上的所有喜欢拉到本地。约 5 万条需要 20 分钟，'
       '过程中可以暂停，下次会继续。是否开始？',
@@ -398,10 +400,11 @@ const Map<String, String> _en = {
   'list.title.likes': 'Likes',
   'list.title.bookmarks': 'Bookmarks',
   'mode.bookmarkOrder': 'Bookmark order',
-  'sync.backfillBookmarks': 'Backfill bookmarks',
+  'sync.backfillBookmarks': 'Fetch bookmarks',
   'sync.backfillConfirmBookmarks': 'Pull all of your X bookmarks into the local database. You can pause and resume later. Start now?',
   'settings.bookmarkQueryId': 'Bookmark Query IDs',
-  'settings.bookmarkQueryIdHint': 'If backfill "succeeds" with 0 items, or add/remove fails, paste the current query IDs here. Empty = built-in values.',
+  'settings.refreshQueryId': 'Refresh bookmark endpoints (auto)',
+  'settings.bookmarkQueryIdHint': 'Tap here when add/remove bookmark returns 404, or fetching bookmarks "succeeds" with 0 items. It opens the X web page and learns the current endpoints automatically.',
   'settings.autoFetchQueryId': 'Fetch from web',
   'sync.backfillHintBookmarks': 'Backfill every bookmark into the local database; pausable and resumable.',
   'queryid.title': 'Fetch Query IDs',
@@ -437,8 +440,8 @@ const Map<String, String> _en = {
   'error.copied': 'Copied — paste it into the chat',
   'error.hint': 'If it keeps failing, send me the text above; you can also switch between direct/proxy in settings and retry.',
   'action.more': 'Load more',
-  'sync.backfill': 'Backfill',
-  'sync.resume': 'Resume backfill',
+  'sync.backfill': 'Fetch likes',
+  'sync.resume': 'Resume fetching likes',
   'sync.backfillConfirm':
       'This pulls all of your X likes into the local '
       'database. ~50k items take about 20 minutes and can be paused and '
