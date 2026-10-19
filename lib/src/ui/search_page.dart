@@ -56,6 +56,15 @@ class _SearchPageState extends State<SearchPage> {
   /// 本地条件（不含关键词；关键词在输入框里）。
   LikesFilter _localFilter = const LikesFilter();
 
+  /// 本地搜索覆盖哪个来源：`like` / `bookmark` / `all`。
+  String _kind = 'like';
+
+  Set<String> get _kindsOf => switch (_kind) {
+    'bookmark' => const {'bookmark'},
+    'all' => const {'like', 'bookmark'},
+    _ => const {'like'},
+  };
+
   /// X 全网的结构化条件。
   XSearchQuery _xQuery = const XSearchQuery();
   SearchProduct _product = SearchProduct.latest;
@@ -241,9 +250,9 @@ class _SearchPageState extends State<SearchPage> {
     final app = _app;
     if (app == null) return;
     final expr = _searchExpr;
-    final filter = expr.isEmpty
-        ? _localFilter
-        : _localFilter.copyWith(search: expr);
+    // 来源维度由页面上的选择决定，不跟随条件面板（条件面板只管内容条件）。
+    final base = _localFilter.copyWith(kinds: _kindsOf);
+    final filter = expr.isEmpty ? base : base.copyWith(search: expr);
 
     if (filter.isEmpty) {
       setState(() => _localSource = null);
@@ -394,6 +403,30 @@ class _SearchPageState extends State<SearchPage> {
               },
             ),
           ),
+
+          // 本地搜索覆盖哪些来源：喜欢 / 书签 / 全部。
+          if (isLocal) ...[
+            const SizedBox(height: 8),
+            Center(
+              child: SegmentedButton<String>(
+                showSelectedIcon: false,
+                style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                segments: [
+                  ButtonSegment(value: 'like', label: Text(t('nav.browse'))),
+                  ButtonSegment(
+                    value: 'bookmark',
+                    label: Text(t('nav.bookmarks')),
+                  ),
+                  ButtonSegment(value: 'all', label: Text(t('common.all'))),
+                ],
+                selected: {_kind},
+                onSelectionChanged: (s) {
+                  setState(() => _kind = s.first);
+                  unawaited(_runLocal());
+                },
+              ),
+            ),
+          ],
           const SizedBox(height: 14),
 
           // 关键词：加进列表才算数，可以叠多个词

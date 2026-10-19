@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "xlikemanage contributors" "\0"
-            VALUE "FileDescription", "X Like Manage" "\0"
+            VALUE "CompanyName", "X Shelf contributors" "\0"
+            VALUE "FileDescription", "X Shelf" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "xlikemanage" "\0"
-            VALUE "LegalCopyright", "MIT License - (C) 2026 xlikemanage contributors" "\0"
+            VALUE "LegalCopyright", "MIT License - (C) 2026 X Shelf contributors" "\0"
             VALUE "OriginalFilename", "xlikemanage.exe" "\0"
-            VALUE "ProductName", "X Like Manage" "\0"
+            VALUE "ProductName", "X Shelf" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

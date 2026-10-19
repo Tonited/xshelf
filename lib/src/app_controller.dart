@@ -42,6 +42,9 @@ class AppController extends ChangeNotifier {
   /// 浏览状态（在 [boot] 里装配）。
   late final BrowseState browse;
 
+  /// 书签的浏览状态：与 [browse] 同构，但只看 `kind = 'bookmark'`。
+  late final BrowseState bookmarks;
+
   /// 同步状态（在 [boot] 里装配）。
   late final SyncController sync;
 
@@ -103,12 +106,21 @@ class AppController extends ChangeNotifier {
           : Directory(p.join(support.path, 'media'));
 
       browse = BrowseState(db: db, persistView: settings.setView);
+      // 书签是第二个来源：独立的 BrowseState → 排序档/游标/滚动都互不干扰。
+      bookmarks = BrowseState(
+        db: db,
+        persistView: settings.setView,
+        kinds: const {'bookmark'},
+      );
       sync = SyncController(
         db: db,
         serviceOf: () => syncService,
         accountIdOf: () => accountId,
         autoSyncOf: () => settings.autoSync,
-        onDataChanged: () => browse.refresh(),
+        onDataChanged: () async {
+          await browse.refresh();
+          await bookmarks.refresh();
+        },
       );
 
       // 先把登录态读出来，再建客户端 —— 反过来的话 session 为 null，
@@ -129,6 +141,8 @@ class AppController extends ChangeNotifier {
       bootStage = '读取第一页';
       browse.restoreFrom(settings.view);
       await browse.reload(reset: true);
+      bookmarks.restoreFrom(settings.view);
+      await bookmarks.reload(reset: true);
     } catch (e, st) {
       bootError = '[步骤: $bootStage] $e';
       debugPrint('boot failed at $bootStage: $e\n$st');
@@ -381,6 +395,24 @@ class AppController extends ChangeNotifier {
     final err = await sync.like(tweetId);
     if (err != null) return err;
     browse.unmarkRemoved(tweetId);
+    return null;
+  }
+
+  /// 加入书签：网络成功后再落本地，然后刷新列表。
+  Future<String?> bookmark(LikeItem item) async {
+    final err = await sync.bookmark(item);
+    if (err != null) return err;
+    await browse.refresh();
+    await bookmarks.refresh();
+    return null;
+  }
+
+  /// 移除书签：本地标记 removed（可撤回）。
+  Future<String?> unbookmark(String tweetId) async {
+    final err = await sync.unbookmark(tweetId);
+    if (err != null) return err;
+    await browse.refresh();
+    await bookmarks.refresh();
     return null;
   }
 

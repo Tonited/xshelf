@@ -67,7 +67,36 @@ List<String> graphqlErrors(Object? json) {
 Future<LikesPage> parseLikesPageInBackground(Object? json) =>
     Isolate.run(() => parseLikesPage(json));
 
-LikesPage parseLikesPage(Object? json) {
+LikesPage parseLikesPage(Object? json) =>
+    _parseTimelinePage(json, _likesInstructions);
+
+/// 拉一页书签。响应结构与 Likes 只差一个根：`data.bookmark_timeline_v2`。
+LikesPage parseBookmarksPage(Object? json) =>
+    _parseTimelinePage(json, _bookmarksInstructions);
+
+Future<LikesPage> parseBookmarksPageInBackground(Object? json) =>
+    Isolate.run(() => parseBookmarksPage(json));
+
+List? _likesInstructions(Map data) {
+  final user = _dig(data, ['user', 'result']);
+  if (user is! Map) throw LikesParseException('响应缺少 data.user.result');
+  return _timelineInstructions(user);
+}
+
+/// 书签的指令根和 Likes **不同**：2023-04 起是 `bookmark_timeline_v2`，
+/// 之前叫 `bookmark_timeline`。两个 key 都试，且都容忍多/少一层 timeline ——
+/// 和 [_timelineInstructions] 一样，宁可多试一种形态，也不要 X 改一次就整块失效。
+List? _bookmarksInstructions(Map data) {
+  for (final key in const ['bookmark_timeline_v2', 'bookmark_timeline']) {
+    final node = data[key];
+    if (node is! Map) continue;
+    final ins = _timelineInstructions(node);
+    if (ins != null) return ins;
+  }
+  throw LikesParseException('响应缺少 bookmark_timeline（接口可能已变更）');
+}
+
+LikesPage _parseTimelinePage(Object? json, List? Function(Map data) resolve) {
   if (json is! Map) throw LikesParseException('响应不是 JSON 对象');
 
   final errors = graphqlErrors(json);
@@ -78,10 +107,7 @@ LikesPage parseLikesPage(Object? json) {
   final data = json['data'];
   if (data is! Map) throw LikesParseException('响应缺少 data 字段');
 
-  final user = _dig(data, ['user', 'result']);
-  if (user is! Map) throw LikesParseException('响应缺少 data.user.result');
-
-  final instructions = _timelineInstructions(user);
+  final instructions = resolve(data);
   if (instructions == null) {
     throw LikesParseException('响应缺少 timeline.instructions（接口可能已变更）');
   }

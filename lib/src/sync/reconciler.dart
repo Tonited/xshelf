@@ -104,7 +104,7 @@ class Reconciler {
 
     // 先定位这一页在本地覆盖到哪：区段有 200 条，一页只有 100 条，
     // 不先算覆盖范围就取差集会**误删**页外的本地条目。
-    final seqByid = db.seqsOf(page.items.map((i) => i.tweetId));
+    final seqByid = db.seqsOf(page.items.map((i) => i.tweetId), kind: 'like');
     final matchedSeqs = <int>[];
     for (final item in page.items) {
       final seq = seqByid[item.tweetId];

@@ -39,6 +39,7 @@ enum MediaFilter { video, image, gif, text }
 
 class LikesFilter {
   const LikesFilter({
+    this.kinds = const {'like'},
     this.media = const {},
     this.authorScreenName,
     this.authorsIn = const {},
@@ -49,6 +50,13 @@ class LikesFilter {
     this.excludeReplies = false,
     this.excludeRetweets = false,
   });
+
+  /// 数据来源：`like`（喜欢）/ `bookmark`（书签）。
+  ///
+  /// 默认只有喜欢 —— 所有既有查询（列表、跳转、统计、搜索）不改一个字就仍然是
+  /// 「只看喜欢」；要看两边就传 `{'like', 'bookmark'}`。它是**来源维度**而不是
+  /// 筛选条件，所以不计进 [isEmpty] / [conditionCount]。
+  final Set<String> kinds;
 
   final Set<MediaFilter> media;
   final String? authorScreenName;
@@ -90,6 +98,7 @@ class LikesFilter {
       (excludeRetweets ? 1 : 0);
 
   LikesFilter copyWith({
+    Set<String>? kinds,
     Set<MediaFilter>? media,
     String? authorScreenName,
     Set<String>? authorsIn,
@@ -104,6 +113,7 @@ class LikesFilter {
     bool clearSearch = false,
     bool clearLang = false,
   }) => LikesFilter(
+    kinds: kinds ?? this.kinds,
     media: media ?? this.media,
     authorScreenName: clearAuthor
         ? null
@@ -127,9 +137,14 @@ class LikesFilter {
     if (lang != null) 'lang': lang,
     if (excludeReplies) 'noReplies': true,
     if (excludeRetweets) 'noRetweets': true,
+    // 只在非默认（只有喜欢）时才落盘，老数据没有这个键也能读。
+    if (kinds.length != 1 || !kinds.contains('like')) 'kinds': kinds.toList(),
   };
 
   factory LikesFilter.fromJson(Map<String, Object?> j) => LikesFilter(
+    kinds:
+        (j['kinds'] as List?)?.map((e) => e.toString()).toSet() ??
+        const {'like'},
     media: {
       for (final m in (j['media'] as List? ?? const []))
         MediaFilter.values.firstWhere(
@@ -379,6 +394,134 @@ class AppDatabase {
       _addColumn('media', 'best_rank', 'INTEGER');
       _db.userVersion = 2;
     }
+    if (current < 3) {
+      _migrateV3();
+    }
+  }
+
+  /// v3：喜欢与书签共用一张表，靠 `kind` 区分。
+  ///
+  /// 为什么不新建一张 `bookmarks` 表：同一条推文可能既喜欢又书签，两张表意味着
+  /// 作者页要 UNION、搜索要两套、媒体缓存要复制两份。单表 + 复合主键让
+  /// 「一条推文的两条记录」天然共存，而 `media` 表仍然按 `tweet_id` 共享一份文件。
+  ///
+  /// SQLite 改不了主键，所以只能 copy 重建；整个迁移包在一个事务里，
+  /// 失败就 ROLLBACK，保证老库不会停在半新半旧的状态。
+  void _migrateV3() {
+    _db.execute('BEGIN');
+    try {
+      // ---- likes：主键 (tweet_id, kind)，老数据全部落成 kind='like'
+      _db.execute('''
+        CREATE TABLE likes_v3(
+          tweet_id TEXT NOT NULL,
+          kind     TEXT NOT NULL DEFAULT 'like',
+          account_id INTEGER NOT NULL DEFAULT 0,
+          feed_seq INTEGER,
+          rand_key INTEGER,
+          created_at INTEGER,
+          text TEXT NOT NULL DEFAULT '',
+          lang TEXT,
+          author_id TEXT,
+          author_name TEXT,
+          author_screen_name TEXT,
+          author_avatar TEXT,
+          media_json TEXT,
+          has_video INTEGER NOT NULL DEFAULT 0,
+          has_image INTEGER NOT NULL DEFAULT 0,
+          has_gif   INTEGER NOT NULL DEFAULT 0,
+          sensitive INTEGER NOT NULL DEFAULT 0,
+          reply_to TEXT,
+          quote_of TEXT,
+          retweet_of TEXT,
+          state TEXT NOT NULL DEFAULT 'normal',
+          fetched_at INTEGER,
+          verified_at INTEGER,
+          raw_json TEXT,
+          PRIMARY KEY (tweet_id, kind)
+        )
+      ''');
+      _db.execute('''
+        INSERT INTO likes_v3(tweet_id, kind, account_id, feed_seq, rand_key, created_at,
+          text, lang, author_id, author_name, author_screen_name, author_avatar, media_json,
+          has_video, has_image, has_gif, sensitive, reply_to, quote_of, retweet_of,
+          state, fetched_at, verified_at, raw_json)
+        SELECT tweet_id, 'like', account_id, feed_seq, rand_key, created_at,
+          text, lang, author_id, author_name, author_screen_name, author_avatar, media_json,
+          has_video, has_image, has_gif, sensitive, reply_to, quote_of, retweet_of,
+          state, fetched_at, verified_at, raw_json
+        FROM likes
+      ''');
+      _db.execute('DROP TABLE likes');
+      _db.execute('ALTER TABLE likes_v3 RENAME TO likes');
+      // 索引把 kind 放前面：两种来源各自按 seq / 时间 / 随机排序，互不干扰。
+      _db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_likes_kind_seq ON likes(kind, feed_seq)',
+      );
+      _db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_likes_kind_created ON likes(kind, created_at)',
+      );
+      _db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_likes_kind_rand ON likes(kind, rand_key)',
+      );
+      _db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_likes_kind_state ON likes(kind, state)',
+      );
+      _db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_likes_author ON likes(author_screen_name)',
+      );
+
+      // ---- sync_state：每种来源一套游标（回填断点、已分配 seq 区间都分开）
+      _db.execute('''
+        CREATE TABLE sync_state_v3(
+          account_id INTEGER NOT NULL,
+          kind TEXT NOT NULL DEFAULT 'like',
+          top_cursor TEXT,
+          backfill_cursor TEXT,
+          min_seq INTEGER,
+          max_seq INTEGER,
+          backfill_done INTEGER NOT NULL DEFAULT 0,
+          probe_at INTEGER,
+          probe_remote_count INTEGER,
+          rotate_seq INTEGER,
+          PRIMARY KEY (account_id, kind)
+        )
+      ''');
+      _db.execute('''
+        INSERT INTO sync_state_v3(account_id, kind, top_cursor, backfill_cursor,
+          min_seq, max_seq, backfill_done, probe_at, probe_remote_count, rotate_seq)
+        SELECT account_id, 'like', top_cursor, backfill_cursor,
+          min_seq, max_seq, backfill_done, probe_at, probe_remote_count, rotate_seq
+        FROM sync_state
+      ''');
+      _db.execute('DROP TABLE sync_state');
+      _db.execute('ALTER TABLE sync_state_v3 RENAME TO sync_state');
+
+      // ---- segments：巡边器按来源分开记
+      _db.execute('''
+        CREATE TABLE segments_v3(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          account_id INTEGER NOT NULL DEFAULT 0,
+          kind TEXT NOT NULL DEFAULT 'like',
+          start_seq INTEGER NOT NULL,
+          end_seq INTEGER NOT NULL,
+          cursor TEXT,
+          verified_at INTEGER,
+          UNIQUE(account_id, kind, start_seq)
+        )
+      ''');
+      _db.execute('''
+        INSERT INTO segments_v3(account_id, kind, start_seq, end_seq, cursor, verified_at)
+        SELECT account_id, 'like', start_seq, end_seq, cursor, verified_at FROM segments
+      ''');
+      _db.execute('DROP TABLE segments');
+      _db.execute('ALTER TABLE segments_v3 RENAME TO segments');
+
+      _db.userVersion = 3;
+      _db.execute('COMMIT');
+    } catch (_) {
+      _db.execute('ROLLBACK');
+      rethrow;
+    }
   }
 
   /// 幂等地加一列（SQLite 没有 `ADD COLUMN IF NOT EXISTS`）。
@@ -471,10 +614,11 @@ class AppDatabase {
   }
 
   /// 作者在本地有多少条喜欢（作者空间页用来出标题与计数）。
-  int countByAuthor(String screenName) {
+  int countByAuthor(String screenName, {Set<String> kinds = const {'like'}}) {
+    final marks = List.filled(kinds.length, '?').join(',');
     final rows = _db.select(
-      'SELECT COUNT(*) c FROM likes WHERE author_screen_name = ?',
-      [screenName],
+      'SELECT COUNT(*) c FROM likes WHERE author_screen_name = ? AND kind IN ($marks)',
+      [screenName, ...kinds],
     );
     return rows.first['c'] as int? ?? 0;
   }
@@ -520,10 +664,11 @@ class AppDatabase {
 
   // ----------------------------------------------------------------- likes
 
-  SyncState loadSyncState(int accountId) {
-    final rows = _db.select('SELECT * FROM sync_state WHERE account_id = ?', [
-      accountId,
-    ]);
+  SyncState loadSyncState(int accountId, {String kind = 'like'}) {
+    final rows = _db.select(
+      'SELECT * FROM sync_state WHERE account_id = ? AND kind = ?',
+      [accountId, kind],
+    );
     if (rows.isEmpty) return const SyncState();
     final r = rows.first;
     return SyncState(
@@ -543,13 +688,13 @@ class AppDatabase {
     );
   }
 
-  void saveSyncState(int accountId, SyncState s) {
+  void saveSyncState(int accountId, SyncState s, {String kind = 'like'}) {
     _db.execute(
       '''
-      INSERT INTO sync_state(account_id, top_cursor, backfill_cursor, min_seq, max_seq,
+      INSERT INTO sync_state(account_id, kind, top_cursor, backfill_cursor, min_seq, max_seq,
         backfill_done, probe_at, probe_remote_count, rotate_seq)
-      VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(account_id) DO UPDATE SET
+      VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(account_id, kind) DO UPDATE SET
         top_cursor = excluded.top_cursor,
         backfill_cursor = excluded.backfill_cursor,
         min_seq = excluded.min_seq,
@@ -561,6 +706,7 @@ class AppDatabase {
     ''',
       [
         accountId,
+        kind,
         s.topCursor,
         s.backfillCursor,
         s.minSeq,
@@ -573,24 +719,30 @@ class AppDatabase {
     );
   }
 
-  int countLikes({bool includeDeleted = true}) {
+  int countLikes({
+    bool includeDeleted = true,
+    Set<String> kinds = const {'like'},
+  }) {
+    final marks = List.filled(kinds.length, '?').join(',');
     final rows = _db.select(
       includeDeleted
-          ? 'SELECT COUNT(*) c FROM likes'
-          : "SELECT COUNT(*) c FROM likes WHERE state = 'normal'",
+          ? 'SELECT COUNT(*) c FROM likes WHERE kind IN ($marks)'
+          : "SELECT COUNT(*) c FROM likes WHERE state = 'normal' AND kind IN ($marks)",
+      kinds.toList(),
     );
     return rows.first['c'] as int;
   }
 
-  bool hasTweet(String tweetId) {
-    final rows = _db.select('SELECT 1 FROM likes WHERE tweet_id = ?', [
-      tweetId,
-    ]);
+  bool hasTweet(String tweetId, {String kind = 'like'}) {
+    final rows = _db.select(
+      'SELECT 1 FROM likes WHERE tweet_id = ? AND kind = ?',
+      [tweetId, kind],
+    );
     return rows.isNotEmpty;
   }
 
   /// 批量判断哪些 id 已在本地（增量同步一页 100 条，以前是 100 次点查询）。
-  Set<String> existingTweetIds(Iterable<String> ids) {
+  Set<String> existingTweetIds(Iterable<String> ids, {required String kind}) {
     final list = ids.toList();
     if (list.isEmpty) return const {};
     final out = <String>{};
@@ -598,8 +750,8 @@ class AppDatabase {
       final chunk = list.sublist(i, math.min(i + 500, list.length));
       final holders = List.filled(chunk.length, '?').join(',');
       final rows = _db.select(
-        'SELECT tweet_id FROM likes WHERE tweet_id IN ($holders)',
-        chunk,
+        'SELECT tweet_id FROM likes WHERE tweet_id IN ($holders) AND kind = ?',
+        [...chunk, kind],
       );
       out.addAll(rows.map((r) => r['tweet_id'] as String));
     }
@@ -607,7 +759,7 @@ class AppDatabase {
   }
 
   /// 批量取 seq（巡边器核对一页时用）。
-  Map<String, int> seqsOf(Iterable<String> ids) {
+  Map<String, int> seqsOf(Iterable<String> ids, {required String kind}) {
     final list = ids.toList();
     if (list.isEmpty) return const {};
     final out = <String, int>{};
@@ -615,8 +767,8 @@ class AppDatabase {
       final chunk = list.sublist(i, math.min(i + 500, list.length));
       final holders = List.filled(chunk.length, '?').join(',');
       final rows = _db.select(
-        'SELECT tweet_id, feed_seq FROM likes WHERE tweet_id IN ($holders)',
-        chunk,
+        'SELECT tweet_id, feed_seq FROM likes WHERE tweet_id IN ($holders) AND kind = ?',
+        [...chunk, kind],
       );
       for (final r in rows) {
         final seq = r['feed_seq'] as int?;
@@ -639,6 +791,7 @@ class AppDatabase {
     required int accountId,
     required int startSeq,
     DateTime? now,
+    String kind = 'like',
   }) {
     final ts = (now ?? DateTime.now()).millisecondsSinceEpoch;
     var seq = startSeq;
@@ -646,21 +799,21 @@ class AppDatabase {
     _db.execute('BEGIN');
     try {
       final existsStmt = _db.prepare(
-        'SELECT feed_seq, text, author_name, author_screen_name FROM likes WHERE tweet_id = ?',
+        'SELECT feed_seq, text, author_name, author_screen_name FROM likes WHERE tweet_id = ? AND kind = ?',
       );
       final insertStmt = _db.prepare('''
-        INSERT INTO likes(tweet_id, account_id, feed_seq, rand_key, created_at, text, lang,
+        INSERT INTO likes(tweet_id, kind, account_id, feed_seq, rand_key, created_at, text, lang,
           author_id, author_name, author_screen_name, author_avatar, media_json,
           has_video, has_image, has_gif, sensitive, reply_to, quote_of, retweet_of,
           state, fetched_at, verified_at, raw_json)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       ''');
       final updateStmt = _db.prepare('''
         UPDATE likes SET created_at=?, text=?, lang=?, author_id=?, author_name=?,
           author_screen_name=?, author_avatar=?, media_json=?, has_video=?, has_image=?,
           has_gif=?, sensitive=?, reply_to=?, quote_of=?, retweet_of=?,
           verified_at=?, raw_json=?, state='normal'
-        WHERE tweet_id=?
+        WHERE tweet_id=? AND kind=?
       ''');
       final mediaStmt = _db.prepare('''
         INSERT INTO media(tweet_id, idx, kind, url, playback_url, duration_ms)
@@ -682,7 +835,7 @@ class AppDatabase {
 
       try {
         for (final item in items) {
-          final existing = existsStmt.select([item.tweetId]);
+          final existing = existsStmt.select([item.tweetId, kind]);
           final isNew = existing.isEmpty;
           final row = isNew ? null : existing.first;
           final seqValue = isNew ? seq : ((row!['feed_seq'] as int?) ?? seq);
@@ -705,6 +858,7 @@ class AppDatabase {
             inserted++;
             insertStmt.execute([
               item.tweetId,
+              kind,
               accountId,
               seqValue,
               randKey,
@@ -748,6 +902,7 @@ class AppDatabase {
               ts,
               item.raw == null ? null : jsonEncode(item.raw),
               item.tweetId,
+              kind,
             ]);
           }
 
@@ -795,9 +950,14 @@ class AppDatabase {
   /// 在指定 seq 上插入单条（视口核对补缺口用）。
   ///
   /// 与相邻条目的 seq 太近（没有空隙）时返回 false，交给调用方决定是否重排。
-  bool insertAtSeq(LikeItem item, {required int accountId, required int seq}) {
-    if (hasTweet(item.tweetId)) return false;
-    return _writeSingle(item, accountId: accountId, seq: seq);
+  bool insertAtSeq(
+    LikeItem item, {
+    required int accountId,
+    required int seq,
+    String kind = 'like',
+  }) {
+    if (hasTweet(item.tweetId, kind: kind)) return false;
+    return _writeSingle(item, accountId: accountId, seq: seq, kind: kind);
   }
 
   /// 计算夹在 [before]/[after] 之间的 seq；无空隙返回 null。
@@ -810,33 +970,39 @@ class AppDatabase {
   }
 
   /// 取相邻的 seq：比 [seq] 小的最大者、比 [seq] 大的最小者。
-  ({int? above, int? below}) neighborsOf(int seq) {
+  ({int? above, int? below}) neighborsOf(int seq, {String kind = 'like'}) {
     final above = _db.select(
-      'SELECT MAX(feed_seq) v FROM likes WHERE feed_seq < ?',
-      [seq],
+      'SELECT MAX(feed_seq) v FROM likes WHERE feed_seq < ? AND kind = ?',
+      [seq, kind],
     );
     final below = _db.select(
-      'SELECT MIN(feed_seq) v FROM likes WHERE feed_seq > ?',
-      [seq],
+      'SELECT MIN(feed_seq) v FROM likes WHERE feed_seq > ? AND kind = ?',
+      [seq, kind],
     );
     return (above: above.first['v'] as int?, below: below.first['v'] as int?);
   }
 
-  bool _writeSingle(LikeItem item, {required int accountId, required int seq}) {
+  bool _writeSingle(
+    LikeItem item, {
+    required int accountId,
+    required int seq,
+    String kind = 'like',
+  }) {
     final ts = DateTime.now().millisecondsSinceEpoch;
     final randKey = item.randKey ?? randomSortKey();
     _db.execute('BEGIN');
     try {
       _db.execute(
         '''
-        INSERT INTO likes(tweet_id, account_id, feed_seq, rand_key, created_at, text, lang,
+        INSERT INTO likes(tweet_id, kind, account_id, feed_seq, rand_key, created_at, text, lang,
           author_id, author_name, author_screen_name, author_avatar, media_json,
           has_video, has_image, has_gif, sensitive, reply_to, quote_of, retweet_of,
           state, fetched_at, verified_at, raw_json)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       ''',
         [
           item.tweetId,
+          kind,
           accountId,
           seq,
           randKey,
@@ -908,30 +1074,38 @@ class AppDatabase {
     required int endSeq,
     String? cursor,
     DateTime? verifiedAt,
+    String kind = 'like',
   }) {
     _db.execute(
       '''
-      INSERT INTO segments(account_id, start_seq, end_seq, cursor, verified_at)
-      VALUES(?,?,?,?,?)
-      ON CONFLICT(account_id, start_seq) DO UPDATE SET
+      INSERT INTO segments(account_id, kind, start_seq, end_seq, cursor, verified_at)
+      VALUES(?,?,?,?,?,?)
+      ON CONFLICT(account_id, kind, start_seq) DO UPDATE SET
         end_seq = excluded.end_seq,
         cursor = COALESCE(excluded.cursor, segments.cursor),
         verified_at = COALESCE(excluded.verified_at, segments.verified_at)
     ''',
-      [accountId, startSeq, endSeq, cursor, verifiedAt?.millisecondsSinceEpoch],
+      [
+        accountId,
+        kind,
+        startSeq,
+        endSeq,
+        cursor,
+        verifiedAt?.millisecondsSinceEpoch,
+      ],
     );
   }
 
   /// 最久没核对过的区段（点名给巡边器）。
   List<({int startSeq, int endSeq, String? cursor, DateTime? verifiedAt})>
-  stalestSegments(int accountId, {int limit = 20}) {
+  stalestSegments(int accountId, {int limit = 20, String kind = 'like'}) {
     final rows = _db.select(
       '''
       SELECT start_seq, end_seq, cursor, verified_at FROM segments
-      WHERE account_id = ? AND cursor IS NOT NULL
+      WHERE account_id = ? AND kind = ? AND cursor IS NOT NULL
       ORDER BY COALESCE(verified_at, 0) ASC LIMIT ?
     ''',
-      [accountId, limit],
+      [accountId, kind, limit],
     );
     return [
       for (final r in rows)
@@ -950,19 +1124,20 @@ class AppDatabase {
   }
 
   /// 某条记录的 seq。
-  int? seqOf(String tweetId) {
-    final rows = _db.select('SELECT feed_seq FROM likes WHERE tweet_id = ?', [
-      tweetId,
-    ]);
+  int? seqOf(String tweetId, {String kind = 'like'}) {
+    final rows = _db.select(
+      'SELECT feed_seq FROM likes WHERE tweet_id = ? AND kind = ?',
+      [tweetId, kind],
+    );
     if (rows.isEmpty) return null;
     return rows.first['feed_seq'] as int?;
   }
 
   /// 某区段登记的回填游标（巡边器用它重新翻到该段）。
-  String? segmentCursor(int accountId, int startSeq) {
+  String? segmentCursor(int accountId, int startSeq, {String kind = 'like'}) {
     final rows = _db.select(
-      'SELECT cursor FROM segments WHERE account_id = ? AND start_seq = ?',
-      [accountId, startSeq],
+      'SELECT cursor FROM segments WHERE account_id = ? AND kind = ? AND start_seq = ?',
+      [accountId, kind, startSeq],
     );
     if (rows.isEmpty) return null;
     return rows.first['cursor'] as String?;
@@ -976,39 +1151,49 @@ class AppDatabase {
   ///
   /// 注意和 [markRemoved] 的区别：这里**仍然要显示**（卡片上标「已删除」），
   /// 「我取消了喜欢」是另一回事。
-  void markDeleted(Iterable<String> tweetIds) {
+  void markDeleted(Iterable<String> tweetIds, {String kind = 'like'}) {
     if (tweetIds.isEmpty) return;
     final stmt = _db.prepare(
-      "UPDATE likes SET state='deleted' WHERE tweet_id = ?",
+      "UPDATE likes SET state='deleted' WHERE tweet_id = ? AND kind = ?",
     );
     try {
       for (final id in tweetIds) {
-        stmt.execute([id]);
+        stmt.execute([id, kind]);
       }
     } finally {
       stmt.dispose();
     }
   }
 
-  /// 标记成「我取消了喜欢」：数据留着（再点一次就能恢复、缓存也不丢），
+  /// 标记成「我取消了喜欢 / 移除了书签」：数据留着（再点一次就能恢复、缓存也不丢），
   /// 但**列表里不该再出现**（[fetchPage] 会过滤掉这个状态）。
-  void markRemoved(Iterable<String> tweetIds) {
+  void markRemoved(Iterable<String> tweetIds, {String kind = 'like'}) {
     if (tweetIds.isEmpty) return;
     final stmt = _db.prepare(
-      "UPDATE likes SET state='removed' WHERE tweet_id = ?",
+      "UPDATE likes SET state='removed' WHERE tweet_id = ? AND kind = ?",
     );
     try {
       for (final id in tweetIds) {
-        stmt.execute([id]);
+        stmt.execute([id, kind]);
       }
     } finally {
       stmt.dispose();
     }
   }
 
-  /// 取消喜欢之后删掉本地记录（连同媒体行与 FTS）。
-  void deleteLike(String tweetId) {
-    _db.execute('DELETE FROM likes WHERE tweet_id = ?', [tweetId]);
+  /// 取消喜欢 / 移除书签之后删掉本地记录。
+  ///
+  /// 媒体行与 FTS 是**按 tweet 共享**的：同一条推文另一种来源还在时不能删，
+  /// 否则「取消了喜欢但还留着书签」的那条会丢缓存、搜不到。
+  void deleteLike(String tweetId, {String kind = 'like'}) {
+    _db.execute('DELETE FROM likes WHERE tweet_id = ? AND kind = ?', [
+      tweetId,
+      kind,
+    ]);
+    final remaining = _db.select('SELECT 1 FROM likes WHERE tweet_id = ?', [
+      tweetId,
+    ]);
+    if (remaining.isNotEmpty) return;
     _db.execute('DELETE FROM media WHERE tweet_id = ?', [tweetId]);
     _db.execute('DELETE FROM likes_fts WHERE tweet_id = ?', [tweetId]);
   }
@@ -1017,16 +1202,18 @@ class AppDatabase {
   ///
   /// 取消喜欢现在是**标记**而不是物理删除（见 `SyncService.unlike`），
   /// 所以用户在播放页里再点一次就能原样恢复，不用重新下载。
-  void restoreLike(String tweetId) {
-    _db.execute("UPDATE likes SET state = 'normal' WHERE tweet_id = ?", [
-      tweetId,
-    ]);
+  void restoreLike(String tweetId, {String kind = 'like'}) {
+    _db.execute(
+      "UPDATE likes SET state = 'normal' WHERE tweet_id = ? AND kind = ?",
+      [tweetId, kind],
+    );
   }
 
-  LikeItem? getLike(String tweetId) {
-    final rows = _db.select('SELECT * FROM likes WHERE tweet_id = ?', [
-      tweetId,
-    ]);
+  LikeItem? getLike(String tweetId, {String kind = 'like'}) {
+    final rows = _db.select(
+      'SELECT * FROM likes WHERE tweet_id = ? AND kind = ?',
+      [tweetId, kind],
+    );
     if (rows.isEmpty) return null;
     return _rowToItem(rows.first);
   }
@@ -1267,6 +1454,12 @@ class AppDatabase {
     // 「我取消了喜欢」的行永远不进列表（数据保留，重新喜欢能原样恢复）。
     // 作者删掉的帖子是 `deleted`，那个要显示（卡片上标「已删除」）。
     where.add("state <> 'removed'");
+    // 来源维度：喜欢 / 书签（同一条推文可能两种都有，各占一行）。
+    if (filter.kinds.isNotEmpty) {
+      final marks = List.filled(filter.kinds.length, '?').join(',');
+      where.add('kind IN ($marks)');
+      args.addAll(filter.kinds);
+    }
     if (filter.media.isNotEmpty) {
       final clauses = <String>[];
       for (final m in filter.media) {
@@ -1357,14 +1550,18 @@ class AppDatabase {
     return terms.any((t) => t.trim().runes.length < 3);
   }
 
-  List<AuthorCount> topAuthors({int limit = 200}) {
+  List<AuthorCount> topAuthors({
+    int limit = 200,
+    Set<String> kinds = const {'like'},
+  }) {
+    final marks = List.filled(kinds.length, '?').join(',');
     final rows = _db.select(
       '''
       SELECT author_screen_name sn, MAX(author_name) nm, COUNT(*) c
-      FROM likes WHERE author_screen_name IS NOT NULL
+      FROM likes WHERE author_screen_name IS NOT NULL AND kind IN ($marks)
       GROUP BY author_screen_name ORDER BY c DESC LIMIT ?
     ''',
-      [limit],
+      [...kinds, limit],
     );
     return [
       for (final r in rows)
@@ -1377,13 +1574,14 @@ class AppDatabase {
   }
 
   /// 按推文发布月份分桶（模式 B 的时间轴）。
-  List<MonthBucket> months() {
+  List<MonthBucket> months({Set<String> kinds = const {'like'}}) {
+    final marks = List.filled(kinds.length, '?').join(',');
     final rows = _db.select('''
       SELECT strftime('%Y-%m', created_at/1000, 'unixepoch') m, COUNT(*) c,
              MIN(created_at) mn, MAX(created_at) mx
-      FROM likes WHERE created_at IS NOT NULL
+      FROM likes WHERE created_at IS NOT NULL AND kind IN ($marks)
       GROUP BY m ORDER BY m DESC
-    ''');
+    ''', kinds.toList());
     return [
       for (final r in rows)
         MonthBucket(
@@ -1397,23 +1595,24 @@ class AppDatabase {
 
   /// 某个发布月份（`YYYY-MM`）里「喜欢顺序最靠前」的一条的 seq。
   /// 时间轴跳到某个月时用它当锚点（seq 越大越新）。
-  int? newestSeqInMonth(String month) {
+  int? newestSeqInMonth(String month, {String kind = 'like'}) {
     final rows = _db.select(
       '''
       SELECT MAX(feed_seq) seq FROM likes
-      WHERE strftime('%Y-%m', created_at/1000, 'unixepoch') = ?
+      WHERE strftime('%Y-%m', created_at/1000, 'unixepoch') = ? AND kind = ?
     ''',
-      [month],
+      [month, kind],
     );
     if (rows.isEmpty) return null;
     return rows.first['seq'] as int?;
   }
 
   /// 全局 seq 区间（时间轴把「拖动比例」映射成 seq 用）。
-  ({int? minSeq, int? maxSeq}) seqBounds() {
-    final r = _db
-        .select('SELECT MIN(feed_seq) mn, MAX(feed_seq) mx FROM likes')
-        .first;
+  ({int? minSeq, int? maxSeq}) seqBounds({String kind = 'like'}) {
+    final r = _db.select(
+      'SELECT MIN(feed_seq) mn, MAX(feed_seq) mx FROM likes WHERE kind = ?',
+      [kind],
+    ).first;
     return (minSeq: r['mn'] as int?, maxSeq: r['mx'] as int?);
   }
 
@@ -1424,9 +1623,12 @@ class AppDatabase {
   /// 以前这里是「每个桶两次查询」（COUNT + 取 created_at 排序），5 万条时要跑
   /// 500 条 SQL；现在改成一次全表扫描 + 内存分桶，首帧时间轴从数百毫秒降到十几毫秒。
   List<({int fromSeq, int toSeq, int count, DateTime? approxDate})>
-  estimatedBuckets({int bucketSize = 200}) {
+  estimatedBuckets({int bucketSize = 200, String kind = 'like'}) {
     final width = bucketSize * AppDatabase.seqStep;
-    final rows = _db.select('SELECT feed_seq, created_at FROM likes');
+    final rows = _db.select(
+      'SELECT feed_seq, created_at FROM likes WHERE kind = ?',
+      [kind],
+    );
     if (rows.isEmpty) return const [];
 
     final buckets = <int, ({int count, List<int> dates})>{};
@@ -1469,15 +1671,17 @@ class AppDatabase {
   }
 
   /// 随机重洗：给所有条目重新分配 rand_key。
-  void reshuffle() {
-    final rows = _db.select('SELECT tweet_id FROM likes');
+  void reshuffle({String kind = 'like'}) {
+    final rows = _db.select('SELECT tweet_id FROM likes WHERE kind = ?', [
+      kind,
+    ]);
     final stmt = _db.prepare(
-      'UPDATE likes SET rand_key = ? WHERE tweet_id = ?',
+      'UPDATE likes SET rand_key = ? WHERE tweet_id = ? AND kind = ?',
     );
     _db.execute('BEGIN');
     try {
       for (final r in rows) {
-        stmt.execute([randomSortKey(), r['tweet_id']]);
+        stmt.execute([randomSortKey(), r['tweet_id'], kind]);
       }
       _db.execute('COMMIT');
     } catch (e) {
@@ -1488,15 +1692,16 @@ class AppDatabase {
     }
   }
 
-  LikedStats stats() {
+  LikedStats stats({Set<String> kinds = const {'like'}}) {
+    final marks = List.filled(kinds.length, '?').join(',');
     final r = _db.select('''
       SELECT COUNT(*) total,
              SUM(CASE WHEN has_video=1 THEN 1 ELSE 0 END) videos,
              SUM(CASE WHEN has_image=1 THEN 1 ELSE 0 END) images,
              SUM(CASE WHEN state='deleted' THEN 1 ELSE 0 END) deleted,
              MIN(created_at) oldest, MAX(created_at) newest
-      FROM likes
-    ''').first;
+      FROM likes WHERE kind IN ($marks)
+    ''', kinds.toList()).first;
     return LikedStats(
       total: r['total'] as int? ?? 0,
       videos: (r['videos'] as int?) ?? 0,
@@ -1518,22 +1723,32 @@ class AppDatabase {
   }
 
   /// 供巡边器用：取某 seq 区间内的本地 tweet_id（判定哪些「消失了」）。
-  Set<String> tweetIdsInSeqRange(int fromSeq, int toSeq) {
+  Set<String> tweetIdsInSeqRange(
+    int fromSeq,
+    int toSeq, {
+    String kind = 'like',
+  }) {
     final rows = _db.select(
-      'SELECT tweet_id FROM likes WHERE feed_seq >= ? AND feed_seq < ?',
-      [fromSeq, toSeq],
+      'SELECT tweet_id FROM likes WHERE feed_seq >= ? AND feed_seq < ? AND kind = ?',
+      [fromSeq, toSeq, kind],
     );
     return {for (final r in rows) r['tweet_id'] as String};
   }
 
   /// 供巡边器用：取某段最新的 seq。
-  int? minSeqOverall() {
-    final rows = _db.select('SELECT MIN(feed_seq) mn FROM likes');
+  int? minSeqOverall({String kind = 'like'}) {
+    final rows = _db.select(
+      'SELECT MIN(feed_seq) mn FROM likes WHERE kind = ?',
+      [kind],
+    );
     return rows.first['mn'] as int?;
   }
 
-  int? maxSeqOverall() {
-    final rows = _db.select('SELECT MAX(feed_seq) mx FROM likes');
+  int? maxSeqOverall({String kind = 'like'}) {
+    final rows = _db.select(
+      'SELECT MAX(feed_seq) mx FROM likes WHERE kind = ?',
+      [kind],
+    );
     return rows.first['mx'] as int?;
   }
 

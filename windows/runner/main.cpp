@@ -28,7 +28,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   Win32Window::Point origin(10, 10);
   // The two-pane layout needs some horizontal room; 1280x800 is a comfy start.
   Win32Window::Size size(1280, 800);
-  if (!window.Create(L"X Like Manage", origin, size)) {
+  if (!window.Create(L"X Shelf", origin, size)) {
     return EXIT_FAILURE;
   }
   window.SetQuitOnClose(true);

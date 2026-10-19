@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart';
 
 import '../core/settings.dart';
 import '../db/app_database.dart';
+import '../model/like_item.dart';
 import '../sync/sync_service.dart';
 import '../sync/x_client.dart';
 
@@ -38,20 +39,27 @@ class SyncController extends ChangeNotifier {
   SyncCancel? _cancel;
 
   bool get busy => _cancel != null;
-  bool get backfillDone {
+
+  /// 某个来源是否已经全量回填完成。
+  bool backfillDone({String kind = 'like'}) {
     final acc = accountIdOf();
     if (acc == null) return false;
-    return db.loadSyncState(acc).backfillDone;
+    return db.loadSyncState(acc, kind: kind).backfillDone;
   }
 
-  Future<void> startBackfill({int? maxItems}) => _run(
-    (svc, acc, progress) =>
-        svc.backfill(accountId: acc, maxItems: maxItems, onProgress: progress),
+  Future<void> startBackfill({int? maxItems, String kind = 'like'}) => _run(
+    (svc, acc, progress) => svc.backfill(
+      accountId: acc,
+      maxItems: maxItems,
+      kind: kind,
+      onProgress: progress,
+    ),
   );
 
-  Future<void> syncNew() => _run(
+  Future<void> syncNew({String kind = 'like'}) => _run(
     (svc, acc, progress) => svc.syncNew(
       accountId: acc,
+      kind: kind,
       maxItems: autoSyncOf().maxItems,
       onProgress: progress,
     ),
@@ -60,30 +68,35 @@ class SyncController extends ChangeNotifier {
   /// 上一次 [syncRecent] 的时间，用于节流。
   DateTime? _lastRecentAt;
 
-  /// 从内嵌 X 网页回到 App 时补一次「最近一天」的喜欢。
+  /// 从内嵌 X 网页回到 App 时补一次「最近一天」的喜欢**和书签**。
   ///
-  /// 网页里的喜欢是直接写进 X 服务器的，本地库完全不知情；不补的话，用户刚在
-  /// 网页里点的心，回到列表里根本找不到。
+  /// 网页里的喜欢/书签是直接写进 X 服务器的，本地库完全不知情；不补的话，
+  /// 用户刚在网页里点的心或书签，回到列表里根本找不到。
   ///
   /// 两个约束：
   /// - **时间窗**：只收 [window] 内的，翻到更早的条目就停；
   /// - **节流**：20 秒内重复调用直接忽略 —— 进进出出几个网页不该反复拉同一批。
-  Future<void> syncRecent({Duration window = const Duration(days: 1)}) {
+  Future<void> syncRecent({Duration window = const Duration(days: 1)}) async {
     final now = DateTime.now();
     final last = _lastRecentAt;
     if (last != null && now.difference(last) < const Duration(seconds: 20)) {
-      return Future<void>.value();
+      return;
     }
     _lastRecentAt = now;
-    return _run(
-      (svc, acc, progress) => svc.syncNew(
-        accountId: acc,
-        since: now.toUtc().subtract(window),
-        // 一天内不可能喜欢几百条；到了这个量说明游标有问题，别一直翻下去。
-        maxItems: 300,
-        onProgress: progress,
-      ),
-    );
+    final since = now.toUtc().subtract(window);
+    // 两种来源各补一次：用户在网页里点的可能是心，也可能是书签。
+    for (final kind in const ['like', 'bookmark']) {
+      await _run(
+        (svc, acc, progress) => svc.syncNew(
+          accountId: acc,
+          since: since,
+          kind: kind,
+          // 一天内不可能几百条；到了这个量说明游标有问题，别一直翻下去。
+          maxItems: 300,
+          onProgress: progress,
+        ),
+      );
+    }
   }
 
   Future<void> _run(
@@ -165,6 +178,35 @@ class SyncController extends ChangeNotifier {
     if (svc == null) return '未登录';
     try {
       await svc.like(tweetId);
+      return null;
+    } on XRequestException catch (e) {
+      return e.message;
+    } catch (e) {
+      return '$e';
+    }
+  }
+
+  /// 加入书签：先写回 X，成功后才落本地。失败返回可展示的文案。
+  Future<String?> bookmark(LikeItem item) async {
+    final svc = serviceOf();
+    final acc = accountIdOf();
+    if (svc == null || acc == null) return '未登录';
+    try {
+      await svc.bookmark(item, accountId: acc);
+      return null;
+    } on XRequestException catch (e) {
+      return e.message;
+    } catch (e) {
+      return '$e';
+    }
+  }
+
+  /// 移除书签（本地标记 removed，可以再点回来）。
+  Future<String?> unbookmark(String tweetId) async {
+    final svc = serviceOf();
+    if (svc == null) return '未登录';
+    try {
+      await svc.unbookmark(tweetId);
       return null;
     } on XRequestException catch (e) {
       return e.message;

@@ -267,6 +267,10 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
   bool _busyUnlike = false;
   bool _busyGallery = false;
 
+  /// 这条是否已在书签里（本地记录；进入时查一次，之后跟着切换更新）。
+  bool _bookmarked = false;
+  bool _busyBookmark = false;
+
   /// 画面右上角的画质提示（升级完成/切换到高档时闪一下）。
   String? _qualityToast;
   Timer? _qualityToastTimer;
@@ -319,6 +323,7 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
     _handle.addListener(_onHandleChanged);
     // 画质档位来自全局设置（在任意一条视频上选过就全局生效），这里不用初始化。
     _following = _app.db.isFollowing(widget.item.author?.id ?? '');
+    _bookmarked = _app.db.hasTweet(widget.item.tweetId, kind: 'bookmark');
     unawaited(_syncFollowState());
     if (widget.active) _cacheVideoInBackground();
   }
@@ -545,6 +550,31 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
       return;
     }
     _flashHint(alreadyUnliked ? t('play.liked') : t('play.unliked'));
+  }
+
+  /// 加入 / 移除书签。
+  ///
+  /// 只有网络写回成功才翻转按钮状态 —— 失败时按钮不能骗人。
+  Future<void> _toggleBookmark() async {
+    if (_busyBookmark) return;
+    final item = widget.item;
+    setState(() => _busyBookmark = true);
+    final wasBookmarked = _bookmarked;
+    final err = wasBookmarked
+        ? await _app.unbookmark(item.tweetId)
+        : await _app.bookmark(item);
+    if (!mounted) return;
+    setState(() {
+      _busyBookmark = false;
+      if (err == null) _bookmarked = !wasBookmarked;
+    });
+    if (err != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+      return;
+    }
+    _flashHint(
+      _bookmarked ? t('play.bookmarkAdded') : t('play.bookmarkRemoved'),
+    );
   }
 
   /// 把当前这张图/这条视频存进系统相册。
@@ -1280,6 +1310,14 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
               ? Colors.white
               : const Color(0xFFFF2D55),
           big: true,
+        ),
+        const SizedBox(height: 14),
+        _railButton(
+          icon: _bookmarked ? Icons.bookmark : Icons.bookmark_border,
+          label: _bookmarked ? t('play.bookmarked') : t('play.bookmark'),
+          onTap: _toggleBookmark,
+          busy: _busyBookmark,
+          accent: _bookmarked ? const Color(0xFF6CC7F5) : Colors.white,
         ),
         const SizedBox(height: 14),
         _railButton(

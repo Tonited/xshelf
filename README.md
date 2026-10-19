@@ -1,6 +1,6 @@
-# xlikemanage
+# X Shelf
 
-把 X（Twitter）账号里的**全部喜欢**抓进本地，以 **X 风格图文列表 + 全屏竖滑播放页**的方式浏览、按时间/类型/作者/全文检索，并能逐条取消喜欢；另带本地与 X 全网两种搜索。
+把 X（Twitter）账号里的**全部喜欢与书签**抓进本地，以 **X 风格图文列表 + 全屏竖滑播放页**的方式浏览、按时间/类型/作者/全文检索，并能逐条取消喜欢、加入/移除书签；另带本地与 X 全网两种搜索。
 一套 Flutter 代码，同时产出 Windows 桌面版与 Android APK。本地优先，离线可看。
 
 > 设计细节见 [docs/DESIGN.md](docs/DESIGN.md)，接口与登录的实测记录见 [docs/X-LOGIN-FINDINGS.md](docs/X-LOGIN-FINDINGS.md)。
@@ -19,10 +19,11 @@
 - 时间轴三模式：**喜欢顺序**（默认）、**按发布日期**（精确年月跳转）、**随机看**；顶部这三个 Tab **可以左右滑动切换**。
 - 筛选：媒体类型 / 作者 / 发布日期范围 / 全文搜索。
 - 管理：逐条取消喜欢（同步回 X，并从本地移除）、关注/取关作者。
-- 从内嵌 X 网页（Grok、搜索结果、推文回复、刷视频页）返回时，**自动补齐最近一天的新喜欢**。
+- **书签完整闭环**：全量回填、增量、巡边核对；播放页动作栏一键加入/移除；主页「喜欢 · 书签」两个来源（横滑先切排序、到边界切来源）；作者空间分「喜欢 / 书签」两个 Tab；本地搜索可按来源过滤；卡片上显示只读书签标记。
+- 从内嵌 X 网页（Grok、搜索结果、推文回复、刷视频页）返回时，**自动补齐最近一天的喜欢与书签**。
 - 从播放页返回列表时，**自动定位回刚才看的那一条**（点返回、系统返回键、侧滑返回都算）。
 - 界面中英文可切换（设置 → 界面语言，默认跟随系统）。
-- 记住上次的位置：视图模式、筛选、滚动位置。
+- 记住上次的位置：视图模式、筛选、滚动位置（按来源分别记忆）。
 
 ### 平台与依赖
 
@@ -113,7 +114,7 @@ docs/                    设计与实测文档
 
 ## English
 
-Browse **all of your X (Twitter) likes** locally through an X-style timeline that opens into a fullscreen vertical-swipe player, filter by time / media type / author, full-text search, and unlike individual posts. One Flutter codebase ships a Windows desktop build and an Android APK. Local-first and works offline once cached.
+Browse **all of your X (Twitter) likes and bookmarks** locally through an X-style timeline that opens into a fullscreen vertical-swipe player, filter by time / media type / author, full-text search, unlike posts, and keep bookmarks in sync. One Flutter codebase ships a Windows desktop build and an Android APK. Local-first and works offline once cached.
 
 ### What it does
 
@@ -125,7 +126,8 @@ Browse **all of your X (Twitter) likes** locally through an X-style timeline tha
 - Three timeline modes: like order (default), exact publish date (jump to a specific month), and shuffle. **Swipe left/right on the feed** to switch between them.
 - Filters: media type, author, publish-date range, full-text search.
 - Unlike individual posts (synced back to X and removed locally), follow/unfollow authors.
-- Returning from an embedded X page (Grok, search, replies, swipe feed) **backfills the last day of likes automatically**.
+- **Full bookmark loop**: backfill, incremental sync and reconciler; add/remove from the player action rail; likes and bookmarks are two sources on the home screen (swipe switches sort first, then flips source at the edges); the author page has separate Likes / Bookmarks tabs; local search can be filtered by source; cards show a read-only bookmark marker.
+- Returning from an embedded X page (Grok, search, replies, swipe feed) **backfills the last day of likes and bookmarks automatically**.
 - Returning from the player **scrolls the feed back to the post you were watching** (in-app back button, system back and edge-swipe all work).
 - Switchable Chinese/English UI (Settings → Language, follows the system by default).
 - Restores your last view: mode, filters, scroll anchor.

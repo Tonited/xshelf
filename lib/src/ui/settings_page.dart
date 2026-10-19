@@ -311,7 +311,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     return ListTile(
                       leading: const Icon(Icons.cloud_download_outlined),
                       title: Text(
-                        app.sync.backfillDone
+                        app.sync.backfillDone()
                             ? t('sync.backfill')
                             : t('sync.resume'),
                       ),
@@ -330,6 +330,35 @@ class _SettingsPageState extends State<SettingsPage> {
                             )
                           : const Icon(Icons.chevron_right),
                       onTap: busy ? null : () => _startBackfill(app),
+                    );
+                  },
+                ),
+                const Divider(height: 1),
+                // 书签回填：和喜欢各有各的游标，互不影响。
+                ListenableBuilder(
+                  listenable: app.sync,
+                  builder: (context, _) {
+                    final busy = app.sync.busy;
+                    return ListTile(
+                      leading: const Icon(Icons.bookmark_border),
+                      title: Text(
+                        app.sync.backfillDone(kind: 'bookmark')
+                            ? t('sync.backfillBookmarks')
+                            : t('sync.resume'),
+                      ),
+                      subtitle: Text(
+                        t('sync.backfillHint'),
+                        style: theme.textTheme.bodySmall,
+                      ),
+                      trailing: busy
+                          ? IconButton(
+                              icon: const Icon(Icons.stop_circle_outlined),
+                              onPressed: app.sync.cancel,
+                            )
+                          : const Icon(Icons.chevron_right),
+                      onTap: busy
+                          ? null
+                          : () => _startBackfill(app, kind: 'bookmark'),
                     );
                   },
                 ),
@@ -670,12 +699,18 @@ class _SettingsPageState extends State<SettingsPage> {
     child: Text(title, style: Theme.of(context).textTheme.titleSmall),
   );
 
-  Future<void> _startBackfill(AppController app) async {
+  Future<void> _startBackfill(AppController app, {String kind = 'like'}) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(t('sync.backfill')),
-        content: Text(t('sync.backfillConfirm')),
+        title: Text(
+          kind == 'bookmark' ? t('sync.backfillBookmarks') : t('sync.backfill'),
+        ),
+        content: Text(
+          kind == 'bookmark'
+              ? t('sync.backfillConfirmBookmarks')
+              : t('sync.backfillConfirm'),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -688,7 +723,7 @@ class _SettingsPageState extends State<SettingsPage> {
         ],
       ),
     );
-    if (ok == true) await app.sync.startBackfill();
+    if (ok == true) await app.sync.startBackfill(kind: kind);
   }
 
   Future<void> _savePlay(AppController app, PlaybackSettings next) async {
@@ -749,6 +784,7 @@ class _NavTabsDialogState extends State<_NavTabsDialog> {
   }
 
   String label(String key) => switch (key) {
+    'bookmarks' => t('nav.bookmarks'),
     'search' => t('nav.search'),
     'swipe' => t('nav.swipe'),
     'grok' => t('nav.grok'),

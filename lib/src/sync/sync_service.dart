@@ -84,14 +84,20 @@ class SyncService {
   static const int _emptyPageLimit = 3;
 
   /// 取一页，遇到限流会退避重试。
+  ///
+  /// [kind] 决定打哪个接口：`like` → `Likes`，`bookmark` → `Bookmarks`。
+  /// 两个响应的推文节点结构一致，所以下游解析和写库完全复用。
   Future<LikesPage> _fetchPage(
     String? cursor, {
+    String kind = 'like',
     void Function(String message)? onNotice,
   }) async {
     var attempt = 0;
     while (true) {
       try {
-        return await client.fetchLikes(cursor: cursor, count: pageSize);
+        return kind == 'bookmark'
+            ? await client.fetchBookmarks(cursor: cursor, count: pageSize)
+            : await client.fetchLikes(cursor: cursor, count: pageSize);
       } on XRequestException catch (e) {
         if (e.kind != XErrorKind.rateLimited ||
             attempt >= _maxRateLimitRetries) {
@@ -130,14 +136,15 @@ class SyncService {
     required int accountId,
     int? maxItems,
     DateTime? since,
+    String kind = 'like',
     void Function(SyncProgress)? onProgress,
     SyncCancel? cancel,
   }) async {
-    var state = db.loadSyncState(accountId);
+    var state = db.loadSyncState(accountId, kind: kind);
     var cursor = state.backfillCursor;
 
     // seq 锚点一律从数据库真实极值推，避免脏掉的 sync_state 造成 seq 重复。
-    final existingMin = db.minSeqOverall();
+    final existingMin = db.minSeqOverall(kind: kind);
     var seqCursor = (existingMin ?? AppDatabase.seqStep) - AppDatabase.seqStep;
 
     var pages = 0;
@@ -164,6 +171,7 @@ class SyncService {
       try {
         page = await _fetchPage(
           cursor,
+          kind: kind,
           onNotice: (msg) => onProgress?.call(
             SyncProgress(
               pages: pages,
@@ -193,7 +201,7 @@ class SyncService {
                 .toList();
 
       if (page.deletedTweetIds.isNotEmpty) {
-        db.markDeleted(page.deletedTweetIds);
+        db.markDeleted(page.deletedTweetIds, kind: kind);
       }
 
       if (items.isNotEmpty) {
@@ -202,6 +210,7 @@ class SyncService {
           items,
           accountId: accountId,
           startSeq: pageStartSeq,
+          kind: kind,
         );
         inserted += res.inserted;
         fetched += items.length;
@@ -218,6 +227,7 @@ class SyncService {
             startSeq: aligned,
             endSeq: aligned + AppDatabase.seqStep * 200,
             cursor: page.topCursor,
+            kind: kind,
           );
           lastAligned = aligned;
         }
@@ -240,7 +250,7 @@ class SyncService {
       if (advanced) {
         cursor = next;
         state = state.copyWith(backfillCursor: cursor);
-        db.saveSyncState(accountId, state);
+        db.saveSyncState(accountId, state, kind: kind);
       }
 
       if (allItems.isEmpty && items.isEmpty) {
@@ -289,10 +299,10 @@ class SyncService {
       backfillDone: exhausted,
       // 游标**不清空**：万一这次是误判（或 X 后来又放开了深度限制），
       // 下次点「继续回填」还能从断点接着抓，而不是从头顶重走一遍。
-      minSeq: db.minSeqOverall(),
-      maxSeq: db.maxSeqOverall(),
+      minSeq: db.minSeqOverall(kind: kind),
+      maxSeq: db.maxSeqOverall(kind: kind),
     );
-    db.saveSyncState(accountId, state);
+    db.saveSyncState(accountId, state, kind: kind);
 
     final result = SyncProgress(
       pages: pages,
@@ -318,6 +328,7 @@ class SyncService {
     required int accountId,
     int? maxItems,
     DateTime? since,
+    String kind = 'like',
     void Function(SyncProgress)? onProgress,
     SyncCancel? cancel,
   }) async {
@@ -338,6 +349,7 @@ class SyncService {
       try {
         page = await _fetchPage(
           cursor,
+          kind: kind,
           onNotice: (msg) => onProgress?.call(
             SyncProgress(
               pages: pages,
@@ -353,7 +365,10 @@ class SyncService {
       }
 
       var pageHasNew = false;
-      final known = db.existingTweetIds(page.items.map((i) => i.tweetId));
+      final known = db.existingTweetIds(
+        page.items.map((i) => i.tweetId),
+        kind: 'like',
+      );
       for (final item in page.items) {
         // 时间窗外的老条目：不收，并且整轮到此为止（X 按时间倒序返回）。
         final created = item.createdAt;
@@ -371,7 +386,7 @@ class SyncService {
         }
       }
       if (page.deletedTweetIds.isNotEmpty) {
-        db.markDeleted(page.deletedTweetIds);
+        db.markDeleted(page.deletedTweetIds, kind: kind);
       }
       pages++;
       fetched = collected.length;
@@ -397,17 +412,21 @@ class SyncService {
     if (collected.isNotEmpty) {
       // 锚点用数据库真实极值：中断过的会话里 sync_state.maxSeq 可能是错的，
       // 用错值会让新喜欢插到列表中间（feed_seq 重复 → 分页跳条）。
-      final base = db.maxSeqOverall() ?? state.maxSeq ?? 0;
+      final base = db.maxSeqOverall(kind: kind) ?? state.maxSeq ?? 0;
       final startSeq = base + collected.length * AppDatabase.seqStep;
       final res = db.insertPage(
         collected,
         accountId: accountId,
         startSeq: startSeq,
+        kind: kind,
       );
       inserted = res.inserted;
       db.saveSyncState(
         accountId,
-        state.copyWith(maxSeq: db.maxSeqOverall(), minSeq: db.minSeqOverall()),
+        state.copyWith(
+          maxSeq: db.maxSeqOverall(kind: kind),
+          minSeq: db.minSeqOverall(kind: kind),
+        ),
       );
     }
 
@@ -435,6 +454,32 @@ class SyncService {
   Future<void> like(String tweetId) async {
     await client.like(tweetId);
     db.restoreLike(tweetId);
+  }
+
+  /// 加入书签：先写回 X，成功后再落本地。
+  ///
+  /// 本地可能已经有这条（从喜欢那边来的），也可能没有（直接在书签页里看到了
+  /// 一条陌生推文）。有就恢复成 normal，没有就整条插进来并分配一个**书签自己
+  /// 的** seq —— 两个来源的顺序互不相干。
+  Future<void> bookmark(LikeItem item, {required int accountId}) async {
+    await client.createBookmark(item.tweetId);
+    if (db.hasTweet(item.tweetId, kind: 'bookmark')) {
+      db.restoreLike(item.tweetId, kind: 'bookmark');
+      return;
+    }
+    final maxSeq = db.maxSeqOverall(kind: 'bookmark') ?? 0;
+    db.insertAtSeq(
+      item,
+      accountId: accountId,
+      seq: maxSeq + AppDatabase.seqStep,
+      kind: 'bookmark',
+    );
+  }
+
+  /// 移除书签：写回 X，本地标记 removed（和取消喜欢同一套语义，可撤回）。
+  Future<void> unbookmark(String tweetId) async {
+    await client.deleteBookmark(tweetId);
+    db.markRemoved([tweetId], kind: 'bookmark');
   }
 }
 

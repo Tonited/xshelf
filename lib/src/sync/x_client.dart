@@ -27,6 +27,9 @@ const String kWebUserAgent =
 const List<String> kQueryIdOperations = [
   'Viewer',
   'Likes',
+  'Bookmarks',
+  'CreateBookmark',
+  'DeleteBookmark',
   'UnfavoriteTweet',
   'Friendships/Create',
   'Friendships/Destroy',
@@ -58,6 +61,12 @@ const Map<String, List<String>> kFallbackQueryIdCandidates = {
 const Map<String, String> kFallbackQueryIds = {
   'Viewer': 'TpQxQtWMTMnIAMPlMGMqNw',
   'Likes': 'mu4us66Q6RRNOywVQhGtRg',
+  // 书签与两个写操作：值来自维护中的第三方客户端（twikit / gallery-dl），
+  // 比 Likes 更容易轮换 —— 失效时「自动重新发现」大概率也找不到（它们的
+  // 定义在懒加载 chunk 里），所以设置页会留一个手动填写的兜底入口。
+  'Bookmarks': 'qToeLeMs43Q8cr7tRYXmaQ',
+  'CreateBookmark': 'aoDbu3RHznuiSkQ9aNM67Q',
+  'DeleteBookmark': 'Wlmlj2-xzyS1GN3a6cj-mQ',
   'UnfavoriteTweet': 'ZYKSe-w7KEslx3JhSIk5LA',
   'UserByScreenName': 'AMIBMjtxEEATh4z8V9GtRg',
 };
@@ -290,6 +299,36 @@ class XClient {
     return parseLikesPageInBackground(body);
   }
 
+  /// 拉一页书签。
+  ///
+  /// 与 [fetchLikes] 的两点不同：
+  /// - **没有 `userId`**：书签的身份完全来自 cookie（X 的书签是私有的，不做用户维度参数）；
+  /// - features 多一个 `graphql_timeline_v2_bookmark_timeline` 开关，不带它会拿到空时间线。
+  Future<LikesPage> fetchBookmarks({String? cursor, int count = 100}) =>
+      _withQueryIdRecovery(
+        'Bookmarks',
+        () => _fetchBookmarksOnce(cursor: cursor, count: count),
+      );
+
+  Future<LikesPage> _fetchBookmarksOnce({
+    String? cursor,
+    int count = 100,
+  }) async {
+    final qid = await _queryId('Bookmarks');
+    final variables = <String, Object?>{
+      'count': count,
+      'includePromotedContent': false,
+      if (cursor != null && cursor.isNotEmpty) 'cursor': cursor,
+    };
+    final uri = Uri.https('x.com', '/i/api/graphql/$qid/Bookmarks', {
+      'variables': jsonEncode(variables),
+      'features': jsonEncode(kBookmarkFeatures),
+    });
+
+    final body = await _get(uri);
+    return parseBookmarksPageInBackground(body);
+  }
+
   /// 在 X 上搜索内容（语料是**全网**推文，不是本地已同步的喜欢）。
   ///
   /// [rawQuery] 原样传给服务端，因此支持 X 的全部搜索操作符
@@ -382,6 +421,38 @@ class XClient {
   Future<void> _unlikeOnce(String tweetId) async {
     final qid = await _queryId('UnfavoriteTweet');
     final uri = Uri.https('x.com', '/i/api/graphql/$qid/UnfavoriteTweet');
+    final payload = jsonEncode({
+      'variables': {'tweet_id': tweetId},
+      'queryId': qid,
+    });
+    final body = await _post(uri, payload);
+    final errors = graphqlErrors(body);
+    if (errors.isNotEmpty) {
+      throw XRequestException(XErrorKind.unknown, errors.join('; '));
+    }
+  }
+
+  /// 加入书签（写回 X）。X 的书签是**私密**的，只有自己可见。
+  Future<void> createBookmark(String tweetId) => _withQueryIdRecovery(
+    'CreateBookmark',
+    () => _bookmarkMutation(tweetId, create: true),
+  );
+
+  /// 移除书签。
+  Future<void> deleteBookmark(String tweetId) => _withQueryIdRecovery(
+    'DeleteBookmark',
+    () => _bookmarkMutation(tweetId, create: false),
+  );
+
+  /// 书签的增删是 POST mutation，body 与 [like]/[unlike] 同形。
+  ///
+  /// 这两个操作的 queryId 只来自第三方客户端的实测值（X 把它们的定义放在
+  /// 懒加载 chunk 里，自动发现基本抓不到），所以失效时只能等更新版本或在
+  /// 设置里手动填。失败会抛 [XRequestException]，由调用方回滚本地状态。
+  Future<void> _bookmarkMutation(String tweetId, {required bool create}) async {
+    final op = create ? 'CreateBookmark' : 'DeleteBookmark';
+    final qid = await _queryId(op);
+    final uri = Uri.https('x.com', '/i/api/graphql/$qid/$op');
     final payload = jsonEncode({
       'variables': {'tweet_id': tweetId},
       'queryId': qid,
@@ -856,4 +927,13 @@ const Map<String, Object?> kSearchFeatures = {
   'responsive_web_profile_redirect_enabled': true,
   // `$cashtag` 需要它才会在 entities 里给出 cashtag。
   'rweb_cashtags_enabled': true,
+};
+
+/// 书签用的 features：Likes 基线 + 书签时间线开关。
+///
+/// 少了 `graphql_timeline_v2_bookmark_timeline` 时接口**不报错**，只是返回一条
+/// 空时间线 —— 表现是「回填跑完了但 0 条」，非常难查。所以这一个必须带上。
+const Map<String, Object?> kBookmarkFeatures = {
+  ...kLikesFeatures,
+  'graphql_timeline_v2_bookmark_timeline': true,
 };

@@ -31,6 +31,7 @@ class PostCard extends StatelessWidget {
     this.selected = false,
     this.highlights = const [],
     this.autoPlayVideo = false,
+    this.bookmarked = false,
   });
 
   final LikeItem item;
@@ -45,6 +46,10 @@ class PostCard extends StatelessWidget {
 
   /// 列表里直接播放视频（设置开关）。只对「单条视频」生效。
   final bool autoPlayVideo;
+
+  /// 这条是否已在书签里。**只做展示**，不提供点击（卡片整块是进播放页的热区，
+  /// 再塞一个可点的小按钮只会带来误触）。
+  final bool bookmarked;
 
   @override
   Widget build(BuildContext context) {
@@ -238,6 +243,11 @@ class PostCard extends StatelessWidget {
         if (item.createdAt != null) ...[
           Text(' · ', style: small),
           Text(_ago(item.createdAt!), style: small),
+        ],
+        // 已在书签里：只做标记，不提供点击（整张卡片是进播放页的热区）。
+        if (bookmarked) ...[
+          const Spacer(),
+          Icon(Icons.bookmark, size: 14, color: theme.colorScheme.primary),
         ],
       ],
     );

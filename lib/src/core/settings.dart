@@ -243,6 +243,7 @@ class AppSettings {
   /// 底部导航全部可选项（顺序即默认顺序）。
   static const List<String> allNavTabs = [
     'browse',
+    'bookmarks',
     'search',
     'swipe',
     'grok',
@@ -285,8 +286,9 @@ class AppSettings {
 
   /// 被隐藏的项。「设置」永远不在里面。
   ///
-  /// **没手动配过**的时候用新默认：底栏只有「喜欢」和「设置」。
-  /// 一进设置里拖过/勾过就记成 true，从此完全按用户存的来。
+  /// **没手动配过**的时候用新默认：底栏是「喜欢 · 书签 · 搜索 · 设置」
+  /// （刷视频和 Grok 默认收起，可在设置里恢复）。一进设置里拖过/勾过就记成
+  /// true，从此完全按用户存的来。
   Set<String> get navHidden {
     final cfg = _navConfigRaw();
     final hidden = {
@@ -294,7 +296,7 @@ class AppSettings {
         if (allNavTabs.contains(key) && key != pinnedNavTab) key,
     };
     if (!_navConfigured) {
-      hidden.addAll(const ['search', 'swipe', 'grok']);
+      hidden.addAll(const ['swipe', 'grok']);
       hidden.remove(pinnedNavTab);
     }
     return hidden;

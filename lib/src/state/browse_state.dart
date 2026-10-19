@@ -25,9 +25,19 @@ typedef TimelineBucket = ({
 });
 
 class BrowseState extends ChangeNotifier implements FeedSource {
-  BrowseState({required this.db, required this.persistView});
+  BrowseState({
+    required this.db,
+    required this.persistView,
+    this.kinds = const {'like'},
+  });
 
   final AppDatabase db;
+
+  /// 这个列表覆盖的来源：`{'like'}` 或 `{'bookmark'}`。
+  ///
+  /// 喜欢和书签各用一个 [BrowseState] 实例：排序档、滚动锚点、翻页游标天然分开，
+  /// 互不干扰；筛选面板改的是 [_filter]（不含来源），换来源不会把条件丢掉。
+  final Set<String> kinds;
 
   /// 把「上次看到哪」写进设置。
   final ViewPersister persistView;
@@ -36,7 +46,17 @@ class BrowseState extends ChangeNotifier implements FeedSource {
   static const int pageSize = 60;
 
   SortMode mode = SortMode.likeOrder;
-  LikesFilter filter = const LikesFilter();
+
+  /// 用户设的筛选条件（不含来源维度）。
+  LikesFilter _filter = const LikesFilter();
+
+  /// 对外的筛选 = 用户条件 + 本列表的固定来源。
+  LikesFilter get filter => _filter.copyWith(kinds: kinds);
+
+  set filter(LikesFilter v) => _filter = v;
+
+  /// 视图记忆的 key：两个来源的排序/滚动互不覆盖。
+  String get storageKey => '${kinds.first}:${mode.name}';
 
   /// 列表被拆成两段，原因见 [loadPrev]：
   /// - [_older]：「当前位置」以上的条目（更新的），往前翻时往里塞；
@@ -74,7 +94,7 @@ class BrowseState extends ChangeNotifier implements FeedSource {
   void markRemoved(String tweetId) {
     if (_removed.add(tweetId)) {
       _rebuildAll();
-      totalCount = db.countLikes(includeDeleted: false);
+      totalCount = db.countLikes(includeDeleted: false, kinds: kinds);
       notifyListeners();
     }
   }
@@ -83,7 +103,7 @@ class BrowseState extends ChangeNotifier implements FeedSource {
   void unmarkRemoved(String tweetId) {
     if (_removed.remove(tweetId)) {
       _rebuildAll();
-      totalCount = db.countLikes(includeDeleted: false);
+      totalCount = db.countLikes(includeDeleted: false, kinds: kinds);
       notifyListeners();
     }
   }
@@ -216,7 +236,7 @@ class BrowseState extends ChangeNotifier implements FeedSource {
       hasMore = true;
       invalidate();
     }
-    stats = db.stats();
+    stats = db.stats(kinds: kinds);
     totalCount = stats.normal;
     await loadMore();
   }
@@ -228,7 +248,7 @@ class BrowseState extends ChangeNotifier implements FeedSource {
   /// 再把「比锚点新」的补到 center 上方（[_older]），当前位置仍然不动。
   Future<void> refresh({bool keepPosition = true}) async {
     invalidate();
-    stats = db.stats();
+    stats = db.stats(kinds: kinds);
     totalCount = stats.normal;
 
     final anchorKey = (keepPosition && _items.isNotEmpty)
@@ -454,7 +474,7 @@ class BrowseState extends ChangeNotifier implements FeedSource {
     _older.removeWhere((i) => i.tweetId == tweetId);
     _rebuildAll();
     if (selectedTweetId == tweetId) selectedTweetId = null;
-    totalCount = db.countLikes(includeDeleted: false);
+    totalCount = db.countLikes(includeDeleted: false, kinds: kinds);
     invalidate();
     notifyListeners();
   }
