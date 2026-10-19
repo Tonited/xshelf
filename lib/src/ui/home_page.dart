@@ -422,6 +422,16 @@ class _SourceListState extends State<_SourceList>
     if (anchor != null && items.isNotEmpty && anchor != firstSeq) {
       await browse.jumpToSeq(anchor);
       if (!mounted) return;
+      // 锚点之前的条目必须能回来：书签这种只有两三条的来源，如果上次停在
+      // 最后一条，锚定之后列表就只剩它自己 —— 表现正是「显示 2 条只看见 1 条」。
+      // 上限 5 次，别让长列表一进来就往前拉一大片。
+      for (var i = 0; i < 5; i++) {
+        if (!browse.hasOlder || browse.listItems.length >= browse.totalCount) {
+          break;
+        }
+        await browse.loadPrev();
+        if (!mounted) return;
+      }
     }
     final saved = app.settings.scrollOf(browse.storageKey);
     final offset = saved > 0 ? saved : view.scrollOffset;
@@ -564,6 +574,8 @@ class _SourceListState extends State<_SourceList>
         // 否则会被下面 hasOlder 的分支吃掉（还有更早的内容时就永远不重洗）。
         if (browse.mode == SortMode.random) {
           await browse.reshuffle();
+          // 顺序整个换了，停在原位置没有意义：回到顶部从头看。
+          if (_scroll.hasClients) _scroll.jumpTo(0);
           return;
         }
         if (browse.hasOlder) {

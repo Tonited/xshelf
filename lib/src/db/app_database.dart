@@ -1699,6 +1699,7 @@ class AppDatabase {
              SUM(CASE WHEN has_video=1 THEN 1 ELSE 0 END) videos,
              SUM(CASE WHEN has_image=1 THEN 1 ELSE 0 END) images,
              SUM(CASE WHEN state='deleted' THEN 1 ELSE 0 END) deleted,
+             SUM(CASE WHEN state='removed' THEN 1 ELSE 0 END) removed,
              MIN(created_at) oldest, MAX(created_at) newest
       FROM likes WHERE kind IN ($marks)
     ''', kinds.toList()).first;
@@ -1707,6 +1708,7 @@ class AppDatabase {
       videos: (r['videos'] as int?) ?? 0,
       images: (r['images'] as int?) ?? 0,
       deleted: (r['deleted'] as int?) ?? 0,
+      removed: (r['removed'] as int?) ?? 0,
       oldest: r['oldest'] == null
           ? null
           : DateTime.fromMillisecondsSinceEpoch(
@@ -2006,6 +2008,7 @@ class LikedStats {
     required this.videos,
     required this.images,
     required this.deleted,
+    this.removed = 0,
     this.oldest,
     this.newest,
   });
@@ -2014,11 +2017,16 @@ class LikedStats {
   final int videos;
   final int images;
   final int deleted;
+
+  /// 本机取消掉的（喜欢/书签）。这些行还在库里（重新点回来能原样恢复），
+  /// 但**不显示**，所以也不能算进「共几条」。
+  final int removed;
   final DateTime? oldest;
   final DateTime? newest;
 
-  /// 还能正常显示的条数（「已删除」的那些不算）。
-  int get normal => total - deleted;
+  /// 还能正常显示的条数：`total` 里有删除的帖子、也有本机取消掉的，
+  /// 两者都要扣掉，否则会出现「显示 2 条，实际只列出 1 条」。
+  int get normal => total - deleted - removed;
 }
 
 /// 随机键（53 位安全正整数）。
