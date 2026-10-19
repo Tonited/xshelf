@@ -975,6 +975,9 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
         idx: idx,
         fit: BoxFit.contain,
         cacheWidth: 1080,
+        // 播放页是「用户主动打开、要看清楚」的场景：值得落盘，断网也能再看。
+        // 列表缩略图则故意不落盘（5 万条会撑爆存储）。
+        cacheToDisk: true,
         // 播放页是黑底：占位也要黑，否则图片没出来时整块是白的。
         darkFallback: true,
         preferRemembered: current,

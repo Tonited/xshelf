@@ -29,12 +29,14 @@ class MediaImage extends StatefulWidget {
     this.highResUrl,
     this.cache,
     this.tweetId,
+    this.cacheKey,
     this.idx = 0,
     this.fit = BoxFit.cover,
     this.cacheWidth,
     this.alignment = Alignment.center,
     this.darkFallback = false,
     this.preferRemembered = false,
+    this.cacheToDisk = false,
   });
 
   /// 先显示的地址（通常是 `name=small`）。
@@ -47,6 +49,17 @@ class MediaImage extends StatefulWidget {
   /// 为空时退化成纯网络图片（测试环境就是这样）。
   final MediaCache? cache;
   final String? tweetId;
+
+  /// 磁盘缓存的键。没有 [tweetId] 的图（头像）用它，否则磁盘缓存永远落不下来。
+  final String? cacheKey;
+
+  /// 主动把这张图落到磁盘。
+  ///
+  /// 只有 `cachedImageFile` 会去读磁盘，而写盘只发生在 `ensureCached`（视频下载、
+  /// 存相册）。也就是说**图片默认从来不落盘**，断网重启后全都回不来。
+  /// 全屏看图时打开它（值得占这点空间）；列表里关掉 —— 5 万条缩略图会撑爆存储。
+  final bool cacheToDisk;
+
   final int idx;
   final BoxFit fit;
   final int? cacheWidth;
@@ -100,6 +113,28 @@ class _MediaImageState extends State<MediaImage> {
     _highUrl = widget.highResUrl;
     _startedHigh = _shouldStartHigh();
     if (_startedHigh) _showHighRes = true;
+    _ensureOnDisk();
+  }
+
+  /// 这颗图要落盘吗？（见 [MediaImage.cacheToDisk] 与 [MediaImage.cacheKey]）
+  ///
+  /// 头像（`cacheKey`）总是落盘：它小、重复率高，断网时最容易看出「有没有缓存」。
+  /// 普通图片只在调用方明确要求时落盘。
+  String? get _diskKey => widget.cacheKey ?? widget.tweetId;
+
+  Future<void> _ensureOnDisk() async {
+    final cache = widget.cache;
+    final key = _diskKey;
+    if (cache == null || key == null) return;
+    if (!widget.cacheToDisk && widget.cacheKey == null) return;
+    if (cache.cachedImageFile(key, widget.idx) != null) return;
+    final file = await cache.ensureCached(
+      tweetId: key,
+      idx: widget.idx,
+      url: widget.url,
+    );
+    // 落盘之后再刷一次：build 会改走 Image.file，断网也还在。
+    if (file != null && mounted) setState(() {});
   }
 
   bool _shouldStartHigh() {
@@ -197,8 +232,9 @@ class _MediaImageState extends State<MediaImage> {
 
     // 只认图片缓存：视频位置缓存的是 mp4，拿它去 Image.file 会解不出来，
     // 于是「播放过的视频在列表里没有封面」。
-    final local = (widget.cache != null && widget.tweetId != null)
-        ? widget.cache!.cachedImageFile(widget.tweetId!, widget.idx)
+    final key = _diskKey;
+    final local = (widget.cache != null && key != null)
+        ? widget.cache!.cachedImageFile(key, widget.idx)
         : null;
     if (local != null) {
       return Image.file(
@@ -343,6 +379,10 @@ class AuthorAvatar extends StatelessWidget {
           child: MediaImage(
             url: url,
             cache: cache,
+            // 头像没有 tweetId，用 URL 的 hash 当缓存键 —— 同一个作者稳定命中同一份。
+            cacheKey: cache == null
+                ? null
+                : 'av${url.hashCode.toRadixString(16)}',
             cacheWidth: (radius * 2 * MediaQuery.devicePixelRatioOf(context))
                 .round(),
             fit: BoxFit.cover,
