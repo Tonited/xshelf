@@ -14,7 +14,10 @@ import '../db/app_database.dart';
 import '../model/like_item.dart';
 import 'feed_source.dart';
 
-typedef ViewPersister = Future<void> Function(ViewSnapshot snapshot);
+typedef ViewPersister = Future<void> Function(
+  String kind,
+  ViewSnapshot snapshot,
+);
 
 /// 时间轴上的一个估算桶（模式 A）。
 typedef TimelineBucket = ({
@@ -218,6 +221,7 @@ class BrowseState extends ChangeNotifier implements FeedSource {
   }
 
   Future<void> saveView({double? scrollOffset}) => persistView(
+    kinds.first,
     ViewSnapshot(
       mode: mode,
       filter: filter,

@@ -113,7 +113,7 @@ void main() {
 
   group('browse state', () {
     Future<BrowseState> loaded(dynamic db) async {
-      final browse = BrowseState(db: db, persistView: (v) async {});
+      final browse = BrowseState(db: db, persistView: (kind, v) async {});
       await browse.reload(reset: true);
       return browse;
     }
@@ -234,7 +234,7 @@ void main() {
       final saved = <ViewSnapshot>[];
       final browse = BrowseState(
         db: db,
-        persistView: (v) async => saved.add(v),
+        persistView: (kind, v) async => saved.add(v),
       );
       browse.restoreFrom(const ViewSnapshot(mode: SortMode.publishDate));
       await browse.reload(reset: true);

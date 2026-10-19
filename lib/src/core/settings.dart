@@ -228,6 +228,9 @@ class AppSettings {
   static const _kProxy = 'proxy';
   static const _kAutoSync = 'autosync';
   static const _kView = 'view';
+
+  /// 每个来源各存一份视图状态：`view.like` / `view.bookmark`。
+  static const _kViewPrefix = 'view.';
   static const _kPlayback = 'playback';
   static const _kLang = 'ui.lang';
   static const _kCacheDir = 'cache.dir';
@@ -427,6 +430,21 @@ class AppSettings {
 
   Future<void> setView(ViewSnapshot s) =>
       _setString(_kView, jsonEncode(s.toJson()));
+
+  /// 按**来源**取视图状态（喜欢 / 书签各一份）。
+  ///
+  /// 以前两个来源共用 `_kView` 一份：在喜欢页切成「随机」，书签页也跟着变，
+  /// 排序记忆等于没分来源。读不到自己的就退回旧的那份（兼容老数据）。
+  ViewSnapshot viewOf(String kind) {
+    final raw = _getString('$_kViewPrefix$kind');
+    if (raw == null) return view;
+    return ViewSnapshot.fromJson(
+      Map<String, Object?>.from(jsonDecode(raw) as Map),
+    );
+  }
+
+  Future<void> setViewOf(String kind, ViewSnapshot s) =>
+      _setString('$_kViewPrefix$kind', jsonEncode(s.toJson()));
 
   PlaybackSettings get playback {
     final raw = _getString(_kPlayback);

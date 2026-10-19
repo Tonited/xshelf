@@ -105,11 +105,14 @@ class AppController extends ChangeNotifier {
           ? Directory(settings.cacheDir!)
           : Directory(p.join(support.path, 'media'));
 
-      browse = BrowseState(db: db, persistView: settings.setView);
+      browse = BrowseState(
+        db: db,
+        persistView: (kind, view) => settings.setViewOf(kind, view),
+      );
       // 书签是第二个来源：独立的 BrowseState → 排序档/游标/滚动都互不干扰。
       bookmarks = BrowseState(
         db: db,
-        persistView: settings.setView,
+        persistView: (kind, view) => settings.setViewOf(kind, view),
         kinds: const {'bookmark'},
       );
       sync = SyncController(
@@ -139,9 +142,9 @@ class AppController extends ChangeNotifier {
         unawaited(_verifyInBackground());
       }
       bootStage = '读取第一页';
-      browse.restoreFrom(settings.view);
+      browse.restoreFrom(settings.viewOf('like'));
       await browse.reload(reset: true);
-      bookmarks.restoreFrom(settings.view);
+      bookmarks.restoreFrom(settings.viewOf('bookmark'));
       await bookmarks.reload(reset: true);
     } catch (e, st) {
       bootError = '[步骤: $bootStage] $e';
