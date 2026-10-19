@@ -463,6 +463,14 @@ class SyncService {
   /// 的** seq —— 两个来源的顺序互不相干。
   Future<void> bookmark(LikeItem item, {required int accountId}) async {
     await client.createBookmark(item.tweetId);
+    bookmarkLocally(item, accountId: accountId);
+  }
+
+  /// 书签的**本地部分**。
+  ///
+  /// 拆出来是因为写回有两条路：直连（快）和 WebView 兜底（X 对 mutation 要
+  /// 签名，直连会 404）。两条路成功之后都要落到同一个本地状态上。
+  void bookmarkLocally(LikeItem item, {required int accountId}) {
     if (db.hasTweet(item.tweetId, kind: 'bookmark')) {
       db.restoreLike(item.tweetId, kind: 'bookmark');
       return;
@@ -479,6 +487,11 @@ class SyncService {
   /// 移除书签：写回 X，本地标记 removed（和取消喜欢同一套语义，可撤回）。
   Future<void> unbookmark(String tweetId) async {
     await client.deleteBookmark(tweetId);
+    unbookmarkLocally(tweetId);
+  }
+
+  /// 移除书签的本地部分（WebView 兜底成功后调用）。
+  void unbookmarkLocally(String tweetId) {
     db.markRemoved([tweetId], kind: 'bookmark');
   }
 }

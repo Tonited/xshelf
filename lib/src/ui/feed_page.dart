@@ -29,6 +29,7 @@ import 'author_page.dart';
 import 'media_image.dart';
 import 'rich_text.dart';
 import 'video_view.dart';
+import 'web_bookmark_writer.dart';
 
 class FeedPage extends StatefulWidget {
   const FeedPage({
@@ -564,14 +565,36 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
         ? await _app.unbookmark(item.tweetId)
         : await _app.bookmark(item);
     if (!mounted) return;
-    setState(() {
-      _busyBookmark = false;
-      if (err == null) _bookmarked = !wasBookmarked;
-    });
-    if (err != null) {
+    if (err == null) {
+      setState(() {
+        _busyBookmark = false;
+        _bookmarked = !wasBookmarked;
+      });
+      _flashHint(
+        _bookmarked ? t('play.bookmarkAdded') : t('play.bookmarkRemoved'),
+      );
+      return;
+    }
+    // 直连失败：X 对写操作要求 `x-client-transaction-id` 签名（它自家 JS 签的），
+    // 缺了会返回空 404。这时改用 WebView 兜底 —— 那里跑的是 X 自己的前端。
+    setState(() => _busyBookmark = false);
+    final ok = await writeBookmarkViaWeb(
+      context,
+      tweetId: item.tweetId,
+      add: !wasBookmarked,
+    );
+    if (!mounted) return;
+    if (!ok) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
       return;
     }
+    if (wasBookmarked) {
+      await _app.unbookmarkLocally(item.tweetId);
+    } else {
+      await _app.bookmarkLocally(item);
+    }
+    if (!mounted) return;
+    setState(() => _bookmarked = !wasBookmarked);
     _flashHint(
       _bookmarked ? t('play.bookmarkAdded') : t('play.bookmarkRemoved'),
     );

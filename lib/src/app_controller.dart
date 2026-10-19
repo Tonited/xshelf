@@ -423,8 +423,7 @@ class AppController extends ChangeNotifier {
   Future<String?> bookmark(LikeItem item) async {
     final err = await sync.bookmark(item);
     if (err != null) return err;
-    await browse.refresh();
-    await bookmarks.refresh();
+    await _refreshBookmarkViews();
     return null;
   }
 
@@ -432,9 +431,24 @@ class AppController extends ChangeNotifier {
   Future<String?> unbookmark(String tweetId) async {
     final err = await sync.unbookmark(tweetId);
     if (err != null) return err;
+    await _refreshBookmarkViews();
+    return null;
+  }
+
+  /// WebView 兜底成功之后的本地落地：网络那一步已经在网页里做完了。
+  Future<void> bookmarkLocally(LikeItem item) async {
+    syncService?.bookmarkLocally(item, accountId: accountId ?? 0);
+    await _refreshBookmarkViews();
+  }
+
+  Future<void> unbookmarkLocally(String tweetId) async {
+    syncService?.unbookmarkLocally(tweetId);
+    await _refreshBookmarkViews();
+  }
+
+  Future<void> _refreshBookmarkViews() async {
     await browse.refresh();
     await bookmarks.refresh();
-    return null;
   }
 
   /// 远端「我正在关注的人」。失败返回空列表，调用方回退本地记录。

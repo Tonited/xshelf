@@ -69,6 +69,8 @@ class _QueryIdProbePageState extends State<QueryIdProbePage> {
     if (_done || !mounted) return;
     _done = true;
     _timeout?.cancel();
+    // ignore: avoid_print
+    print('[qid-probe] finish learned=$_learned');
     setState(() {
       _found = {
         for (final op in widget.operations)
@@ -78,36 +80,63 @@ class _QueryIdProbePageState extends State<QueryIdProbePage> {
   }
 
   /// 在页面里找到书签按钮并点一下。
+  ///
+  /// 找不到时把页面上前若干个按钮标签一起带回来 —— 真机排查时一眼就能看出
+  /// 「是没渲染」还是「选择器不对」。
   String get _clickBookmarkScript => '''
 (() => {
   const nodes = Array.prototype.slice.call(
     document.querySelectorAll('button, [role="button"], [data-testid]')
   );
+  const labelOf = (n) => ((n.getAttribute('aria-label') || '') + ' ' +
+                          (n.getAttribute('data-testid') || '')).trim();
   const want = /bookmark|书签|收藏/i;
   for (const n of nodes) {
-    const label = (n.getAttribute('aria-label') || '') + ' ' +
-                  (n.getAttribute('data-testid') || '');
+    const label = labelOf(n);
     if (want.test(label)) {
-      try { n.click(); return 'clicked:' + label.trim(); } catch (e) {}
+      try { n.click(); return 'clicked:' + label; } catch (e) {}
     }
   }
-  return 'no-button';
+  const seen = nodes.map(labelOf).filter(Boolean).slice(0, 12).join('|');
+  return 'no-button:' + seen;
 })();
 ''';
 
+  /// 轮询点击书签按钮：推文详情是 XHR 渲染的，按钮出现时间不固定。
+  Future<bool> _clickBookmark(InAppWebViewController controller) async {
+    for (var i = 0; i < 10; i++) {
+      if (!mounted || _done) return false;
+      final r = await controller.evaluateJavascript(
+        source: _clickBookmarkScript,
+      );
+      if ('$r'.startsWith('clicked')) {
+        // ignore: avoid_print
+        print('[qid-probe] click ok: $r');
+        return true;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 900));
+    }
+    return false;
+  }
+
   Future<void> _onPageLoaded(InAppWebViewController controller) async {
     if (_done) return;
-    // 推文页：点一次书签（Create），再点一次撤销（Delete）。
+    // 第一次加载 = 推文页：点一次书签（CreateBookmark），再点一次撤销（DeleteBookmark）。
     if (_stage == 0 && (widget.tweetId ?? '').isNotEmpty) {
       _stage = 1;
-      await Future<void>.delayed(const Duration(milliseconds: 1800));
+      final added = await _clickBookmark(controller);
+      // ignore: avoid_print
+      print('[qid-probe] add=$added');
+      if (added) {
+        await Future<void>.delayed(const Duration(milliseconds: 2200));
+        if (!mounted || _done) return;
+        final undone = await _clickBookmark(controller);
+        // ignore: avoid_print
+        print('[qid-probe] undo=$undone');
+        await Future<void>.delayed(const Duration(milliseconds: 1500));
+      }
       if (!mounted || _done) return;
-      await controller.evaluateJavascript(source: _clickBookmarkScript);
-      await Future<void>.delayed(const Duration(milliseconds: 2000));
-      if (!mounted || _done) return;
-      await controller.evaluateJavascript(source: _clickBookmarkScript);
-      await Future<void>.delayed(const Duration(milliseconds: 1500));
-      if (!mounted || _done) return;
+      _stage = 2;
       // 最后去书签页拿 Bookmarks 的 queryId。
       await controller.loadUrl(
         urlRequest: URLRequest(url: WebUri('https://x.com/i/bookmarks')),
@@ -115,9 +144,13 @@ class _QueryIdProbePageState extends State<QueryIdProbePage> {
       return;
     }
     // 书签页加载完：给懒加载一点时间，然后收工。
-    _stage = 2;
-    await Future<void>.delayed(const Duration(seconds: 2));
-    _finish();
+    if (_stage == 2) {
+      _stage = 3;
+      await Future<void>.delayed(const Duration(seconds: 3));
+      _finish();
+      return;
+    }
+    // 其它中途导航：不动。
   }
 
   @override
@@ -160,6 +193,10 @@ class _QueryIdProbePageState extends State<QueryIdProbePage> {
             // 在这里顺手把映射记下来 —— 这就是「学习」到 queryId 的全部秘密。
             shouldInterceptRequest: (controller, request) async {
               final url = request.url.toString();
+              if (url.contains('/graphql/')) {
+                // ignore: avoid_print
+                print('[qid-probe] $url');
+              }
               final m = RegExp(r'/graphql/([A-Za-z0-9_-]{10,})/([A-Za-z0-9_]+)')
                   .firstMatch(url);
               if (m != null) {

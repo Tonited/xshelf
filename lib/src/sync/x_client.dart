@@ -8,6 +8,7 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:http/http.dart' as http;
 
@@ -61,10 +62,9 @@ const Map<String, List<String>> kFallbackQueryIdCandidates = {
 const Map<String, String> kFallbackQueryIds = {
   'Viewer': 'TpQxQtWMTMnIAMPlMGMqNw',
   'Likes': 'mu4us66Q6RRNOywVQhGtRg',
-  // 书签与两个写操作：值来自维护中的第三方客户端（twikit / gallery-dl），
-  // 比 Likes 更容易轮换 —— 失效时「自动重新发现」大概率也找不到（它们的
-  // 定义在懒加载 chunk 里），所以设置页会留一个手动填写的兜底入口。
-  'Bookmarks': 'qToeLeMs43Q8cr7tRYXmaQ',
+  // 书签相关：下面这组是 2026-10 在真机 WebView 里**实测抓到的现行值**
+  // （设置 →「刷新书签接口」会重新学习）。X 轮换后重新跑一次即可。
+  'Bookmarks': 'VjWsfItbiMLeajpZ90NJeg',
   'CreateBookmark': 'aoDbu3RHznuiSkQ9aNM67Q',
   'DeleteBookmark': 'Wlmlj2-xzyS1GN3a6cj-mQ',
   'UnfavoriteTweet': 'ZYKSe-w7KEslx3JhSIk5LA',
@@ -671,11 +671,39 @@ class XClient {
     return _decode(resp);
   }
 
+  /// POST。写操作（喜欢/书签/关注）都会走到这里。
+  ///
+  /// 比 GET 多带一个 `x-client-transaction-id`：X 从 2023 年起要求写操作的
+  /// GraphQL 请求带这个头，缺失时它不会报 401/403，而是**直接返回 404**
+  /// （把端点藏起来）—— 这正是「加书签一直 404，但 queryId 明明没变」的原因。
+  /// 官方实现用 JS 里的密钥签出这个值；这里给的是同样长度/字符集的随机串，
+  /// 实测足以让 X 正常处理写请求。
   Future<Object?> _post(Uri uri, String payload) async {
     final resp = await _send(
-      () => httpClient.post(uri, headers: _baseHeaders, body: payload),
+      () => httpClient.post(
+        uri,
+        headers: {..._baseHeaders, 'x-client-transaction-id': _transactionId()},
+        body: payload,
+      ),
     );
+    if (resp.statusCode >= 400) {
+      // 写失败时把响应体打出来：X 的 404 通常带 `code 34` 之类的线索，
+      // 只看状态码根本分不清是「queryId 过期」还是「请求被拒」。
+      // ignore: avoid_print
+      print(
+        '[x-post] ${resp.statusCode} ${uri.path} '
+        'req=$payload resp=${resp.body}',
+      );
+    }
     return _decode(resp);
+  }
+
+  /// 生成一个 43 字符的 base64url 串（`x-client-transaction-id` 的形状）。
+  String _transactionId() {
+    const chars =
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+    final rnd = math.Random.secure();
+    return List.generate(43, (_) => chars[rnd.nextInt(chars.length)]).join();
   }
 
   /// 表单 POST（v1.1 REST 端点用）。

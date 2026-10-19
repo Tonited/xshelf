@@ -183,13 +183,10 @@ body: 两页（喜欢 / 书签）
 
 ### 9.1 真机实测发现的硬限制（2026-10）
 
-- **写操作的 queryId 已经轮换**：点播放页书签返回 `HTTP 404`，说明 `CreateBookmark = aoDbu3RHznuiSkQ9aNM67Q` 已失效（twikit 上的值也是同一个，同样过期）。失败被正确处理：提示「接口返回 HTTP 404 (queryId 可能已失效)」、按钮状态**不翻转**。
-- **回填返回 0 条**：可能是该账号本来没有书签，也可能是 `Bookmarks` 的 queryId 同样失效——两者在 UI 上无法区分。
-- **自动发现不可用**：`Bookmarks`/`CreateBookmark`/`DeleteBookmark` 的定义在 X 的懒加载 chunk 里，且 chunk 位于 `abs.twimg.com`（与 `x.com` 跨域，页面内 `fetch` 被 CORS 拒绝）。设置页的「从网页自动获取」探针因此抓不到，实测两版都返回空。
-- **兜底方案（已实现）**：设置 → 同步 → 「书签接口 QueryId」，可手动填写三个值，留空则用内置值。
-  手动获取方法：在桌面浏览器登录 x.com，打开 DevTools → Network → 筛选 `/graphql/`，
-  在网页里加/删一次书签、打开一次书签页，把三个请求 URL 里的 `{queryId}/{operationName}`
-  抄下来填进去即可。
+- **写操作不能走纯 HTTP**：X 对 mutation 要求 `x-client-transaction-id`（它自家 JS 签出来的有效签名）。缺失时它不返回 401/403，而是 **404 且响应体为空** —— 看起来完全像「queryId 失效」，但实测网页用的就是同一个 queryId。补一个随机 43 字符串也没用（签名要真的签）。
+- **`Bookmarks` 的 queryId 确实轮换过**：网页现行值是 `VjWsfItbiMLeajpZ90NJeg`（旧的内置值 `qToeLeMs43Q8cr7tRYXmaQ` 已失效）。
+- **自动学习可行**：WebView 的 `shouldInterceptRequest` 能拦到所有 GraphQL 请求，从 `/graphql/{queryId}/{operation}` 里直接读值。设置 →「刷新书签接口」就是干这个的，实测能正确学到三个值。
+- **写回方案（已落地）**：直连失败 → 自动降级到**临时 WebView**：打开该推文、模拟点一次书签按钮、确认状态翻转后关闭。代价是每次约 3–6 秒，但确实能写成功（真机验证：加入书签后书签页 0 → 2 条，播放页图标变实心）。
 
-结论：**读取闭环与 UI 闭环已完成并在真机验证**；写入依赖 X 当前的 queryId，内置值失效时需手动填一次。这属于外部接口变更，不是实现缺陷。
+结论：**闭环打通**。读取走纯 HTTP（快），写入走「直连优先 + WebView 兜底」（慢但可靠）。
 
