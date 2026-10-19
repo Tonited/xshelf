@@ -56,14 +56,23 @@ class SyncController extends ChangeNotifier {
     ),
   );
 
-  Future<void> syncNew({String kind = 'like'}) => _run(
-    (svc, acc, progress) => svc.syncNew(
-      accountId: acc,
-      kind: kind,
-      maxItems: autoSyncOf().maxItems,
-      onProgress: progress,
-    ),
-  );
+  Future<void> syncNew({String kind = 'like'}) {
+    final cfg = autoSyncOf();
+    // 「时间范围」以前没传下去：设置页选了也是白选，增量永远按「直到碰到
+    // 已存在的条目」为止。给了范围就只往回翻这么多天。
+    final since = cfg.rangeDays == null
+        ? null
+        : DateTime.now().toUtc().subtract(Duration(days: cfg.rangeDays!));
+    return _run(
+      (svc, acc, progress) => svc.syncNew(
+        accountId: acc,
+        kind: kind,
+        maxItems: cfg.maxItems,
+        since: since,
+        onProgress: progress,
+      ),
+    );
+  }
 
   /// 上一次 [syncRecent] 的时间，用于节流。
   DateTime? _lastRecentAt;
