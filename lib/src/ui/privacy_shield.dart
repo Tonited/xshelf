@@ -50,7 +50,7 @@ class _PrivacyShieldState extends State<PrivacyShield>
   void _syncKeepAwake() {
     if (!mounted) return;
     final app = AppScope.maybeRead(context);
-    final on = !_covered && (app?.settings.keepAwake ?? false);
+    final on = !_covered && (app?.settingsOrNull?.keepAwake ?? false);
     KeepAwake.set(on);
   }
 
