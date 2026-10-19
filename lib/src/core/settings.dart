@@ -231,6 +231,13 @@ class AppSettings {
 
   /// 每个来源各存一份视图状态：`view.like` / `view.bookmark`。
   static const _kViewPrefix = 'view.';
+
+  /// 搜索页的三个「上次选了什么」：模式（本地/X 全网）、来源、排序。
+  ///
+  /// 别的列表页都会记住排序和位置，只有搜索页每次进都重置 —— 不一致。
+  static const _kSearchMode = 'search.mode';
+  static const _kSearchKind = 'search.kind';
+  static const _kSearchSort = 'search.sort';
   static const _kPlayback = 'playback';
   static const _kLang = 'ui.lang';
   static const _kCacheDir = 'cache.dir';
@@ -432,7 +439,6 @@ class AppSettings {
       _setString(_kView, jsonEncode(s.toJson()));
 
   /// 按**来源**取视图状态（喜欢 / 书签各一份）。
-  ///
   /// 以前两个来源共用 `_kView` 一份：在喜欢页切成「随机」，书签页也跟着变，
   /// 排序记忆等于没分来源。读不到自己的就退回旧的那份（兼容老数据）。
   ViewSnapshot viewOf(String kind) {
@@ -445,6 +451,18 @@ class AppSettings {
 
   Future<void> setViewOf(String kind, ViewSnapshot s) =>
       _setString('$_kViewPrefix$kind', jsonEncode(s.toJson()));
+
+  /// 上次停在「本地」还是「X 全网」。
+  String get searchMode => _getString(_kSearchMode) ?? 'local';
+  Future<void> setSearchMode(String v) => _setString(_kSearchMode, v);
+
+  /// 上次选的来源：`like` / `bookmark` / `all`。
+  String get searchKind => _getString(_kSearchKind) ?? 'like';
+  Future<void> setSearchKind(String v) => _setString(_kSearchKind, v);
+
+  /// 上次选的结果排序。
+  SortMode get searchSort => SortMode.fromName(_getString(_kSearchSort));
+  Future<void> setSearchSort(SortMode v) => _setString(_kSearchSort, v.name);
 
   PlaybackSettings get playback {
     final raw = _getString(_kPlayback);

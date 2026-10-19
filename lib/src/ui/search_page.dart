@@ -215,7 +215,17 @@ class _SearchPageState extends State<SearchPage> {
     super.didChangeDependencies();
     final app = AppScope.read(context);
     if (_app == app) return;
+    final first = _app == null;
     _app = app;
+    if (first) {
+      // 恢复上次的选择（别的列表页都会记，只有这里以前每次重置）。
+      final s = app.settingsOrNull;
+      if (s != null) {
+        _mode = s.searchMode == 'x' ? _Mode.onX : _Mode.local;
+        _kind = s.searchKind;
+        _localSort = s.searchSort;
+      }
+    }
     // 作者筛选要覆盖**全部来源**：页面支持只搜书签/全部，
     // 只拿喜欢里的作者会让书签页的作者选不出来。
     _authors = app.db.topAuthors(limit: 200, kinds: const {'like', 'bookmark'});
@@ -407,6 +417,12 @@ class _SearchPageState extends State<SearchPage> {
               selected: {_mode},
               onSelectionChanged: (s) {
                 setState(() => _mode = s.first);
+                unawaited(
+                  _app?.settingsOrNull?.setSearchMode(
+                        s.first == _Mode.onX ? 'x' : 'local',
+                      ) ??
+                      Future.value(),
+                );
                 if (_mode == _Mode.local) _runLocal();
               },
             ),
@@ -430,6 +446,10 @@ class _SearchPageState extends State<SearchPage> {
                 selected: {_kind},
                 onSelectionChanged: (s) {
                   setState(() => _kind = s.first);
+                  unawaited(
+                    _app?.settingsOrNull?.setSearchKind(s.first) ??
+                        Future.value(),
+                  );
                   unawaited(_runLocal());
                 },
               ),
@@ -775,6 +795,7 @@ class _SearchPageState extends State<SearchPage> {
       onSelected: (m) {
         if (m == _localSort) return;
         setState(() => _localSort = m);
+        unawaited(_app?.settingsOrNull?.setSearchSort(m) ?? Future.value());
         unawaited(_runLocal());
       },
       itemBuilder: (_) => [
