@@ -59,6 +59,9 @@ class _SearchPageState extends State<SearchPage> {
   /// 本地搜索覆盖哪个来源：`like` / `bookmark` / `all`。
   String _kind = 'like';
 
+  /// 本地结果的排序。
+  SortMode _localSort = SortMode.publishDate;
+
   Set<String> get _kindsOf => switch (_kind) {
     'bookmark' => const {'bookmark'},
     'all' => const {'like', 'bookmark'},
@@ -260,12 +263,13 @@ class _SearchPageState extends State<SearchPage> {
     }
 
     final existing = _localSource;
-    if (existing != null) {
+    // 排序是 QueryFeedSource 的 final 字段：换了排序就换一个源。
+    if (existing != null && existing.mode == _localSort) {
       await existing.reset(filter);
       if (mounted) setState(() {});
       return;
     }
-    final src = QueryFeedSource(db: app.db, filter: filter);
+    final src = QueryFeedSource(db: app.db, filter: filter, mode: _localSort);
     setState(() => _localSource = src);
     await src.loadMore();
     if (mounted) setState(() {});
@@ -341,12 +345,14 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
-  void _openFeed(FeedSource source, int index) {
+  /// 打开播放页。**按 tweetId 定位**：结果列表是按 tweetId 去重后的视图，
+  /// 它的下标和 `source.items`（未去重）对不上，直接传下标会打开错的帖子。
+  void _openFeed(FeedSource source, LikeItem item) {
     Navigator.of(context).push(
       MaterialPageRoute<String>(
         builder: (_) => FeedPage(
           source: source,
-          initialIndex: index,
+          initialTweetId: item.tweetId,
           cache: _app?.mediaCache,
         ),
       ),
@@ -754,6 +760,38 @@ class _SearchPageState extends State<SearchPage> {
 
   // ------------------------------------------------------------- 本地结果
 
+  /// 本地结果的排序菜单（喜欢顺序 / 按发布日期 / 随机）。
+  Widget _sortMenu(ThemeData theme) {
+    String label(SortMode m) => switch (m) {
+      SortMode.likeOrder => t('mode.likeOrder'),
+      SortMode.publishDate => t('mode.publishDate'),
+      SortMode.random => t('mode.random'),
+    };
+    return PopupMenuButton<SortMode>(
+      tooltip: t('search.sort'),
+      initialValue: _localSort,
+      onSelected: (m) {
+        if (m == _localSort) return;
+        setState(() => _localSort = m);
+        unawaited(_runLocal());
+      },
+      itemBuilder: (_) => [
+        for (final m in SortMode.values)
+          PopupMenuItem(value: m, child: Text(label(m))),
+      ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(label(_localSort), style: theme.textTheme.labelMedium),
+            const Icon(Icons.arrow_drop_down, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
   List<Widget> _localResultSlivers(ThemeData theme, List<LikeItem> items) {
     final source = _localSource;
     if (source == null) {
@@ -772,19 +810,33 @@ class _SearchPageState extends State<SearchPage> {
       ];
     }
 
+    // 「全部」时同一条推文在喜欢和书签里各占一行：按 tweetId 去重，
+    // 否则结果里会出现两条一模一样的帖子。
+    final seen = <String>{};
+    final unique = [
+      for (final it in items)
+        if (seen.add(it.tweetId)) it,
+    ];
+
     return [
       SliverToBoxAdapter(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-          child: Text(
-            tf('search.results', {'n': items.length}),
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: theme.colorScheme.outline,
-            ),
+          padding: const EdgeInsets.fromLTRB(16, 4, 8, 0),
+          child: Row(
+            children: [
+              Text(
+                tf('search.results', {'n': unique.length}),
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.outline,
+                ),
+              ),
+              const Spacer(),
+              _sortMenu(theme),
+            ],
           ),
         ),
       ),
-      if (items.isEmpty)
+      if (unique.isEmpty)
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.all(40),
@@ -797,20 +849,20 @@ class _SearchPageState extends State<SearchPage> {
         )
       else
         SliverList.separated(
-          itemCount: items.length + (source.hasMore ? 1 : 0),
+          itemCount: unique.length + (source.hasMore ? 1 : 0),
           separatorBuilder: (_, _) => const Divider(height: 1, thickness: 0.4),
           itemBuilder: (context, i) {
-            if (i >= items.length) {
+            if (i >= unique.length) {
               return const Padding(
                 padding: EdgeInsets.all(24),
                 child: Center(child: CircularProgressIndicator()),
               );
             }
-            final item = items[i];
+            final item = unique[i];
             return PostCard(
               item: item,
               cache: _app?.mediaCache,
-              onTap: () => _openFeed(source, i),
+              onTap: () => _openFeed(source, item),
               onAvatarTap: () => item.author == null
                   ? null
                   : () => _openAuthorBy(
