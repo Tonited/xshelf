@@ -154,11 +154,13 @@ class _MediaImageState extends State<MediaImage> {
     if (file != null && mounted) setState(() {});
   }
 
-  /// 懒加载：进入视野并**停留**一小会儿才真正发请求。
+  /// 懒加载：在屏幕里的立刻加载，只有「预建但还没露脸」的才等一个短窗口。
   ///
-  /// `SliverList` 会预建缓存区内的条目（默认 250px），列表快速滚动时那些
-  /// 还没露脸的图也会被构建。这里给一个延迟窗口：立刻滚走的条目会先被回收，
-  /// 计时器也随之取消，于是「只有真正看到的那几张」才会下载。
+  /// `SliverList` 会预建缓存区内的条目（现在收到 160px），列表快速滚动时那些
+  /// 还没露脸的图也会被构建。给它们一个 120ms 的窗口：立刻滚走的条目会先被
+  /// 回收、计时器随之取消，于是只有真正看到的才会下载。
+  ///
+  /// 可见的条目不走延迟 —— 用户正看着它，多等 1/3 秒只会显得卡。
   void _scheduleLoad() {
     _loadTimer?.cancel();
     if (!widget.lazy) {
@@ -166,11 +168,27 @@ class _MediaImageState extends State<MediaImage> {
       _ensureOnDisk();
       return;
     }
-    _loadTimer = Timer(const Duration(milliseconds: 320), () {
-      if (!mounted) return;
-      setState(() => _ready = true);
-      _ensureOnDisk();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _ready) return;
+      if (_isOnScreen()) {
+        setState(() => _ready = true);
+        _ensureOnDisk();
+        return;
+      }
+      _loadTimer = Timer(const Duration(milliseconds: 120), () {
+        if (!mounted) return;
+        setState(() => _ready = true);
+        _ensureOnDisk();
+      });
     });
+  }
+
+  /// 这个 widget 当前有没有落在屏幕（视口）里。
+  bool _isOnScreen() {
+    final box = context.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return false;
+    final rect = box.localToGlobal(Offset.zero) & box.size;
+    return rect.overlaps(Offset.zero & MediaQuery.sizeOf(context));
   }
 
   bool _shouldStartHigh() {
