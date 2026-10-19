@@ -153,12 +153,37 @@ class _FeedPageState extends State<FeedPage> {
   ///
   /// 列表页拿到这个 id 就把自己锚定到该条 —— 否则用户在播放页里滑了十几条，
   /// 一返回又被丢回进入时那一条，只能自己再滚一遍找回来。
+  /// 在播放页里被取消、但还没落库的条目（退出时统一处理）。
+  ///
+  /// 不放在点击当下落库，是为了让那一条留在原处：一旦从 `items` 里消失，
+  /// PageView 的下标就指到别的条目上，看起来就像「取消个喜欢，页面自己翻走了」。
+  final Set<String> _deferredUnlike = {};
+  final Set<String> _deferredUnbookmark = {};
+
+  void _markDeferred(String tweetId, {required bool like}) {
+    (like ? _deferredUnlike : _deferredUnbookmark).add(tweetId);
+  }
+
   void _close() {
+    // pop 之后 context 就失效了，所以先把 app 取出来。
+    final app = AppScope.read(context);
     final items = widget.source.items;
     final id = (_index >= 0 && _index < items.length)
         ? items[_index].tweetId
         : null;
     Navigator.of(context).maybePop(id);
+    _flushDeferred(app);
+  }
+
+  Future<void> _flushDeferred(AppController app) async {
+    for (final id in _deferredUnlike.toList()) {
+      await app.unlikeLocally(id);
+    }
+    for (final id in _deferredUnbookmark.toList()) {
+      await app.unbookmarkLocally(id);
+    }
+    _deferredUnlike.clear();
+    _deferredUnbookmark.clear();
   }
 
   @override
@@ -203,6 +228,7 @@ class _FeedPageState extends State<FeedPage> {
                 onRequestNext: _goNext,
                 onClose: _close,
                 onRemoved: _afterRemoved,
+                onDeferredRemove: _markDeferred,
               );
             },
           );
@@ -227,6 +253,7 @@ class _FeedItem extends StatefulWidget {
     required this.onImmersiveChanged,
     this.extraTopAction,
     this.onRequestNext,
+    this.onDeferredRemove,
     this.cache,
   });
 
@@ -237,6 +264,9 @@ class _FeedItem extends StatefulWidget {
   final PlaybackSettings settings;
   final VoidCallback onClose;
   final void Function(String tweetId) onRemoved;
+
+  /// 「这条被取消了喜欢/书签」——先记在外层，退出播放页时才落库。
+  final void Function(String tweetId, {required bool like})? onDeferredRemove;
   final MediaCache? cache;
 
   /// 是否「只看内容」（由 FeedPage 持有，跨条保持）。
@@ -547,12 +577,17 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
       // 乐观：点下去先翻转，写回慢（要走网页）也不让按钮「没反应」。
       targetLike ? _unliked.remove(item.tweetId) : _unliked.add(item.tweetId);
     });
+    // 恢复喜欢要落库（让它重新出现）；取消只发网络 —— 本地等退出时才移除，
+    // 这样这条会留在原地，不会「点一下页面自己翻走」。
     final err = targetLike
         ? await _app.like(item.tweetId)
-        : await _app.unlike(item.tweetId);
+        : await _app.unlikeRemote(item.tweetId);
     if (!mounted) return;
     if (err == null) {
       setState(() => _busyUnlike = false);
+      if (!targetLike) {
+        widget.onDeferredRemove?.call(item.tweetId, like: true);
+      }
       _flashHint(targetLike ? t('play.liked') : t('play.unliked'));
       return;
     }
@@ -575,7 +610,8 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
     if (targetLike) {
       await _app.likeLocally(item.tweetId);
     } else {
-      await _app.unlikeLocally(item.tweetId);
+      // 取消喜欢：本地先不动，退出播放页时统一落地（见 _flushDeferred）。
+      widget.onDeferredRemove?.call(item.tweetId, like: true);
     }
     if (!mounted) return;
     _flashHint(targetLike ? t('play.liked') : t('play.unliked'));
@@ -594,12 +630,17 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
       _busyBookmark = true;
       _bookmarked = target; // 乐观
     });
-    final err = wasBookmarked
-        ? await _app.unbookmark(item.tweetId)
-        : await _app.bookmark(item);
+    // 加上书签要落库（立刻出现在书签列表里）；移除只发网络。
+    final err = target
+        ? await _app.bookmark(item)
+        : await _app.unbookmarkRemote(item.tweetId);
     if (!mounted) return;
     if (err == null) {
       setState(() => _busyBookmark = false);
+      if (!target) {
+        // 取消书签：本地先不动，退出播放页时统一落地。
+        widget.onDeferredRemove?.call(item.tweetId, like: false);
+      }
       _flashHint(
         _bookmarked ? t('play.bookmarkAdded') : t('play.bookmarkRemoved'),
       );
@@ -619,10 +660,11 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
       return;
     }
-    if (wasBookmarked) {
-      await _app.unbookmarkLocally(item.tweetId);
-    } else {
+    if (target) {
       await _app.bookmarkLocally(item);
+    } else {
+      // 取消书签：本地先不动，退出播放页时统一落地（见 _flushDeferred）。
+      widget.onDeferredRemove?.call(item.tweetId, like: false);
     }
     if (!mounted) return;
     _flashHint(
@@ -1349,7 +1391,11 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
                           backgroundColor: Colors.white24,
                           child: Icon(Icons.person, color: Colors.white),
                         )
-                      : AuthorAvatar(url: author!.avatarUrl!, radius: 21),
+                      : AuthorAvatar(
+                          url: author!.avatarUrl!,
+                          radius: 21,
+                          cache: widget.cache,
+                        ),
                 ),
               ),
               if (_following)

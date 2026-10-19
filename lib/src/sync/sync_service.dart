@@ -459,6 +459,18 @@ class SyncService {
   /// 喜欢的**本地部分**（写回由 WebView 兜底完成后调用）。
   void likeLocally(String tweetId) => db.restoreLike(tweetId);
 
+  /// 取消喜欢 / 移出书签：**只发网络**，不动本地。
+  ///
+  /// 播放页里取消之后，那条要留在原地（否则列表少一条、PageView 直接滑走，
+  /// 用户会以为翻页了）。真正的本地移除等退出播放页时由 [unlikeLocally] 补上。
+  Future<void> unlikeRemote(String tweetId) async {
+    await client.unlike(tweetId);
+  }
+
+  Future<void> deleteBookmarkRemote(String tweetId) async {
+    await client.deleteBookmark(tweetId);
+  }
+
   void unlikeLocally(String tweetId) => db.markRemoved([tweetId]);
 
   /// 加入书签：先写回 X，成功后再落本地。

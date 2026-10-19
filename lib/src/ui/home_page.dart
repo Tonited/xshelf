@@ -560,15 +560,17 @@ class _SourceListState extends State<_SourceList>
 
     return RefreshIndicator(
       onRefresh: () async {
+        // 随机模式下「下拉」的语义就是重洗 —— 必须先判它，
+        // 否则会被下面 hasOlder 的分支吃掉（还有更早的内容时就永远不重洗）。
+        if (browse.mode == SortMode.random) {
+          await browse.reshuffle();
+          return;
+        }
         if (browse.hasOlder) {
           await browse.loadPrev();
           return;
         }
-        if (browse.mode == SortMode.random) {
-          await browse.reshuffle();
-        } else {
-          await app.sync.syncNew(kind: _kind);
-        }
+        await app.sync.syncNew(kind: _kind);
       },
       child: Center(
         child: ConstrainedBox(

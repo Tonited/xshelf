@@ -317,10 +317,19 @@ class _MediaImageState extends State<MediaImage> {
 
 /// 圆形头像（作者）：尺寸很小，单独给一个小的解码宽度。
 class AuthorAvatar extends StatelessWidget {
-  const AuthorAvatar({super.key, required this.url, this.radius = 14});
+  const AuthorAvatar({
+    super.key,
+    required this.url,
+    this.radius = 14,
+    this.cache,
+  });
 
   final String url;
   final double radius;
+
+  /// 传进来才会落磁盘缓存。不传的话只有 Flutter 的内存 ImageCache ——
+  /// 那是**进程级**的，重启 App 再断网，头像就全变灰了。
+  final MediaCache? cache;
 
   @override
   Widget build(BuildContext context) {
@@ -333,6 +342,7 @@ class AuthorAvatar extends StatelessWidget {
           height: radius * 2,
           child: MediaImage(
             url: url,
+            cache: cache,
             cacheWidth: (radius * 2 * MediaQuery.devicePixelRatioOf(context))
                 .round(),
             fit: BoxFit.cover,

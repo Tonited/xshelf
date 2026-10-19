@@ -158,7 +158,11 @@ class _AuthorPageState extends State<AuthorPage>
                       radius: 30,
                       child: Icon(Icons.person, size: 30),
                     )
-                  : AuthorAvatar(url: author.avatarUrl!, radius: 30),
+                  : AuthorAvatar(
+                      url: author.avatarUrl!,
+                      radius: 30,
+                      cache: widget.cache,
+                    ),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(

@@ -79,7 +79,11 @@ class _SettingsPageState extends State<SettingsPage> {
                 ListTile(
                   leading: app.session?.avatarUrl == null
                       ? const CircleAvatar(child: Icon(Icons.person))
-                      : AuthorAvatar(url: app.session!.avatarUrl!, radius: 20),
+                      : AuthorAvatar(
+                          url: app.session!.avatarUrl!,
+                          radius: 20,
+                          cache: app.mediaCache,
+                        ),
                   title: Text(app.session?.displayName ?? ''),
                   subtitle: Text('@${app.session?.screenName ?? ''}'),
                   trailing: TextButton(

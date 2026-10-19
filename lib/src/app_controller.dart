@@ -435,6 +435,12 @@ class AppController extends ChangeNotifier {
     return null;
   }
 
+  /// 只发网络、不动本地：播放页里取消后用，退出播放页时才真正落库。
+  Future<String?> unlikeRemote(String tweetId) => sync.unlikeRemote(tweetId);
+
+  Future<String?> unbookmarkRemote(String tweetId) =>
+      sync.unbookmarkRemote(tweetId);
+
   /// WebView 兜底成功之后的本地落地：网络那一步已经在网页里做完了。
   Future<void> bookmarkLocally(LikeItem item) async {
     syncService?.bookmarkLocally(item, accountId: accountId ?? 0);

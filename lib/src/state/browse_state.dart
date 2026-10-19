@@ -356,7 +356,11 @@ class BrowseState extends ChangeNotifier implements FeedSource {
   }
 
   Future<void> reshuffle() async {
-    db.reshuffle();
+    // 必须按自己的来源重洗：`db.reshuffle()` 默认 kind='like'，
+    // 不传的话书签页下拉会去重洗喜欢的 rand_key，书签顺序一点没变。
+    for (final k in kinds) {
+      db.reshuffle(kind: k);
+    }
     if (mode == SortMode.random) {
       await reload(reset: true);
     } else {

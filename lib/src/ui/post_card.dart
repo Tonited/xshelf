@@ -209,7 +209,7 @@ class PostCard extends StatelessWidget {
         child: const Icon(Icons.person, size: 22),
       );
     }
-    return AuthorAvatar(url: url, radius: 21);
+    return AuthorAvatar(url: url, radius: 21, cache: cache);
   }
 
   Widget _header(

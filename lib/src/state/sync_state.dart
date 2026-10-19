@@ -172,6 +172,27 @@ class SyncController extends ChangeNotifier {
     }
   }
 
+  /// 取消喜欢：**只发网络**（播放页里取消后要留在原地，退出时才落库）。
+  Future<String?> unlikeRemote(String tweetId) =>
+      _remote((svc) => svc.unlikeRemote(tweetId));
+
+  /// 移除书签：**只发网络**。
+  Future<String?> unbookmarkRemote(String tweetId) =>
+      _remote((svc) => svc.deleteBookmarkRemote(tweetId));
+
+  Future<String?> _remote(Future<void> Function(SyncService svc) run) async {
+    final svc = serviceOf();
+    if (svc == null) return '未登录';
+    try {
+      await run(svc);
+      return null;
+    } on XRequestException catch (e) {
+      return e.message;
+    } catch (e) {
+      return '$e';
+    }
+  }
+
   /// 重新喜欢（取消之后又点回来）。
   Future<String?> like(String tweetId) async {
     final svc = serviceOf();
