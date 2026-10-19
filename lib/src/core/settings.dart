@@ -32,27 +32,26 @@ class AutoSyncSettings {
     int? rangeDays,
     int? maxItems,
     bool clearRange = false,
-  }) =>
-      AutoSyncSettings(
-        enabled: enabled ?? this.enabled,
-        intervalMinutes: intervalMinutes ?? this.intervalMinutes,
-        rangeDays: clearRange ? null : (rangeDays ?? this.rangeDays),
-        maxItems: maxItems ?? this.maxItems,
-      );
+  }) => AutoSyncSettings(
+    enabled: enabled ?? this.enabled,
+    intervalMinutes: intervalMinutes ?? this.intervalMinutes,
+    rangeDays: clearRange ? null : (rangeDays ?? this.rangeDays),
+    maxItems: maxItems ?? this.maxItems,
+  );
 
   Map<String, Object?> toJson() => {
-        'enabled': enabled,
-        'intervalMinutes': intervalMinutes,
-        if (rangeDays != null) 'rangeDays': rangeDays,
-        'maxItems': maxItems,
-      };
+    'enabled': enabled,
+    'intervalMinutes': intervalMinutes,
+    if (rangeDays != null) 'rangeDays': rangeDays,
+    'maxItems': maxItems,
+  };
 
   factory AutoSyncSettings.fromJson(Map<String, Object?> j) => AutoSyncSettings(
-        enabled: j['enabled'] as bool? ?? false,
-        intervalMinutes: (j['intervalMinutes'] as num?)?.toInt() ?? 30,
-        rangeDays: (j['rangeDays'] as num?)?.toInt(),
-        maxItems: (j['maxItems'] as num?)?.toInt() ?? 500,
-      );
+    enabled: j['enabled'] as bool? ?? false,
+    intervalMinutes: (j['intervalMinutes'] as num?)?.toInt() ?? 30,
+    rangeDays: (j['rangeDays'] as num?)?.toInt(),
+    maxItems: (j['maxItems'] as num?)?.toInt() ?? 500,
+  );
 }
 
 /// 播放器偏好。
@@ -112,42 +111,45 @@ class PlaybackSettings {
     bool? autoNext,
     bool? showSaveToGallery,
     bool? autoPlayInList,
-  }) =>
-      PlaybackSettings(
-        doubleTapSeconds: doubleTapSeconds ?? this.doubleTapSeconds,
-        longPressSpeed: longPressSpeed ?? this.longPressSpeed,
-        qualityTier: qualityTier ?? this.qualityTier,
-        autoUpgrade: autoUpgrade ?? this.autoUpgrade,
-        loop: loop ?? this.loop,
-        autoNext: autoNext ?? this.autoNext,
-        showSaveToGallery: showSaveToGallery ?? this.showSaveToGallery,
-        autoPlayInList: autoPlayInList ?? this.autoPlayInList,
-      );
+  }) => PlaybackSettings(
+    doubleTapSeconds: doubleTapSeconds ?? this.doubleTapSeconds,
+    longPressSpeed: longPressSpeed ?? this.longPressSpeed,
+    qualityTier: qualityTier ?? this.qualityTier,
+    autoUpgrade: autoUpgrade ?? this.autoUpgrade,
+    loop: loop ?? this.loop,
+    autoNext: autoNext ?? this.autoNext,
+    showSaveToGallery: showSaveToGallery ?? this.showSaveToGallery,
+    autoPlayInList: autoPlayInList ?? this.autoPlayInList,
+  );
 
   Map<String, Object?> toJson() => {
-        'doubleTapSeconds': doubleTapSeconds,
-        'longPressSpeed': longPressSpeed,
-        'qualityTier': qualityTier.name,
-        'autoUpgrade': autoUpgrade,
-        'loop': loop,
-        'autoNext': autoNext,
-        'showSaveToGallery': showSaveToGallery,
-        'autoPlayInList': autoPlayInList,
-      };
+    'doubleTapSeconds': doubleTapSeconds,
+    'longPressSpeed': longPressSpeed,
+    'qualityTier': qualityTier.name,
+    'autoUpgrade': autoUpgrade,
+    'loop': loop,
+    'autoNext': autoNext,
+    'showSaveToGallery': showSaveToGallery,
+    'autoPlayInList': autoPlayInList,
+  };
 
   factory PlaybackSettings.fromJson(Map<String, Object?> j) => PlaybackSettings(
-        doubleTapSeconds:
-            ((j['doubleTapSeconds'] as num?)?.toInt() ?? 10).clamp(1, 120),
-        longPressSpeed:
-            ((j['longPressSpeed'] as num?)?.toDouble() ?? 2.0).clamp(0.5, 5.0),
-        // 老设置里是 `quality: auto|high|medium|low`，映射到新档位。
-        qualityTier: _tierFromJson(j),
-        autoUpgrade: j['autoUpgrade'] as bool? ?? true,
-        loop: j['loop'] as bool? ?? true,
-        autoNext: j['autoNext'] as bool? ?? false,
-        showSaveToGallery: j['showSaveToGallery'] as bool? ?? true,
-        autoPlayInList: j['autoPlayInList'] as bool? ?? false,
-      );
+    doubleTapSeconds: ((j['doubleTapSeconds'] as num?)?.toInt() ?? 10).clamp(
+      1,
+      120,
+    ),
+    longPressSpeed: ((j['longPressSpeed'] as num?)?.toDouble() ?? 2.0).clamp(
+      0.5,
+      5.0,
+    ),
+    // 老设置里是 `quality: auto|high|medium|low`，映射到新档位。
+    qualityTier: _tierFromJson(j),
+    autoUpgrade: j['autoUpgrade'] as bool? ?? true,
+    loop: j['loop'] as bool? ?? true,
+    autoNext: j['autoNext'] as bool? ?? false,
+    showSaveToGallery: j['showSaveToGallery'] as bool? ?? true,
+    autoPlayInList: j['autoPlayInList'] as bool? ?? false,
+  );
 
   static QualityTier _tierFromJson(Map<String, Object?> j) {
     final raw = j['qualityTier'] as String?;
@@ -179,28 +181,28 @@ class ViewSnapshot {
   final double scrollOffset;
 
   Map<String, Object?> toJson() => {
-        'mode': mode.name,
-        'filter': filter.toJson(),
-        if (anchorSeq != null) 'anchorSeq': anchorSeq,
-        if (selectedTweetId != null) 'selected': selectedTweetId,
-        'scrollOffset': scrollOffset,
-      };
+    'mode': mode.name,
+    'filter': filter.toJson(),
+    if (anchorSeq != null) 'anchorSeq': anchorSeq,
+    if (selectedTweetId != null) 'selected': selectedTweetId,
+    'scrollOffset': scrollOffset,
+  };
 
   factory ViewSnapshot.fromJson(Map<String, Object?> j) => ViewSnapshot(
-        mode: SortMode.fromName(j['mode'] as String?),
-        filter: LikesFilter.fromJson(
-            Map<String, Object?>.from(j['filter'] as Map? ?? const {})),
-        anchorSeq: (j['anchorSeq'] as num?)?.toInt(),
-        selectedTweetId: j['selected'] as String?,
-        scrollOffset: (j['scrollOffset'] as num?)?.toDouble() ?? 0,
-      );
+    mode: SortMode.fromName(j['mode'] as String?),
+    filter: LikesFilter.fromJson(
+      Map<String, Object?>.from(j['filter'] as Map? ?? const {}),
+    ),
+    anchorSeq: (j['anchorSeq'] as num?)?.toInt(),
+    selectedTweetId: j['selected'] as String?,
+    scrollOffset: (j['scrollOffset'] as num?)?.toDouble() ?? 0,
+  );
 }
 
 class AppSettings {
   AppSettings(this._prefs) : _memory = <String, Object?>{};
 
-  AppSettings._memory(this._memory)
-      : _prefs = null;
+  AppSettings._memory(this._memory) : _prefs = null;
 
   final SharedPreferences? _prefs;
 
@@ -346,8 +348,7 @@ class AppSettings {
       final decoded = jsonDecode(raw);
       if (decoded is Map) {
         final order = [
-          for (final e in (decoded['order'] as List? ?? const []))
-            e.toString(),
+          for (final e in (decoded['order'] as List? ?? const [])) e.toString(),
         ];
         final hidden = {
           for (final e in (decoded['hidden'] as List? ?? const []))
@@ -396,7 +397,8 @@ class AppSettings {
     final raw = _getString(_kProxy);
     if (raw == null) return const ProxyConfig();
     return ProxyConfig.fromJson(
-        Map<String, Object?>.from(jsonDecode(raw) as Map));
+      Map<String, Object?>.from(jsonDecode(raw) as Map),
+    );
   }
 
   Future<void> setProxy(ProxyConfig cfg) =>
@@ -406,7 +408,8 @@ class AppSettings {
     final raw = _getString(_kAutoSync);
     if (raw == null) return const AutoSyncSettings();
     return AutoSyncSettings.fromJson(
-        Map<String, Object?>.from(jsonDecode(raw) as Map));
+      Map<String, Object?>.from(jsonDecode(raw) as Map),
+    );
   }
 
   Future<void> setAutoSync(AutoSyncSettings s) =>
@@ -416,7 +419,8 @@ class AppSettings {
     final raw = _getString(_kView);
     if (raw == null) return const ViewSnapshot();
     return ViewSnapshot.fromJson(
-        Map<String, Object?>.from(jsonDecode(raw) as Map));
+      Map<String, Object?>.from(jsonDecode(raw) as Map),
+    );
   }
 
   Future<void> setView(ViewSnapshot s) =>
@@ -426,7 +430,8 @@ class AppSettings {
     final raw = _getString(_kPlayback);
     if (raw == null) return const PlaybackSettings();
     return PlaybackSettings.fromJson(
-        Map<String, Object?>.from(jsonDecode(raw) as Map));
+      Map<String, Object?>.from(jsonDecode(raw) as Map),
+    );
   }
 
   Future<void> setPlayback(PlaybackSettings s) =>
@@ -476,16 +481,14 @@ class AppSettings {
   /// 翻译目标语言（`zh` / `en` / `ja` …）。默认翻成中文。
   String get translateTo => _getString(_kTranslateTo) ?? 'zh';
 
-  Future<void> setTranslateTo(String code) =>
-      _setString(_kTranslateTo, code);
+  Future<void> setTranslateTo(String code) => _setString(_kTranslateTo, code);
 
   /// 列表里自动翻译正文（默认关）。
   ///
   /// 关着的时候列表就是原文，一次请求都不发；开了之后只翻列表里显示的那段正文，
   /// 并且 @提及 / #话题 / 链接会被剔掉（见 rich_text.translatableBody）。
   bool get autoTranslate {
-    final raw = _prefs?.getBool(_kAutoTranslate) ??
-        _memory[_kAutoTranslate];
+    final raw = _prefs?.getBool(_kAutoTranslate) ?? _memory[_kAutoTranslate];
     return raw is bool ? raw : false;
   }
 

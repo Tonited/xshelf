@@ -79,11 +79,12 @@ class _BootFailure extends StatelessWidget {
                 OutlinedButton.icon(
                   onPressed: () async {
                     await Clipboard.setData(
-                        ClipboardData(text: app.diagnostics()));
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(t('error.copied'))),
+                      ClipboardData(text: app.diagnostics()),
                     );
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text(t('error.copied'))));
                   },
                   icon: const Icon(Icons.copy, size: 18),
                   label: Text(t('error.copy')),

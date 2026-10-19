@@ -10,57 +10,57 @@ void main() {
   const freshId = 'FresHQueryId01';
 
   Map<String, Object?> page() => {
-        'data': {
-          'user': {
-            'result': {
-              'timeline_v2': {
-                'timeline': {
-                  'instructions': [
+    'data': {
+      'user': {
+        'result': {
+          'timeline_v2': {
+            'timeline': {
+              'instructions': [
+                {
+                  'type': 'TimelineAddEntries',
+                  'entries': [
                     {
-                      'type': 'TimelineAddEntries',
-                      'entries': [
-                        {
-                          'entryId': 'tweet-1',
-                          'content': {
-                            'entryType': 'TimelineTimelineItem',
-                            'itemContent': {
-                              'itemType': 'TimelineTweet',
-                              'tweet_results': {
-                                'result': {
-                                  'rest_id': '1',
-                                  '__typename': 'Tweet',
-                                  'legacy': {
-                                    'full_text': 'hi',
-                                    'created_at':
-                                        'Mon Jan 04 00:00:00 +0000 2021',
-                                  },
-                                },
+                      'entryId': 'tweet-1',
+                      'content': {
+                        'entryType': 'TimelineTimelineItem',
+                        'itemContent': {
+                          'itemType': 'TimelineTweet',
+                          'tweet_results': {
+                            'result': {
+                              'rest_id': '1',
+                              '__typename': 'Tweet',
+                              'legacy': {
+                                'full_text': 'hi',
+                                'created_at': 'Mon Jan 04 00:00:00 +0000 2021',
                               },
                             },
                           },
                         },
-                      ],
+                      },
                     },
                   ],
                 },
-              },
+              ],
             },
           },
         },
-      };
+      },
+    },
+  };
 
   /// 一个会 404 旧 queryId、并从「前端 JS」里暴露新 queryId 的假 X。
-  MockClient fakeX({
-    required void Function(String path) hits,
-  }) =>
+  MockClient fakeX({required void Function(String path) hits}) =>
       MockClient((request) async {
         final url = request.url;
         hits(url.toString());
 
         if (url.path.contains('/i/api/graphql/')) {
           if (url.path.contains(freshId)) {
-            return http.Response(jsonEncode(page()), 200,
-                headers: {'content-type': 'application/json'});
+            return http.Response(
+              jsonEncode(page()),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
           }
           // 旧 queryId：X 的典型回应
           return http.Response(jsonEncode({'errors': []}), 404);

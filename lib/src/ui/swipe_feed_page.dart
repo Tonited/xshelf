@@ -75,7 +75,9 @@ class _SwipeFeedPageState extends State<SwipeFeedPage> {
     final wanted = _tab == SwipeTab.following
         ? "['Following','正在关注','关注']"
         : "['For you','For You','为你推荐','推荐']";
-    await controller.evaluateJavascript(source: '''
+    await controller.evaluateJavascript(
+      source:
+          '''
 (function(){
   var wanted = $wanted;
   var nodes = Array.prototype.slice.call(
@@ -91,7 +93,8 @@ class _SwipeFeedPageState extends State<SwipeFeedPage> {
   }
   return false;
 })();
-''');
+''',
+    );
   }
 
   Future<void> _switchTab(SwipeTab next) async {
@@ -107,18 +110,22 @@ class _SwipeFeedPageState extends State<SwipeFeedPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_tab == SwipeTab.following
-            ? t('swipe.following')
-            : t('swipe.recommended')),
+        title: Text(
+          _tab == SwipeTab.following
+              ? t('swipe.following')
+              : t('swipe.recommended'),
+        ),
         actions: [
           IconButton(
             tooltip: t('swipe.switch'),
-            onPressed: () => _switchTab(_tab == SwipeTab.following
-                ? SwipeTab.forYou
-                : SwipeTab.following),
-            icon: Icon(_tab == SwipeTab.following
-                ? Icons.people_alt
-                : Icons.auto_awesome),
+            onPressed: () => _switchTab(
+              _tab == SwipeTab.following ? SwipeTab.forYou : SwipeTab.following,
+            ),
+            icon: Icon(
+              _tab == SwipeTab.following
+                  ? Icons.people_alt
+                  : Icons.auto_awesome,
+            ),
           ),
           IconButton(
             tooltip: t('author.openX'),
@@ -149,7 +156,8 @@ class _SwipeFeedPageState extends State<SwipeFeedPage> {
                     if (mounted) setState(() => _loading = false);
                     // 页面刚起来时标签可能还没渲染，稍等一下再点。
                     await Future<void>.delayed(
-                        const Duration(milliseconds: 900));
+                      const Duration(milliseconds: 900),
+                    );
                     if (!mounted) return;
                     await _selectTab(controller);
                   },

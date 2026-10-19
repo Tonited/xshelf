@@ -125,14 +125,17 @@ class _SettingsPageState extends State<SettingsPage> {
                   SegmentedButton<ProxyMode>(
                     segments: [
                       ButtonSegment(
-                          value: ProxyMode.system,
-                          label: Text(t('settings.proxySystem'))),
+                        value: ProxyMode.system,
+                        label: Text(t('settings.proxySystem')),
+                      ),
                       ButtonSegment(
-                          value: ProxyMode.manual,
-                          label: Text(t('settings.proxyManual'))),
+                        value: ProxyMode.manual,
+                        label: Text(t('settings.proxyManual')),
+                      ),
                       ButtonSegment(
-                          value: ProxyMode.direct,
-                          label: Text(t('settings.proxyDirect'))),
+                        value: ProxyMode.direct,
+                        label: Text(t('settings.proxyDirect')),
+                      ),
                     ],
                     selected: {_proxy.mode},
                     onSelectionChanged: (s) {
@@ -142,8 +145,10 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   if (app.proxyWarning != null) ...[
                     const SizedBox(height: 8),
-                    Text(app.proxyWarning!,
-                        style: TextStyle(color: theme.colorScheme.error)),
+                    Text(
+                      app.proxyWarning!,
+                      style: TextStyle(color: theme.colorScheme.error),
+                    ),
                   ],
                   if (_proxy.mode == ProxyMode.manual) ...[
                     const SizedBox(height: 12),
@@ -152,14 +157,19 @@ class _SettingsPageState extends State<SettingsPage> {
                         SegmentedButton<ProxyType>(
                           segments: const [
                             ButtonSegment(
-                                value: ProxyType.http, label: Text('HTTP')),
+                              value: ProxyType.http,
+                              label: Text('HTTP'),
+                            ),
                             ButtonSegment(
-                                value: ProxyType.socks5, label: Text('SOCKS5')),
+                              value: ProxyType.socks5,
+                              label: Text('SOCKS5'),
+                            ),
                           ],
                           selected: {_proxy.type},
                           onSelectionChanged: (s) {
-                            setState(() =>
-                                _proxy = _proxy.copyWith(type: s.first));
+                            setState(
+                              () => _proxy = _proxy.copyWith(type: s.first),
+                            );
                             _saveProxy(app);
                           },
                         ),
@@ -172,8 +182,9 @@ class _SettingsPageState extends State<SettingsPage> {
                           flex: 3,
                           child: TextField(
                             controller: _host,
-                            decoration:
-                                InputDecoration(labelText: t('settings.proxyHost')),
+                            decoration: InputDecoration(
+                              labelText: t('settings.proxyHost'),
+                            ),
                             onSubmitted: (_) => _saveProxy(app),
                           ),
                         ),
@@ -182,8 +193,9 @@ class _SettingsPageState extends State<SettingsPage> {
                           child: TextField(
                             controller: _port,
                             keyboardType: TextInputType.number,
-                            decoration:
-                                InputDecoration(labelText: t('settings.proxyPort')),
+                            decoration: InputDecoration(
+                              labelText: t('settings.proxyPort'),
+                            ),
                             onSubmitted: (_) => _saveProxy(app),
                           ),
                         ),
@@ -195,8 +207,9 @@ class _SettingsPageState extends State<SettingsPage> {
                         Expanded(
                           child: TextField(
                             controller: _user,
-                            decoration:
-                                InputDecoration(labelText: t('settings.proxyUser')),
+                            decoration: InputDecoration(
+                              labelText: t('settings.proxyUser'),
+                            ),
                             onSubmitted: (_) => _saveProxy(app),
                           ),
                         ),
@@ -205,8 +218,9 @@ class _SettingsPageState extends State<SettingsPage> {
                           child: TextField(
                             controller: _pass,
                             obscureText: true,
-                            decoration:
-                                InputDecoration(labelText: t('settings.proxyPass')),
+                            decoration: InputDecoration(
+                              labelText: t('settings.proxyPass'),
+                            ),
                             onSubmitted: (_) => _saveProxy(app),
                           ),
                         ),
@@ -262,12 +276,16 @@ class _SettingsPageState extends State<SettingsPage> {
                             Icon(
                               d.ok ? Icons.check_circle : Icons.error,
                               size: 16,
-                              color: d.ok ? Colors.green : theme.colorScheme.error,
+                              color: d.ok
+                                  ? Colors.green
+                                  : theme.colorScheme.error,
                             ),
                             const SizedBox(width: 6),
                             Expanded(child: Text(d.host)),
-                            Text('${d.ms}ms · ${d.note ?? ""}',
-                                style: theme.textTheme.bodySmall),
+                            Text(
+                              '${d.ms}ms · ${d.note ?? ""}',
+                              style: theme.textTheme.bodySmall,
+                            ),
                           ],
                         ),
                       ),
@@ -292,14 +310,16 @@ class _SettingsPageState extends State<SettingsPage> {
                     final progress = app.sync.progress;
                     return ListTile(
                       leading: const Icon(Icons.cloud_download_outlined),
-                      title: Text(app.sync.backfillDone
-                          ? t('sync.backfill')
-                          : t('sync.resume')),
+                      title: Text(
+                        app.sync.backfillDone
+                            ? t('sync.backfill')
+                            : t('sync.resume'),
+                      ),
                       subtitle: Text(
                         busy && progress != null
                             ? '${progress.pages} ${t('sync.pages')} · '
-                                '${progress.fetched} ${t('sync.items')} · '
-                                '+${progress.inserted}'
+                                  '${progress.fetched} ${t('sync.items')} · '
+                                  '+${progress.inserted}'
                             : t('sync.backfillHint'),
                         style: theme.textTheme.bodySmall,
                       ),
@@ -330,14 +350,18 @@ class _SettingsPageState extends State<SettingsPage> {
                   trailing: DropdownButton<int>(
                     value: _auto.intervalMinutes,
                     items: const [15, 30, 60, 360, 1440]
-                        .map((v) => DropdownMenuItem(
-                              value: v,
-                              child: Text(v >= 60 ? '${v ~/ 60}h' : '${v}m'),
-                            ))
+                        .map(
+                          (v) => DropdownMenuItem(
+                            value: v,
+                            child: Text(v >= 60 ? '${v ~/ 60}h' : '${v}m'),
+                          ),
+                        )
                         .toList(),
                     onChanged: (v) async {
                       if (v == null) return;
-                      setState(() => _auto = _auto.copyWith(intervalMinutes: v));
+                      setState(
+                        () => _auto = _auto.copyWith(intervalMinutes: v),
+                      );
                       await app.setAutoSync(_auto);
                     },
                   ),
@@ -347,14 +371,19 @@ class _SettingsPageState extends State<SettingsPage> {
                   trailing: DropdownButton<int?>(
                     value: _auto.rangeDays,
                     items: [
-                      DropdownMenuItem(value: null, child: Text(t('filter.all'))),
+                      DropdownMenuItem(
+                        value: null,
+                        child: Text(t('filter.all')),
+                      ),
                       const DropdownMenuItem(value: 7, child: Text('7d')),
                       const DropdownMenuItem(value: 30, child: Text('30d')),
                     ],
                     onChanged: (v) async {
-                      setState(() => _auto = v == null
-                          ? _auto.copyWith(clearRange: true)
-                          : _auto.copyWith(rangeDays: v));
+                      setState(
+                        () => _auto = v == null
+                            ? _auto.copyWith(clearRange: true)
+                            : _auto.copyWith(rangeDays: v),
+                      );
                       await app.setAutoSync(_auto);
                     },
                   ),
@@ -425,15 +454,18 @@ class _SettingsPageState extends State<SettingsPage> {
                   trailing: SizedBox(
                     width: 120,
                     child: DropdownButton<int>(
-                      value: [5, 10, 15, 20, 30].contains(_play.doubleTapSeconds)
+                      value:
+                          [5, 10, 15, 20, 30].contains(_play.doubleTapSeconds)
                           ? _play.doubleTapSeconds
                           : 10,
                       items: const [5, 10, 15, 20, 30]
-                          .map((v) => DropdownMenuItem(
-                                value: v,
-                                alignment: AlignmentDirectional.centerEnd,
-                                child: Text('${v}s'),
-                              ))
+                          .map(
+                            (v) => DropdownMenuItem(
+                              value: v,
+                              alignment: AlignmentDirectional.centerEnd,
+                              child: Text('${v}s'),
+                            ),
+                          )
                           .toList(),
                       onChanged: (v) {
                         if (v == null) return;
@@ -447,11 +479,13 @@ class _SettingsPageState extends State<SettingsPage> {
                   trailing: DropdownButton<double>(
                     value: _play.longPressSpeed,
                     items: const [1.5, 2.0, 2.5, 3.0]
-                        .map((v) => DropdownMenuItem(
-                              value: v,
-                              alignment: AlignmentDirectional.centerEnd,
-                              child: Text('${v}x'),
-                            ))
+                        .map(
+                          (v) => DropdownMenuItem(
+                            value: v,
+                            alignment: AlignmentDirectional.centerEnd,
+                            child: Text('${v}x'),
+                          ),
+                        )
                         .toList(),
                     onChanged: (v) {
                       if (v == null) return;
@@ -546,7 +580,8 @@ class _SettingsPageState extends State<SettingsPage> {
                       max: 51200,
                       divisions: 99,
                       label: '${(_cacheLimitMb / 1024).toStringAsFixed(1)} GB',
-                      onChanged: (v) => setState(() => _cacheLimitMb = v.round()),
+                      onChanged: (v) =>
+                          setState(() => _cacheLimitMb = v.round()),
                       onChangeEnd: (v) async {
                         await app.settings.setCacheLimitMb(v.round());
                         final cache = app.mediaCache;
@@ -565,7 +600,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 ListTile(
                   title: Text(t('settings.cacheClear')),
                   subtitle: Text(
-                      '${((app.mediaCache?.usedBytes ?? app.db.mediaCacheBytes()) / 1024 / 1024).toStringAsFixed(1)} MB'),
+                    '${((app.mediaCache?.usedBytes ?? app.db.mediaCacheBytes()) / 1024 / 1024).toStringAsFixed(1)} MB',
+                  ),
                   trailing: TextButton(
                     onPressed: () {
                       final cache = app.mediaCache;
@@ -592,8 +628,10 @@ class _SettingsPageState extends State<SettingsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('X Like Manage · $kAppVersion',
-                      style: theme.textTheme.titleSmall),
+                  Text(
+                    'X Like Manage · $kAppVersion',
+                    style: theme.textTheme.titleSmall,
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     t('settings.riskNote'),
@@ -614,8 +652,7 @@ class _SettingsPageState extends State<SettingsPage> {
   ///
   /// 每一项都能拖动排序；除「设置」外都能隐藏（设置是唯一的自救入口）。
   Future<void> _editNavTabs(AppController app) async {
-    final result = await showDialog<
-        ({List<String> order, Set<String> hidden})>(
+    final result = await showDialog<({List<String> order, Set<String> hidden})>(
       context: context,
       builder: (_) => _NavTabsDialog(
         initialOrder: app.settings.navOrder,
@@ -623,16 +660,15 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
     );
     if (result == null) return;
-    await app.settings
-        .setNavConfig(order: result.order, hidden: result.hidden);
+    await app.settings.setNavConfig(order: result.order, hidden: result.hidden);
     app.refreshSettings();
     if (mounted) setState(() {});
   }
 
   Widget _section(BuildContext context, String title) => Padding(
-        padding: const EdgeInsets.only(bottom: 8, top: 8),
-        child: Text(title, style: Theme.of(context).textTheme.titleSmall),
-      );
+    padding: const EdgeInsets.only(bottom: 8, top: 8),
+    child: Text(title, style: Theme.of(context).textTheme.titleSmall),
+  );
 
   Future<void> _startBackfill(AppController app) async {
     final ok = await showDialog<bool>(
@@ -655,7 +691,8 @@ class _SettingsPageState extends State<SettingsPage> {
     if (ok == true) await app.sync.startBackfill();
   }
 
-  Future<void> _savePlay(AppController app, PlaybackSettings next) async {    setState(() => _play = next);
+  Future<void> _savePlay(AppController app, PlaybackSettings next) async {
+    setState(() => _play = next);
     await app.setPlayback(next);
   }
 
@@ -678,7 +715,10 @@ class _SettingsPageState extends State<SettingsPage> {
 /// 被隐藏的项仍然留在列表里（只是没勾），所以想放回来时位置还是原来的，
 /// 不用重新拖一遍。
 class _NavTabsDialog extends StatefulWidget {
-  const _NavTabsDialog({required this.initialOrder, required this.initialHidden});
+  const _NavTabsDialog({
+    required this.initialOrder,
+    required this.initialHidden,
+  });
 
   final List<String> initialOrder;
   final Set<String> initialHidden;
@@ -709,12 +749,12 @@ class _NavTabsDialogState extends State<_NavTabsDialog> {
   }
 
   String label(String key) => switch (key) {
-        'search' => t('nav.search'),
-        'swipe' => t('nav.swipe'),
-        'grok' => t('nav.grok'),
-        'settings' => t('nav.settings'),
-        _ => t('nav.browse'),
-      };
+    'search' => t('nav.search'),
+    'swipe' => t('nav.swipe'),
+    'grok' => t('nav.grok'),
+    'settings' => t('nav.settings'),
+    _ => t('nav.browse'),
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -729,8 +769,9 @@ class _NavTabsDialogState extends State<_NavTabsDialog> {
           children: [
             Text(
               t('settings.navTabsHint'),
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: theme.colorScheme.outline),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
             ),
             const SizedBox(height: 8),
             Expanded(
@@ -756,14 +797,18 @@ class _NavTabsDialogState extends State<_NavTabsDialog> {
                     subtitle: pinned
                         ? Text(
                             t('settings.navTabsPinned'),
-                            style: theme.textTheme.bodySmall
-                                ?.copyWith(color: theme.colorScheme.outline),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.outline,
+                            ),
                           )
                         : null,
                     trailing: pinned
                         // 「设置」用一把小锁代替勾选框：一看就知道它动不了。
-                        ? const Icon(Icons.lock_outline,
-                            size: 18, color: Colors.grey)
+                        ? const Icon(
+                            Icons.lock_outline,
+                            size: 18,
+                            color: Colors.grey,
+                          )
                         : Checkbox(
                             value: shown,
                             onChanged: (v) => setState(() {
@@ -787,10 +832,8 @@ class _NavTabsDialogState extends State<_NavTabsDialog> {
           child: Text(t('action.cancel')),
         ),
         FilledButton(
-          onPressed: () => Navigator.pop(
-            context,
-            (order: _order, hidden: _hidden),
-          ),
+          onPressed: () =>
+              Navigator.pop(context, (order: _order, hidden: _hidden)),
           child: Text(t('action.confirm')),
         ),
       ],

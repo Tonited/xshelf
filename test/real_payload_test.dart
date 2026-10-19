@@ -64,7 +64,10 @@ void main() {
                               'result': {
                                 'rest_id': '42',
                                 '__typename': 'Tweet',
-                                'legacy': {'full_text': 'old shape', 'created_at': null},
+                                'legacy': {
+                                  'full_text': 'old shape',
+                                  'created_at': null,
+                                },
                               },
                             },
                           },

@@ -35,7 +35,8 @@ class XWebPage extends StatefulWidget {
   final List<Widget> actions;
 
   /// 页面加载完成后回调（刷视频页用它点自己的标签）。
-  final Future<void> Function(InAppWebViewController controller)? onPageFinished;
+  final Future<void> Function(InAppWebViewController controller)?
+  onPageFinished;
 
   @override
   State<XWebPage> createState() => _XWebPageState();

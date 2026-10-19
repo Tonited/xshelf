@@ -89,8 +89,9 @@ class _AuthorPageState extends State<AuthorPage> {
     });
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(err ??
-            (_following ? t('play.followed') : t('play.unfollowed'))),
+        content: Text(
+          err ?? (_following ? t('play.followed') : t('play.unfollowed')),
+        ),
       ),
     );
   }
@@ -99,11 +100,14 @@ class _AuthorPageState extends State<AuthorPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final author = widget.author;
-    final isSelf = author.screenName == AppScope.read(context).session?.screenName;
+    final isSelf =
+        author.screenName == AppScope.read(context).session?.screenName;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(author.name.isNotEmpty ? author.name : '@${author.screenName}'),
+        title: Text(
+          author.name.isNotEmpty ? author.name : '@${author.screenName}',
+        ),
       ),
       body: ListenableBuilder(
         listenable: _source,
@@ -125,20 +129,27 @@ class _AuthorPageState extends State<AuthorPage> {
                                   radius: 30,
                                   child: Icon(Icons.person, size: 30),
                                 )
-                              : AuthorAvatar(url: author.avatarUrl!, radius: 30),
+                              : AuthorAvatar(
+                                  url: author.avatarUrl!,
+                                  radius: 30,
+                                ),
                           const SizedBox(width: 14),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(author.name,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: theme.textTheme.titleMedium),
-                                Text('@${author.screenName}',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: theme.textTheme.bodySmall),
+                                Text(
+                                  author.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.titleMedium,
+                                ),
+                                Text(
+                                  '@${author.screenName}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.bodySmall,
+                                ),
                               ],
                             ),
                           ),
@@ -148,7 +159,8 @@ class _AuthorPageState extends State<AuthorPage> {
                       Text(
                         '${t('author.likes')} · $_total',
                         style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.outline),
+                          color: theme.colorScheme.outline,
+                        ),
                       ),
                       const SizedBox(height: 12),
                       Row(
@@ -161,15 +173,20 @@ class _AuthorPageState extends State<AuthorPage> {
                                       width: 14,
                                       height: 14,
                                       child: CircularProgressIndicator(
-                                          strokeWidth: 2),
+                                        strokeWidth: 2,
+                                      ),
                                     )
-                                  : Icon(_following
-                                      ? Icons.person_remove_alt_1
-                                      : Icons.person_add_alt_1,
-                                      size: 18),
-                              label: Text(_following
-                                  ? t('author.following')
-                                  : t('author.follow')),
+                                  : Icon(
+                                      _following
+                                          ? Icons.person_remove_alt_1
+                                          : Icons.person_add_alt_1,
+                                      size: 18,
+                                    ),
+                              label: Text(
+                                _following
+                                    ? t('author.following')
+                                    : t('author.follow'),
+                              ),
                             ),
                           const SizedBox(width: 10),
                           OutlinedButton.icon(

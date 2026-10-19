@@ -107,7 +107,8 @@ SearchResultPage parseSearchPage(Object? json) {
     // 200 且只有 errors：查询语法被拒（code 220 之类）或 queryId/features 失效，
     // 两者都可能，交给上层按 message 决定「提示改查询」还是「重新发现 queryId」。
     throw SearchParseException(
-        errors.isEmpty ? '响应缺少 data 字段' : errors.join('; '));
+      errors.isEmpty ? '响应缺少 data 字段' : errors.join('; '),
+    );
   }
 
   final root = _dig(data, ['search_by_raw_query', 'search_timeline']);
@@ -115,7 +116,8 @@ SearchResultPage parseSearchPage(Object? json) {
     // 搜索词被整体拒绝 / 被风控时 X 会返回 `search_by_raw_query: null`，
     // 而不是 errors —— 这种情况比「接口变了」常见得多，提示要说人话。
     throw SearchParseException(
-        '响应缺少 data.search_by_raw_query.search_timeline（搜索词被拒或 queryId 失效）');
+      '响应缺少 data.search_by_raw_query.search_timeline（搜索词被拒或 queryId 失效）',
+    );
   }
 
   final instructions = _instructions(root);
@@ -159,7 +161,8 @@ SearchResultPage parseSearchPage(Object? json) {
           final value = content['value'] as String?;
           if (value == null || value.isEmpty) break;
           // 搜索里还有 ShowMore / ShowMoreThreads 之类游标，只认上下页这两个。
-          final direction = content['cursorType'] as String? ??
+          final direction =
+              content['cursorType'] as String? ??
               (entryId.startsWith('cursor-top') ? 'Top' : 'Bottom');
           if (direction == 'Top') {
             topCursor ??= value;
@@ -232,14 +235,16 @@ void _collectTweet(
   if (item == null || !seen.add(item.tweetId)) return;
 
   final legacy = tweet['legacy'] is Map ? tweet['legacy'] as Map : const {};
-  out.add(SearchHit(
-    item: item,
-    highlights: _highlights(itemContent),
-    alreadyLiked: legacy['favorited'] == true,
-    favoriteCount: (legacy['favorite_count'] as num?)?.toInt(),
-    retweetCount: (legacy['retweet_count'] as num?)?.toInt(),
-    replyCount: (legacy['reply_count'] as num?)?.toInt(),
-  ));
+  out.add(
+    SearchHit(
+      item: item,
+      highlights: _highlights(itemContent),
+      alreadyLiked: legacy['favorited'] == true,
+      favoriteCount: (legacy['favorite_count'] as num?)?.toInt(),
+      retweetCount: (legacy['retweet_count'] as num?)?.toInt(),
+      replyCount: (legacy['reply_count'] as num?)?.toInt(),
+    ),
+  );
 }
 
 List<({int start, int end})> _highlights(Map itemContent) {

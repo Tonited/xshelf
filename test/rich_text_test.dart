@@ -12,10 +12,7 @@ LikeItem _item(String text, Map<String, Object?> entities, {Object? raw}) =>
       text: text,
       raw: raw == null
           ? {
-              'legacy': {
-                'full_text': text,
-                'entities': entities,
-              },
+              'legacy': {'full_text': text, 'entities': entities},
             }
           : raw as Map<String, Object?>,
     );
@@ -30,13 +27,13 @@ void main() {
           {
             'text': '话题',
             'indices': [4, 7],
-          }
+          },
         ],
         'user_mentions': [
           {
             'screen_name': 'alice',
             'indices': [10, 16],
-          }
+          },
         ],
         'urls': [
           {
@@ -44,7 +41,7 @@ void main() {
             'expanded_url': 'https://example.com/x',
             'display_url': 'example.com/x',
             'indices': [20, 36],
-          }
+          },
         ],
       });
 
@@ -67,13 +64,13 @@ void main() {
           {
             'text': '话题',
             'indices': [4, 5],
-          }
+          },
         ],
         'user_mentions': [
           {
             'screen_name': 'alice',
             'indices': [11, 16],
-          }
+          },
         ],
         'urls': [
           {
@@ -81,7 +78,7 @@ void main() {
             'expanded_url': 'https://example.com/x',
             'display_url': 'example.com/x',
             'indices': [23, 36],
-          }
+          },
         ],
       });
 
@@ -89,8 +86,10 @@ void main() {
       expect(entities, hasLength(3));
       // 话题/提及必须覆盖完整的那一段（显示文本就是原文那截）
       for (final e in entities) {
-        expect(text.substring(e.start, e.end),
-            e.kind == BodyEntityKind.url ? 'https://t.co/abc' : e.display);
+        expect(
+          text.substring(e.start, e.end),
+          e.kind == BodyEntityKind.url ? 'https://t.co/abc' : e.display,
+        );
       }
       expect(entities[0].display, '#话题');
       expect(entities[1].display, '@alice');
@@ -114,7 +113,7 @@ void main() {
                   'expanded_url': 'https://x.com/u/status/1/photo/1',
                   'display_url': 'pic.x.com/pic1',
                   'indices': [5, 21],
-                }
+                },
               ],
             },
           },
@@ -132,7 +131,7 @@ void main() {
             'expanded_url': 'https://example.com/course',
             'display_url': 'example.com/course',
             'indices': [5, 21],
-          }
+          },
         ],
       });
       final kept = extractBodyEntities(link);

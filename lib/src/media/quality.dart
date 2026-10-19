@@ -28,20 +28,20 @@ enum QualityTier {
 
   /// 相对位置（0 = 最低档，1 = 最高档）。用来在档数不同的视频之间映射。
   double get fraction => switch (this) {
-        QualityTier.auto => 0,
-        QualityTier.low => 0,
-        QualityTier.mediumLow => 0.25,
-        QualityTier.medium => 0.5,
-        QualityTier.mediumHigh => 0.75,
-        QualityTier.high => 1,
-      };
+    QualityTier.auto => 0,
+    QualityTier.low => 0,
+    QualityTier.mediumLow => 0.25,
+    QualityTier.medium => 0.5,
+    QualityTier.mediumHigh => 0.75,
+    QualityTier.high => 1,
+  };
 
   bool get isAuto => this == QualityTier.auto;
 
   static QualityTier fromName(String? name) => QualityTier.values.firstWhere(
-        (t) => t.name == name,
-        orElse: () => QualityTier.auto,
-      );
+    (t) => t.name == name,
+    orElse: () => QualityTier.auto,
+  );
 }
 
 /// 老版本的档位枚举，只为兼容旧设置文件保留。
@@ -54,9 +54,9 @@ enum VideoQuality {
   String get key => name;
 
   static VideoQuality fromName(String? name) => VideoQuality.values.firstWhere(
-        (q) => q.name == name,
-        orElse: () => VideoQuality.auto,
-      );
+    (q) => q.name == name,
+    orElse: () => VideoQuality.auto,
+  );
 }
 
 /// 菜单里的一档：抽象档位 + 这条视频上对应的具体地址。
@@ -115,18 +115,18 @@ class PlaybackSource {
   bool get isHd => (height ?? 0) >= 720 || bitRate >= 1500000;
 
   Map<String, Object?> toJson() => {
-        'url': url,
-        'bitRate': bitRate,
-        if (height != null) 'height': height,
-        'isHls': isHls,
-      };
+    'url': url,
+    'bitRate': bitRate,
+    if (height != null) 'height': height,
+    'isHls': isHls,
+  };
 
   factory PlaybackSource.fromJson(Map<String, Object?> j) => PlaybackSource(
-        url: j['url'] as String? ?? '',
-        bitRate: (j['bitRate'] as num?)?.toInt() ?? 0,
-        height: (j['height'] as num?)?.toInt(),
-        isHls: j['isHls'] == true,
-      );
+    url: j['url'] as String? ?? '',
+    bitRate: (j['bitRate'] as num?)?.toInt() ?? 0,
+    height: (j['height'] as num?)?.toInt(),
+    isHls: j['isHls'] == true,
+  );
 }
 
 /// 一条视频的画质阶梯（低 → 高）。
@@ -243,31 +243,33 @@ class VideoQualityOptions {
       if (slot.tier == tier) return slot.source;
     }
     // 兜底（档位数少于一共有 5 档）按相对位置取。
-    final idx =
-        (tier.fraction * (sources.length - 1)).round().clamp(0, sources.length - 1);
+    final idx = (tier.fraction * (sources.length - 1)).round().clamp(
+      0,
+      sources.length - 1,
+    );
     return sources[idx];
   }
 
   /// 档名：按档数取「低 / 中下 / 中 / 中上 / 高」。
   static List<QualityTier> _tierNames(int count) => switch (count) {
-        0 => const [],
-        1 => const [QualityTier.medium],
-        2 => const [QualityTier.low, QualityTier.high],
-        3 => const [QualityTier.low, QualityTier.medium, QualityTier.high],
-        4 => const [
-            QualityTier.low,
-            QualityTier.mediumLow,
-            QualityTier.mediumHigh,
-            QualityTier.high,
-          ],
-        _ => const [
-            QualityTier.low,
-            QualityTier.mediumLow,
-            QualityTier.medium,
-            QualityTier.mediumHigh,
-            QualityTier.high,
-          ],
-      };
+    0 => const [],
+    1 => const [QualityTier.medium],
+    2 => const [QualityTier.low, QualityTier.high],
+    3 => const [QualityTier.low, QualityTier.medium, QualityTier.high],
+    4 => const [
+      QualityTier.low,
+      QualityTier.mediumLow,
+      QualityTier.mediumHigh,
+      QualityTier.high,
+    ],
+    _ => const [
+      QualityTier.low,
+      QualityTier.mediumLow,
+      QualityTier.medium,
+      QualityTier.mediumHigh,
+      QualityTier.high,
+    ],
+  };
 
   static VideoQualityOptions of(MediaItem media) {
     final mp4 = <PlaybackSource>[];
@@ -277,11 +279,13 @@ class VideoQualityOptions {
       final url = v.url;
       if (url.isEmpty) continue;
       if (v.isMp4) {
-        mp4.add(PlaybackSource(
-          url: url,
-          bitRate: v.bitRate ?? 0,
-          height: _heightOf(url),
-        ));
+        mp4.add(
+          PlaybackSource(
+            url: url,
+            bitRate: v.bitRate ?? 0,
+            height: _heightOf(url),
+          ),
+        );
       } else if (v.isHls) {
         hls ??= PlaybackSource(url: url, bitRate: 0, isHls: true);
       }

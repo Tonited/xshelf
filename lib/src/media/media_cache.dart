@@ -109,10 +109,12 @@ class MediaCache {
   };
 
   /// 本地文件是哪一档（[PlaybackSource.key]）；没有文件/老缓存没记过则为 null。
-  String? cachedVariant(String tweetId, int idx) => _metaOf(tweetId, idx).cacheVariant;
+  String? cachedVariant(String tweetId, int idx) =>
+      _metaOf(tweetId, idx).cacheVariant;
 
   /// 这条媒体看过（播过/显示过）的最好档位。
-  String? bestVariant(String tweetId, int idx) => _metaOf(tweetId, idx).bestVariant;
+  String? bestVariant(String tweetId, int idx) =>
+      _metaOf(tweetId, idx).bestVariant;
 
   /// 只有「本地文件正是这一档」时才返回文件。
   ///
@@ -176,8 +178,14 @@ class MediaCache {
     final key = _key(tweetId, idx);
     final running = _inflight[key];
     if (running != null) return running;
-    final future = _download(tweetId, idx, url, variant, rank, onProgress)
-        .whenComplete(() => _inflight.remove(key));
+    final future = _download(
+      tweetId,
+      idx,
+      url,
+      variant,
+      rank,
+      onProgress,
+    ).whenComplete(() => _inflight.remove(key));
     _inflight[key] = future;
     return future;
   }
@@ -223,8 +231,14 @@ class MediaCache {
 
       if (target.existsSync()) target.deleteSync();
       await partial.rename(target.path);
-      db.markMediaCached(tweetId, idx, target.path, received,
-          variant: variant, rank: rank);
+      db.markMediaCached(
+        tweetId,
+        idx,
+        target.path,
+        received,
+        variant: variant,
+        rank: rank,
+      );
       final m = _metaOf(tweetId, idx);
       m.path = target.path;
       m.cacheVariant = variant;
@@ -269,12 +283,7 @@ class MediaCache {
 
 /// 一条媒体的本地缓存与画质记录（内存版，省掉每张卡片的 SQL）。
 class _MediaMeta {
-  _MediaMeta({
-    this.path,
-    this.cacheVariant,
-    this.bestVariant,
-    this.bestRank,
-  });
+  _MediaMeta({this.path, this.cacheVariant, this.bestVariant, this.bestRank});
 
   String? path;
   String? cacheVariant;
@@ -291,13 +300,13 @@ const String _imageKeyPrefix = 'img:';
 
 /// X 图片的尺寸档位 → 清晰度分值。
 int imageVariantRank(String name) => switch (name) {
-      'thumb' => 1,
-      'small' => 2,
-      'medium' => 3,
-      'large' => 4,
-      'orig' => 5,
-      _ => 2,
-    };
+  'thumb' => 1,
+  'small' => 2,
+  'medium' => 3,
+  'large' => 4,
+  'orig' => 5,
+  _ => 2,
+};
 
 String imageVariantKey(String name) => '$_imageKeyPrefix$name';
 

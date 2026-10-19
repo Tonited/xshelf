@@ -35,7 +35,8 @@ const Map<String, String> _zh = {
   'login.title': '登录 X',
   'login.hint': '在下面用你自己的账号登录。应用只读取登录 cookie，不会接触你的密码。',
   'login.paste': '粘贴 cookie 登录',
-  'login.googleBlocked': '推荐用「通过 Google 继续」登录：点开后按提示输入账号密码即可，'
+  'login.googleBlocked':
+      '推荐用「通过 Google 继续」登录：点开后按提示输入账号密码即可，'
       '成功后会自动回到这里并直接进入主页。'
       '如果 Google 提示「此浏览器或应用可能不安全」，点右上角切换浏览器标识再试一次；'
       '仍然不行就改用邮箱密码，或从浏览器复制 cookie 粘贴登录。',
@@ -45,11 +46,13 @@ const Map<String, String> _zh = {
   'login.popup': 'X 登录',
   'login.withPassword': '用 X 账号密码登录',
   'login.openInBrowser': '在系统浏览器里打开 x.com（用于取 cookie）',
-  'login.cookieSteps': '取 cookie 的步骤：在电脑上用 Chrome 打开 x.com 并登录 → F12 → '
+  'login.cookieSteps':
+      '取 cookie 的步骤：在电脑上用 Chrome 打开 x.com 并登录 → F12 → '
       'Application（应用）→ Cookies → https://x.com → 复制 auth_token 与 ct0 的值，'
       '按 auth_token=…; ct0=… 的格式粘进来。手机上可用带开发者工具的浏览器（例如 Kiwi）做同样的事。',
   'login.pasteFromClipboard': '从剪贴板粘贴',
-  'login.pasteHelp': '如果内嵌登录被 X 拒绝，可从浏览器开发者工具复制 '
+  'login.pasteHelp':
+      '如果内嵌登录被 X 拒绝，可从浏览器开发者工具复制 '
       'auth_token 与 ct0 两个 cookie 粘贴到这里。',
   'login.pasteField': '粘贴 Cookie 字符串（auth_token=...; ct0=...）',
   'login.failed': '登录失败',
@@ -62,7 +65,8 @@ const Map<String, String> _zh = {
   'post.replies': '回复',
   'settings.ui': '界面',
   'settings.showMetrics': '显示帖子互动数据',
-  'settings.showMetricsHint': '回复 / 转发 / 喜欢 / 热度。数字取自最近一次同步带回来的数据，不额外发请求；关掉后卡片更干净',
+  'settings.showMetricsHint':
+      '回复 / 转发 / 喜欢 / 热度。数字取自最近一次同步带回来的数据，不额外发请求；关掉后卡片更干净',
   'settings.navTabs': '底部导航',
   'settings.navTabsHint': '拖动调整顺序；除「设置」外都可以隐藏。',
   'settings.navTabsPinned': '固定显示，不能隐藏',
@@ -78,7 +82,8 @@ const Map<String, String> _zh = {
   'action.more': '加载更多',
   'sync.backfill': '全量回填',
   'sync.resume': '继续回填',
-  'sync.backfillConfirm': '将把你 X 上的所有喜欢拉到本地。约 5 万条需要 20 分钟，'
+  'sync.backfillConfirm':
+      '将把你 X 上的所有喜欢拉到本地。约 5 万条需要 20 分钟，'
       '过程中可以暂停，下次会继续。是否开始？',
   'sync.backfillRunning': '正在回填',
   'sync.backfillHint': '把 X 上所有喜欢拉到本地；可暂停，下次从这里继续',
@@ -134,7 +139,8 @@ const Map<String, String> _zh = {
   'settings.maxItems': '单次条数上限',
   'settings.cache': '缓存',
   'settings.foregroundOnly': '移动端仅在前台自动同步',
-  'settings.riskNote': '本项目使用 X 的非公开网页接口，可能导致账号被限流或封禁，'
+  'settings.riskNote':
+      '本项目使用 X 的非公开网页接口，可能导致账号被限流或封禁，'
       '请仅用自己的账号并自行承担风险。所有数据只存在本机。',
   'login.missingCookies': 'Cookie 里缺少 auth_token 或 ct0',
   'login.webviewRejected': 'X 拒绝了内嵌登录，请改用「粘贴 cookie」',
@@ -335,25 +341,31 @@ const Map<String, String> _zh = {
 const Map<String, String> _en = {
   'app.title': 'X Like Manage',
   'login.title': 'Sign in to X',
-  'login.hint': 'Sign in with your own account below. The app only reads the '
+  'login.hint':
+      'Sign in with your own account below. The app only reads the '
       'session cookies; it never sees your password.',
   'login.paste': 'Sign in with cookies',
-  'login.googleBlocked': 'Recommended: tap "Continue with Google" and enter your account details. '
+  'login.googleBlocked':
+      'Recommended: tap "Continue with Google" and enter your account details. '
       'You will be brought back here automatically once it succeeds. '
       'If Google says "This browser or app may not be secure", tap the browser-identity button in '
       'the top-right and retry once; if it still fails, use e-mail + password, or paste cookies '
       'copied from your browser.',
-  'login.uaMasked': 'Browser identity: WebView markers stripped (tap for desktop browser)',
-  'login.uaNative': 'Browser identity: desktop browser (tap to use this device again)',
+  'login.uaMasked':
+      'Browser identity: WebView markers stripped (tap for desktop browser)',
+  'login.uaNative':
+      'Browser identity: desktop browser (tap to use this device again)',
   'login.copyDiag': 'Copy diagnostics (current URL + error)',
   'login.popup': 'X sign-in',
   'login.withPassword': 'Sign in with X account',
   'login.openInBrowser': 'Open x.com in the system browser (to copy cookies)',
-  'login.cookieSteps': 'How to get the cookies: log into x.com in desktop Chrome → F12 → '
+  'login.cookieSteps':
+      'How to get the cookies: log into x.com in desktop Chrome → F12 → '
       'Application → Cookies → https://x.com → copy the values of auth_token and ct0, then paste '
       'them here as auth_token=…; ct0=… . On a phone use a browser with devtools (e.g. Kiwi).',
   'login.pasteFromClipboard': 'Paste from clipboard',
-  'login.pasteHelp': 'If X blocks the embedded login, copy the auth_token and '
+  'login.pasteHelp':
+      'If X blocks the embedded login, copy the auth_token and '
       'ct0 cookies from your browser devtools and paste them here.',
   'login.pasteField': 'Paste cookie string (auth_token=...; ct0=...)',
   'login.failed': 'Sign-in failed',
@@ -368,7 +380,8 @@ const Map<String, String> _en = {
   'settings.showMetrics': 'Show post metrics',
   'settings.showMetricsHint': 'Replies / reposts / likes / heat, taken from the last sync (no extra requests). Turning this off keeps cards cleaner.',
   'settings.navTabs': 'Bottom navigation',
-  'settings.navTabsHint': 'Drag to reorder. Anything but Settings can be hidden.',
+  'settings.navTabsHint':
+      'Drag to reorder. Anything but Settings can be hidden.',
   'settings.navTabsPinned': 'Always shown',
   'action.refresh': 'Refresh',
   'action.settings': 'Settings',
@@ -382,11 +395,13 @@ const Map<String, String> _en = {
   'action.more': 'Load more',
   'sync.backfill': 'Backfill',
   'sync.resume': 'Resume backfill',
-  'sync.backfillConfirm': 'This pulls all of your X likes into the local '
+  'sync.backfillConfirm':
+      'This pulls all of your X likes into the local '
       'database. ~50k items take about 20 minutes and can be paused and '
       'resumed. Start now?',
   'sync.backfillRunning': 'Backfilling',
-  'sync.backfillHint': 'Pull all of your X likes locally; can be paused and resumed',
+  'sync.backfillHint':
+      'Pull all of your X likes locally; can be paused and resumed',
   'sync.syncNew': 'Sync new',
   'sync.pause': 'Pause',
   'sync.done': 'Done',
@@ -412,7 +427,8 @@ const Map<String, String> _en = {
   'search.hint': 'Search text or author',
   'search.empty': 'No matches',
   'detail.unlike': 'Unlike',
-  'detail.unlikeConfirm': 'This removes the item from your local database and '
+  'detail.unlikeConfirm':
+      'This removes the item from your local database and '
       'from your X likes. Continue?',
   'detail.deleted': 'This post was deleted by its author',
   'detail.openInBrowser': 'Open in browser',
@@ -440,11 +456,13 @@ const Map<String, String> _en = {
   'settings.maxItems': 'Max items per run',
   'settings.cache': 'Cache',
   'settings.foregroundOnly': 'Auto sync runs in the foreground on mobile',
-  'settings.riskNote': 'This app talks to X through undocumented web endpoints, '
+  'settings.riskNote':
+      'This app talks to X through undocumented web endpoints, '
       'which may get your account rate-limited or suspended. Use your own '
       'account at your own risk. All data stays on this device.',
   'login.missingCookies': 'The cookie string is missing auth_token or ct0',
-  'login.webviewRejected': 'X rejected the embedded login — use "sign in with cookies"',
+  'login.webviewRejected':
+      'X rejected the embedded login — use "sign in with cookies"',
   'timeline.about': '~',
   'detail.save': 'Save offline',
   'detail.saving': 'Saving…',
@@ -497,7 +515,8 @@ const Map<String, String> _en = {
   'play.unfollowed': 'Unfollowed',
   'play.quality': 'Quality',
   'play.qualityAuto': 'Auto',
-  'play.qualityAutoHint': 'Climbs as your network allows; uses the best quality you have watched',
+  'play.qualityAutoHint':
+      'Climbs as your network allows; uses the best quality you have watched',
   'play.qualityManual': 'Manual',
   'play.qualityNow': 'now {q}',
   'play.qualitySwitching': 'Switching to {q}…',
@@ -568,7 +587,8 @@ const Map<String, String> _en = {
   'search.advanced': 'Advanced search',
   'search.advancedHint': 'Pick conditions instead of typing operators',
   'search.keyword': 'Keywords',
-  'search.keywordHint': 'Words are ANDed; you can still type from: since: directly',
+  'search.keywordHint':
+      'Words are ANDed; you can still type from: since: directly',
   'search.from': 'From',
   'search.to': 'Replies to',
   'search.since': 'Since',
@@ -592,8 +612,10 @@ const Map<String, String> _en = {
   'search.mediaAll': 'Any',
   'search.mediaAny': 'Has media',
   'search.mediaNativeVideo': 'Native video',
-  'search.noConditions': 'No conditions yet — tap Add to pick author, dates, media or engagement',
-  'search.localNoCondition': 'Search by keyword, or add conditions (author / dates / media)',
+  'search.noConditions':
+      'No conditions yet — tap Add to pick author, dates, media or engagement',
+  'search.localNoCondition':
+      'Search by keyword, or add conditions (author / dates / media)',
   'search.localFilter': 'Filter my likes',
   'search.addTerm': 'Add keyword',
   'search.matchAll': 'AND',
@@ -622,7 +644,8 @@ const Map<String, String> _en = {
   'jump.position': 'By position',
   'jump.date': 'By date',
   'jump.go': 'Go',
-  'jump.randomHint': 'Shuffle order is random, so jumping by date is unavailable.',
+  'jump.randomHint':
+      'Shuffle order is random, so jumping by date is unavailable.',
   'list.loadNewer': 'Load newer',
   'swipe.title': 'Swipe',
   'swipe.switch': 'Switch source',

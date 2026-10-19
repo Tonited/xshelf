@@ -85,42 +85,41 @@ class XSession {
     String? screenName,
     String? displayName,
     String? avatarUrl,
-  }) =>
-      XSession(
-        authToken: authToken,
-        ct0: ct0,
-        userId: userId,
-        screenName: screenName ?? this.screenName,
-        displayName: displayName ?? this.displayName,
-        avatarUrl: avatarUrl ?? this.avatarUrl,
-      );
+  }) => XSession(
+    authToken: authToken,
+    ct0: ct0,
+    userId: userId,
+    screenName: screenName ?? this.screenName,
+    displayName: displayName ?? this.displayName,
+    avatarUrl: avatarUrl ?? this.avatarUrl,
+  );
 
   XSession copyWithId(String newId) => XSession(
-        authToken: authToken,
-        ct0: ct0,
-        userId: newId,
-        screenName: screenName,
-        displayName: displayName,
-        avatarUrl: avatarUrl,
-      );
+    authToken: authToken,
+    ct0: ct0,
+    userId: newId,
+    screenName: screenName,
+    displayName: displayName,
+    avatarUrl: avatarUrl,
+  );
 
   Map<String, Object?> toJson() => {
-        'authToken': authToken,
-        'ct0': ct0,
-        'userId': userId,
-        if (screenName != null) 'screenName': screenName,
-        if (displayName != null) 'displayName': displayName,
-        if (avatarUrl != null) 'avatarUrl': avatarUrl,
-      };
+    'authToken': authToken,
+    'ct0': ct0,
+    'userId': userId,
+    if (screenName != null) 'screenName': screenName,
+    if (displayName != null) 'displayName': displayName,
+    if (avatarUrl != null) 'avatarUrl': avatarUrl,
+  };
 
   factory XSession.fromJson(Map<String, Object?> j) => XSession(
-        authToken: j['authToken'] as String? ?? '',
-        ct0: j['ct0'] as String? ?? '',
-        userId: j['userId'] as String? ?? '',
-        screenName: j['screenName'] as String?,
-        displayName: j['displayName'] as String?,
-        avatarUrl: j['avatarUrl'] as String?,
-      );
+    authToken: j['authToken'] as String? ?? '',
+    ct0: j['ct0'] as String? ?? '',
+    userId: j['userId'] as String? ?? '',
+    screenName: j['screenName'] as String?,
+    displayName: j['displayName'] as String?,
+    avatarUrl: j['avatarUrl'] as String?,
+  );
 }
 
 enum XErrorKind {
@@ -154,7 +153,9 @@ class XRequestException implements Exception {
 
 /// 解析 cookie 字符串（浏览器复制来的 `auth_token=..; ct0=..`）。
 /// 缺失的字段返回 null。
-({String? authToken, String? ct0, String? userId}) parseCookieString(String raw) {
+({String? authToken, String? ct0, String? userId}) parseCookieString(
+  String raw,
+) {
   final map = <String, String>{};
   for (final part in raw.split(';')) {
     final idx = part.indexOf('=');
@@ -164,14 +165,11 @@ class XRequestException implements Exception {
   final twid = map['twid'] ?? '';
   final decoded = Uri.decodeComponent(twid);
   String? userId;
-  final m = RegExp(r'u%3D(\d+)|u=(\d+)').firstMatch(twid) ??
+  final m =
+      RegExp(r'u%3D(\d+)|u=(\d+)').firstMatch(twid) ??
       RegExp(r'^u=(\d+)$').firstMatch(decoded);
   if (m != null) userId = m.group(1) ?? m.group(2);
-  return (
-    authToken: map['auth_token'],
-    ct0: map['ct0'],
-    userId: userId,
-  );
+  return (authToken: map['auth_token'], ct0: map['ct0'], userId: userId);
 }
 
 class XClient {
@@ -207,18 +205,18 @@ class XClient {
   final void Function(String operation)? onQueryIdInvalid;
 
   Map<String, String> get _baseHeaders => {
-        'authorization': 'Bearer $kWebBearer',
-        'x-csrf-token': session.ct0,
-        'x-twitter-auth-type': 'OAuth2Session',
-        'x-twitter-active-user': 'yes',
-        'x-twitter-client-language': 'en',
-        'content-type': 'application/json',
-        'accept': '*/*',
-        'accept-language': 'en-US,en;q=0.9',
-        'referer': 'https://x.com/',
-        'user-agent': kWebUserAgent,
-        'cookie': session.cookieHeader,
-      };
+    'authorization': 'Bearer $kWebBearer',
+    'x-csrf-token': session.ct0,
+    'x-twitter-auth-type': 'OAuth2Session',
+    'x-twitter-active-user': 'yes',
+    'x-twitter-client-language': 'en',
+    'content-type': 'application/json',
+    'accept': '*/*',
+    'accept-language': 'en-US,en;q=0.9',
+    'referer': 'https://x.com/',
+    'user-agent': kWebUserAgent,
+    'cookie': session.cookieHeader,
+  };
 
   /// 校验登录态并补全账号信息。
   ///
@@ -249,7 +247,8 @@ class XClient {
     String? pick(String key) =>
         (core is Map ? core[key] as String? : null) ??
         (legacy is Map ? legacy[key] as String? : null);
-    final avatar = (user['avatar'] is Map
+    final avatar =
+        (user['avatar'] is Map
             ? (user['avatar'] as Map)['image_url'] as String?
             : null) ??
         pick('profile_image_url_https');
@@ -264,7 +263,10 @@ class XClient {
 
   /// 拉一页喜欢。
   Future<LikesPage> fetchLikes({String? cursor, int count = 100}) =>
-      _withQueryIdRecovery('Likes', () => _fetchLikesOnce(cursor: cursor, count: count));
+      _withQueryIdRecovery(
+        'Likes',
+        () => _fetchLikesOnce(cursor: cursor, count: count),
+      );
 
   Future<LikesPage> _fetchLikesOnce({String? cursor, int count = 100}) async {
     final qid = await _queryId('Likes');
@@ -345,7 +347,7 @@ class XClient {
       final message = errors.join('; ');
       final looksLikeQueryProblem =
           message.toLowerCase().contains('query') ||
-              message.toLowerCase().contains('invalid');
+          message.toLowerCase().contains('invalid');
       throw XRequestException(
         looksLikeQueryProblem ? XErrorKind.unknown : XErrorKind.apiChanged,
         looksLikeQueryProblem ? '查询有问题：$message' : message,
@@ -450,8 +452,9 @@ class XClient {
     final errors = body['errors'];
     if (errors is List && errors.isNotEmpty) {
       final first = errors.first;
-      final message =
-          first is Map ? (first['message'] as String? ?? '$first') : '$first';
+      final message = first is Map
+          ? (first['message'] as String? ?? '$first')
+          : '$first';
       throw XRequestException(XErrorKind.unknown, message);
     }
   }
@@ -468,10 +471,7 @@ class XClient {
     if (ids.isEmpty) return out;
 
     for (var i = 0; i < ids.length; i += 100) {
-      final chunk = ids.sublist(
-        i,
-        i + 100 > ids.length ? ids.length : i + 100,
-      );
+      final chunk = ids.sublist(i, i + 100 > ids.length ? ids.length : i + 100);
       final uri = Uri.https('x.com', '/i/api/1.1/statuses/lookup.json', {
         'id': chunk.join(','),
         'include_entities': 'false',
@@ -579,11 +579,14 @@ class XClient {
   /// 这种失败是**可自愈**的：丢掉旧值、重新发现一次再试，用户完全无感。
   /// 以前只有「本次运行内」的缓存，重启后又得去抓 JS。
   Future<T> _withQueryIdRecovery<T>(
-      String operation, Future<T> Function() run) async {
+    String operation,
+    Future<T> Function() run,
+  ) async {
     try {
       return await run();
     } on XRequestException catch (e) {
-      if (e.kind != XErrorKind.apiChanged || !_queryIds.containsKey(operation)) {
+      if (e.kind != XErrorKind.apiChanged ||
+          !_queryIds.containsKey(operation)) {
         rethrow;
       }
       _queryIds.remove(operation);
@@ -598,25 +601,30 @@ class XClient {
   }
 
   Future<Object?> _post(Uri uri, String payload) async {
-    final resp =
-        await _send(() => httpClient.post(uri, headers: _baseHeaders, body: payload));
+    final resp = await _send(
+      () => httpClient.post(uri, headers: _baseHeaders, body: payload),
+    );
     return _decode(resp);
   }
 
   /// 表单 POST（v1.1 REST 端点用）。
   Future<Object?> _postForm(Uri uri, Map<String, String> fields) async {
     final encoded = fields.entries
-        .map((e) =>
-            '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}')
+        .map(
+          (e) =>
+              '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}',
+        )
         .join('&');
-    final resp = await _send(() => httpClient.post(
-          uri,
-          headers: {
-            ..._baseHeaders,
-            'content-type': 'application/x-www-form-urlencoded',
-          },
-          body: encoded,
-        ));
+    final resp = await _send(
+      () => httpClient.post(
+        uri,
+        headers: {
+          ..._baseHeaders,
+          'content-type': 'application/x-www-form-urlencoded',
+        },
+        body: encoded,
+      ),
+    );
     return _decode(resp);
   }
 
@@ -659,15 +667,16 @@ class XClient {
       final errors = body == null ? const <String>[] : graphqlErrors(body);
       throw XRequestException(
         XErrorKind.apiChanged,
-        errors.isEmpty
-            ? '接口返回 HTTP $code（queryId 可能已失效）'
-            : errors.join('; '),
+        errors.isEmpty ? '接口返回 HTTP $code（queryId 可能已失效）' : errors.join('; '),
         status: code,
       );
     }
     if (code >= 500) {
-      throw XRequestException(XErrorKind.unknown, 'X 服务端错误 HTTP $code',
-          status: code);
+      throw XRequestException(
+        XErrorKind.unknown,
+        'X 服务端错误 HTTP $code',
+        status: code,
+      );
     }
     final json = _tryJson(resp.body);
     if (json == null) {
@@ -740,15 +749,18 @@ class XClient {
 
   /// 抓 x.com 首页 → 找出所有 client-web JS → 正则搜 queryId。
   Future<String?> _discoverQueryId(String operation) async {
-    final home = await _send(() => httpClient.get(
-          Uri.parse('https://x.com/'),
-          headers: const {'user-agent': kWebUserAgent},
-        ));
+    final home = await _send(
+      () => httpClient.get(
+        Uri.parse('https://x.com/'),
+        headers: const {'user-agent': kWebUserAgent},
+      ),
+    );
     if (home.statusCode != 200) return null;
 
     final scripts = <String>{};
-    final jsUrlRe =
-        RegExp('https://abs\\.twimg\\.com/responsive-web/client-web[^"\'\\s]+\\.js');
+    final jsUrlRe = RegExp(
+      'https://abs\\.twimg\\.com/responsive-web/client-web[^"\'\\s]+\\.js',
+    );
     for (final m in jsUrlRe.allMatches(home.body)) {
       scripts.add(m.group(0)!);
     }
@@ -756,14 +768,22 @@ class XClient {
     if (scripts.isEmpty) return null;
 
     final patterns = <RegExp>[
-      RegExp('queryId:"([A-Za-z0-9_-]{10,})"[^}]{0,400}?operationName:"$operation"'),
-      RegExp('operationName:"$operation"[^}]{0,400}?queryId:"([A-Za-z0-9_-]{10,})"'),
+      RegExp(
+        'queryId:"([A-Za-z0-9_-]{10,})"[^}]{0,400}?operationName:"$operation"',
+      ),
+      RegExp(
+        'operationName:"$operation"[^}]{0,400}?queryId:"([A-Za-z0-9_-]{10,})"',
+      ),
     ];
 
     for (final url in scripts.take(12)) {
       try {
-        final js = await _send(() => httpClient.get(Uri.parse(url),
-            headers: const {'user-agent': kWebUserAgent}));
+        final js = await _send(
+          () => httpClient.get(
+            Uri.parse(url),
+            headers: const {'user-agent': kWebUserAgent},
+          ),
+        );
         if (js.statusCode != 200) continue;
         for (final p in patterns) {
           final m = p.firstMatch(js.body);
@@ -818,7 +838,8 @@ const Map<String, Object?> kLikesFeatures = {
   'creator_subscriptions_quote_tweet_preview_enabled': false,
   'freedom_of_speech_not_reach_fetch_enabled': true,
   'standardized_nudges_misinfo': true,
-  'tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled': true,
+  'tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled':
+      true,
   'longform_notetweets_rich_text_read_enabled': true,
   'longform_notetweets_inline_media_enabled': true,
   'responsive_web_enhance_cards_enabled': false,
@@ -836,5 +857,3 @@ const Map<String, Object?> kSearchFeatures = {
   // `$cashtag` 需要它才会在 entities 里给出 cashtag。
   'rweb_cashtags_enabled': true,
 };
-
-

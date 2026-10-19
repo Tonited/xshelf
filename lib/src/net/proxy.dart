@@ -39,35 +39,38 @@ class ProxyConfig {
     int? port,
     String? username,
     String? password,
-  }) =>
-      ProxyConfig(
-        mode: mode ?? this.mode,
-        type: type ?? this.type,
-        host: host ?? this.host,
-        port: port ?? this.port,
-        username: username ?? this.username,
-        password: password ?? this.password,
-      );
+  }) => ProxyConfig(
+    mode: mode ?? this.mode,
+    type: type ?? this.type,
+    host: host ?? this.host,
+    port: port ?? this.port,
+    username: username ?? this.username,
+    password: password ?? this.password,
+  );
 
   Map<String, Object?> toJson() => {
-        'mode': mode.name,
-        'type': type.name,
-        'host': host,
-        'port': port,
-        if (username != null) 'username': username,
-        if (password != null) 'password': password,
-      };
+    'mode': mode.name,
+    'type': type.name,
+    'host': host,
+    'port': port,
+    if (username != null) 'username': username,
+    if (password != null) 'password': password,
+  };
 
   factory ProxyConfig.fromJson(Map<String, Object?> j) => ProxyConfig(
-        mode: ProxyMode.values.firstWhere((m) => m.name == j['mode'],
-            orElse: () => ProxyMode.system),
-        type: ProxyType.values.firstWhere((t) => t.name == j['type'],
-            orElse: () => ProxyType.http),
-        host: j['host'] as String? ?? '',
-        port: (j['port'] as num?)?.toInt() ?? 0,
-        username: j['username'] as String?,
-        password: j['password'] as String?,
-      );
+    mode: ProxyMode.values.firstWhere(
+      (m) => m.name == j['mode'],
+      orElse: () => ProxyMode.system,
+    ),
+    type: ProxyType.values.firstWhere(
+      (t) => t.name == j['type'],
+      orElse: () => ProxyType.http,
+    ),
+    host: j['host'] as String? ?? '',
+    port: (j['port'] as num?)?.toInt() ?? 0,
+    username: j['username'] as String?,
+    password: j['password'] as String?,
+  );
 }
 
 enum ProxyMode {
@@ -83,7 +86,7 @@ enum ProxyMode {
 
 /// 解析当前生效的代理地址：返回 null 表示直连。
 Future<({ProxyType type, String host, int port, String? user, String? pass})?>
-    resolveProxy(ProxyConfig config) async {
+resolveProxy(ProxyConfig config) async {
   if (config.mode == ProxyMode.direct) return null;
   if (config.mode == ProxyMode.manual) {
     if (!config.hasManual) return null;
@@ -102,8 +105,15 @@ Future<({ProxyType type, String host, int port, String? user, String? pass})?>
 /// 1. 环境变量 `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY`
 /// 2. Windows：WinINET 注册表 `ProxyEnable` + `ProxyServer`
 Future<({ProxyType type, String host, int port, String? user, String? pass})?>
-    resolveSystemProxy() async {
-  for (final key in ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy']) {
+resolveSystemProxy() async {
+  for (final key in [
+    'HTTPS_PROXY',
+    'https_proxy',
+    'HTTP_PROXY',
+    'http_proxy',
+    'ALL_PROXY',
+    'all_proxy',
+  ]) {
     final raw = Platform.environment[key];
     if (raw == null || raw.trim().isEmpty) continue;
     final parsed = _parseProxyUrl(raw.trim());
@@ -135,7 +145,7 @@ Future<({ProxyType type, String host, int port, String? user, String? pass})?>
 
 /// `http://user:pass@host:port` 或 `host:port`
 ({ProxyType type, String host, int port, String? user, String? pass})?
-    _parseProxyUrl(String raw) {
+_parseProxyUrl(String raw) {
   var type = ProxyType.http;
   var rest = raw;
   if (rest.startsWith('socks5://') || rest.startsWith('socks5h://')) {
@@ -168,7 +178,7 @@ Future<({ProxyType type, String host, int port, String? user, String? pass})?>
 
 /// WinINET 的 `ProxyServer` 可能是 `host:port`、`http=host:port;https=host:port`。
 ({ProxyType type, String host, int port, String? user, String? pass})?
-    _parseWinInetServer(String value) {
+_parseWinInetServer(String value) {
   if (value.contains('=')) {
     for (final part in value.split(';')) {
       final kv = part.split('=');

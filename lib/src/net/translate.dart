@@ -23,8 +23,13 @@ import 'package:http/http.dart' as http;
 
 /// 一个可选的目标语言。
 class TranslateLanguage {
-  const TranslateLanguage(this.code, this.zhName, this.enName,
-      {required this.baidu, required this.myMemory});
+  const TranslateLanguage(
+    this.code,
+    this.zhName,
+    this.enName, {
+    required this.baidu,
+    required this.myMemory,
+  });
 
   /// 应用内统一用这个短码（`zh` / `en` / `ja` …）。
   final String code;
@@ -48,10 +53,8 @@ class TranslateLanguage {
     TranslateLanguage('es', '西班牙文', 'Spanish', baidu: 'spa', myMemory: 'es'),
   ];
 
-  static TranslateLanguage of(String? code) => all.firstWhere(
-        (l) => l.code == code,
-        orElse: () => all.first,
-      );
+  static TranslateLanguage of(String? code) =>
+      all.firstWhere((l) => l.code == code, orElse: () => all.first);
 
   String get label => zhName;
 }
@@ -64,11 +67,7 @@ class TranslateException implements Exception {
 }
 
 class TranslationService {
-  TranslationService(
-    this._clientOf, {
-    this.load,
-    this.save,
-  });
+  TranslationService(this._clientOf, {this.load, this.save});
 
   /// 取 App 自己的 HTTP 客户端（走用户配的代理/直连），登录后才建得出来。
   final http.Client? Function() _clientOf;
@@ -124,8 +123,10 @@ class TranslationService {
 
     final result = _queue.then((_) => _runProviders(client, clipped, lang));
     // 队列本身不能因为一次失败就断掉。
-    _queue = result.then((_) => Future<void>.delayed(_gap),
-        onError: (_) => Future<void>.delayed(_gap));
+    _queue = result.then(
+      (_) => Future<void>.delayed(_gap),
+      onError: (_) => Future<void>.delayed(_gap),
+    );
     final out = await result;
     _cache[key] = out;
     save?.call(key, out);
@@ -198,7 +199,10 @@ class TranslationService {
   }
 
   Future<String?> _myMemory(
-      http.Client client, String text, TranslateLanguage lang) async {
+    http.Client client,
+    String text,
+    TranslateLanguage lang,
+  ) async {
     var from = _guessSource(text);
     // 源语言和目标语言一样时硬翻没有意义，换个源语言让引擎自己识别差别。
     if (from == lang.myMemory) from = lang.myMemory == 'en' ? 'zh-CN' : 'en';
@@ -221,7 +225,10 @@ class TranslationService {
   }
 
   Future<String?> _google(
-      http.Client client, String text, TranslateLanguage lang) async {
+    http.Client client,
+    String text,
+    TranslateLanguage lang,
+  ) async {
     final uri = Uri.https('translate.googleapis.com', '/translate_a/single', {
       'client': 'gtx',
       'sl': 'auto',
@@ -230,10 +237,13 @@ class TranslationService {
       'q': text,
     });
     final resp = await client
-        .get(uri, headers: const {
-          'user-agent': _userAgent,
-          'accept': 'application/json',
-        })
+        .get(
+          uri,
+          headers: const {
+            'user-agent': _userAgent,
+            'accept': 'application/json',
+          },
+        )
         .timeout(_attemptTimeout);
     if (resp.statusCode != 200) return null;
     final body = jsonDecode(resp.body);
@@ -251,7 +261,10 @@ class TranslationService {
   }
 
   Future<String?> _baidu(
-      http.Client client, String text, TranslateLanguage lang) async {
+    http.Client client,
+    String text,
+    TranslateLanguage lang,
+  ) async {
     final resp = await client
         .post(
           Uri.https('fanyi.baidu.com', '/transapi'),
@@ -260,11 +273,7 @@ class TranslationService {
             'content-type': 'application/x-www-form-urlencoded',
             'referer': 'https://fanyi.baidu.com/',
           },
-          body: {
-            'from': 'auto',
-            'to': lang.baidu,
-            'query': text,
-          },
+          body: {'from': 'auto', 'to': lang.baidu, 'query': text},
         )
         .timeout(_attemptTimeout);
     if (resp.statusCode != 200) return null;

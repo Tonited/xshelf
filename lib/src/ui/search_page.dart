@@ -78,8 +78,9 @@ class _SearchPageState extends State<SearchPage> {
   /// 拼好的搜索表达式（本地用 FTS 语法，X 侧再翻译一次）。
   String get _searchExpr {
     if (_terms.isEmpty) return _query;
-    final parts =
-        _terms.map((t) => '"${t.replaceAll('"', '')}"').toList(growable: false);
+    final parts = _terms
+        .map((t) => '"${t.replaceAll('"', '')}"')
+        .toList(growable: false);
     if (parts.length == 1) return parts.first;
     return parts.join(_matchAll ? ' AND ' : ' OR ');
   }
@@ -124,8 +125,7 @@ class _SearchPageState extends State<SearchPage> {
       setState(() {
         _translating = false;
         _input.text = out;
-        _input.selection =
-            TextSelection.collapsed(offset: _input.text.length);
+        _input.selection = TextSelection.collapsed(offset: _input.text.length);
       });
       if (_mode == _Mode.local) _runLocal();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -134,15 +134,13 @@ class _SearchPageState extends State<SearchPage> {
     } catch (_) {
       if (!mounted) return;
       setState(() => _translating = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t('translate.failed'))),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(t('translate.failed'))));
     }
   }
 
   /// 选目标语言。选完会写进设置，正文翻译也跟着用这个语言。
-  Future<TranslateLanguage?> _pickTranslateLanguage(
-      AppController app) async {
+  Future<TranslateLanguage?> _pickTranslateLanguage(AppController app) async {
     final current = app.settings.translateTo;
     return showModalBottomSheet<TranslateLanguage>(
       context: context,
@@ -155,12 +153,16 @@ class _SearchPageState extends State<SearchPage> {
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
               child: Row(
                 children: [
-                  Text(t('translate.title'),
-                      style: Theme.of(ctx).textTheme.titleMedium),
+                  Text(
+                    t('translate.title'),
+                    style: Theme.of(ctx).textTheme.titleMedium,
+                  ),
                   const Spacer(),
-                  Text(t('translate.hint'),
-                      style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(ctx).colorScheme.outline)),
+                  Text(
+                    t('translate.hint'),
+                    style: Theme.of(ctx).textTheme.bodySmall
+                        ?.copyWith(color: Theme.of(ctx).colorScheme.outline),
+                  ),
                 ],
               ),
             ),
@@ -279,10 +281,10 @@ class _SearchPageState extends State<SearchPage> {
     final keyword = terms.isEmpty
         ? ''
         : terms.length == 1
-            ? terms.first
-            : terms
-                .map((t) => '"${t.replaceAll('"', '')}"')
-                .join(_matchAll ? ' ' : ' OR ');
+        ? terms.first
+        : terms
+              .map((t) => '"${t.replaceAll('"', '')}"')
+              .join(_matchAll ? ' ' : ' OR ');
 
     final structured = _xQuery.build();
     if (keyword.isEmpty) return structured;
@@ -309,9 +311,8 @@ class _SearchPageState extends State<SearchPage> {
   Future<void> _openXSearch() async {
     final raw = _buildXQuery();
     if (raw.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t('search.xIdle'))),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(t('search.xIdle'))));
       return;
     }
     await openXPage(context, XSearchPage(rawQuery: raw, product: _product));
@@ -321,22 +322,26 @@ class _SearchPageState extends State<SearchPage> {
 
   void _openAuthorBy(String screenName, String name) {
     if (screenName.isEmpty) return;
-    Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => AuthorPage(
-        author: Author(id: '', screenName: screenName, name: name),
-        cache: _app?.mediaCache,
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AuthorPage(
+          author: Author(id: '', screenName: screenName, name: name),
+          cache: _app?.mediaCache,
+        ),
       ),
-    ));
+    );
   }
 
   void _openFeed(FeedSource source, int index) {
-    Navigator.of(context).push(MaterialPageRoute<String>(
-      builder: (_) => FeedPage(
-        source: source,
-        initialIndex: index,
-        cache: _app?.mediaCache,
+    Navigator.of(context).push(
+      MaterialPageRoute<String>(
+        builder: (_) => FeedPage(
+          source: source,
+          initialIndex: index,
+          cache: _app?.mediaCache,
+        ),
       ),
-    ));
+    );
   }
 
   @override
@@ -406,7 +411,9 @@ class _SearchPageState extends State<SearchPage> {
               }
             },
             decoration: InputDecoration(
-              hintText: isLocal ? t('search.hintLocal') : t('search.keywordHint'),
+              hintText: isLocal
+                  ? t('search.hintLocal')
+                  : t('search.keywordHint'),
               prefixIcon: const Icon(Icons.search),
               suffixIcon: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -419,7 +426,9 @@ class _SearchPageState extends State<SearchPage> {
                           ? const SizedBox(
                               width: 16,
                               height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 1.8),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 1.8,
+                              ),
                             )
                           : const Icon(Icons.translate, size: 20),
                       tooltip: t('translate.action'),
@@ -463,13 +472,18 @@ class _SearchPageState extends State<SearchPage> {
                 if (_terms.length > 1)
                   SegmentedButton<bool>(
                     showSelectedIcon: false,
-                    style:
-                        const ButtonStyle(visualDensity: VisualDensity.compact),
+                    style: const ButtonStyle(
+                      visualDensity: VisualDensity.compact,
+                    ),
                     segments: [
                       ButtonSegment(
-                          value: true, label: Text(t('search.matchAll'))),
+                        value: true,
+                        label: Text(t('search.matchAll')),
+                      ),
                       ButtonSegment(
-                          value: false, label: Text(t('search.matchAny'))),
+                        value: false,
+                        label: Text(t('search.matchAny')),
+                      ),
                     ],
                     selected: {_matchAll},
                     onSelectionChanged: (s) {
@@ -499,8 +513,9 @@ class _SearchPageState extends State<SearchPage> {
                         label: Text(_mediaFilterLabelLocal(m)),
                         selected: _localFilter.media.contains(m),
                         onSelected: (on) {
-                          final next =
-                              Set<MediaFilter>.from(_localFilter.media);
+                          final next = Set<MediaFilter>.from(
+                            _localFilter.media,
+                          );
                           on ? next.add(m) : next.remove(m);
                           _setLocal(_localFilter.copyWith(media: next));
                         },
@@ -512,7 +527,8 @@ class _SearchPageState extends State<SearchPage> {
                         label: Text(_mediaFilterLabel(f)),
                         selected: _xQuery.media == f,
                         onSelected: (_) => setState(
-                            () => _xQuery = _xQuery.copyWith(media: f)),
+                          () => _xQuery = _xQuery.copyWith(media: f),
+                        ),
                       ),
                   ],
           ),
@@ -529,10 +545,11 @@ class _SearchPageState extends State<SearchPage> {
                   child: _dateButton(
                     theme,
                     value: _xQuery.since,
-                    onPick: (v) => setState(
-                        () => _xQuery = _xQuery.copyWith(since: v)),
+                    onPick: (v) =>
+                        setState(() => _xQuery = _xQuery.copyWith(since: v)),
                     onClear: () => setState(
-                        () => _xQuery = _xQuery.copyWith(clearSince: true)),
+                      () => _xQuery = _xQuery.copyWith(clearSince: true),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -540,10 +557,11 @@ class _SearchPageState extends State<SearchPage> {
                   child: _dateButton(
                     theme,
                     value: _xQuery.until,
-                    onPick: (v) => setState(
-                        () => _xQuery = _xQuery.copyWith(until: v)),
+                    onPick: (v) =>
+                        setState(() => _xQuery = _xQuery.copyWith(until: v)),
                     onClear: () => setState(
-                        () => _xQuery = _xQuery.copyWith(clearUntil: true)),
+                      () => _xQuery = _xQuery.copyWith(clearUntil: true),
+                    ),
                   ),
                 ),
               ],
@@ -558,21 +576,25 @@ class _SearchPageState extends State<SearchPage> {
               for (final e in _langs.entries)
                 DropdownMenuItem(
                   value: e.key,
-                  child: Text(e.key.isEmpty
-                      ? t(e.value)
-                      : '${e.value} (${e.key})'),
+                  child: Text(
+                    e.key.isEmpty ? t(e.value) : '${e.value} (${e.key})',
+                  ),
                 ),
             ],
             onChanged: (v) {
               final empty = v == null || v.isEmpty;
               if (isLocal) {
-                _setLocal(empty
-                    ? _localFilter.copyWith(clearLang: true)
-                    : _localFilter.copyWith(lang: v));
+                _setLocal(
+                  empty
+                      ? _localFilter.copyWith(clearLang: true)
+                      : _localFilter.copyWith(lang: v),
+                );
               } else {
-                setState(() => _xQuery = empty
-                    ? _xQuery.copyWith(clearLang: true)
-                    : _xQuery.copyWith(lang: v));
+                setState(
+                  () => _xQuery = empty
+                      ? _xQuery.copyWith(clearLang: true)
+                      : _xQuery.copyWith(lang: v),
+                );
               }
             },
           ),
@@ -597,26 +619,27 @@ class _SearchPageState extends State<SearchPage> {
             _switchRow(
               title: t('search.excludeReplies'),
               value: _xQuery.excludeReplies,
-              onChanged: (v) => setState(
-                  () => _xQuery = _xQuery.copyWith(excludeReplies: v)),
+              onChanged: (v) =>
+                  setState(() => _xQuery = _xQuery.copyWith(excludeReplies: v)),
             ),
             _switchRow(
               title: t('search.excludeRetweets'),
               value: _xQuery.excludeRetweets,
               onChanged: (v) => setState(
-                  () => _xQuery = _xQuery.copyWith(excludeRetweets: v)),
+                () => _xQuery = _xQuery.copyWith(excludeRetweets: v),
+              ),
             ),
             _switchRow(
               title: t('search.excludeLinks'),
               value: _xQuery.excludeLinks,
-              onChanged: (v) => setState(
-                  () => _xQuery = _xQuery.copyWith(excludeLinks: v)),
+              onChanged: (v) =>
+                  setState(() => _xQuery = _xQuery.copyWith(excludeLinks: v)),
             ),
             _switchRow(
               title: t('search.verified'),
               value: _xQuery.verifiedOnly,
-              onChanged: (v) => setState(
-                  () => _xQuery = _xQuery.copyWith(verifiedOnly: v)),
+              onChanged: (v) =>
+                  setState(() => _xQuery = _xQuery.copyWith(verifiedOnly: v)),
             ),
           ],
 
@@ -640,14 +663,17 @@ class _SearchPageState extends State<SearchPage> {
                 style: const ButtonStyle(visualDensity: VisualDensity.compact),
                 segments: [
                   ButtonSegment(
-                      value: SearchProduct.top,
-                      label: Text(t('search.productTop'))),
+                    value: SearchProduct.top,
+                    label: Text(t('search.productTop')),
+                  ),
                   ButtonSegment(
-                      value: SearchProduct.latest,
-                      label: Text(t('search.productLatest'))),
+                    value: SearchProduct.latest,
+                    label: Text(t('search.productLatest')),
+                  ),
                   ButtonSegment(
-                      value: SearchProduct.media,
-                      label: Text(t('search.productMedia'))),
+                    value: SearchProduct.media,
+                    label: Text(t('search.productMedia')),
+                  ),
                 ],
                 selected: {_product},
                 onSelectionChanged: (s) => setState(() => _product = s.first),
@@ -682,8 +708,9 @@ class _SearchPageState extends State<SearchPage> {
             const SizedBox(height: 8),
             Text(
               t('search.rawHint'),
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: theme.colorScheme.outline),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
             ),
           ],
           const SizedBox(height: 8),
@@ -703,8 +730,9 @@ class _SearchPageState extends State<SearchPage> {
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
             child: Text(
               t('search.idle'),
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: theme.colorScheme.outline),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
             ),
           ),
         ),
@@ -717,8 +745,9 @@ class _SearchPageState extends State<SearchPage> {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
           child: Text(
             tf('search.results', {'n': items.length}),
-            style: theme.textTheme.labelMedium
-                ?.copyWith(color: theme.colorScheme.outline),
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.outline,
+            ),
           ),
         ),
       ),
@@ -752,9 +781,9 @@ class _SearchPageState extends State<SearchPage> {
               onAvatarTap: () => item.author == null
                   ? null
                   : () => _openAuthorBy(
-                        item.author!.screenName,
-                        item.author!.name,
-                      ),
+                      item.author!.screenName,
+                      item.author!.name,
+                    ),
             );
           },
         ),
@@ -764,9 +793,9 @@ class _SearchPageState extends State<SearchPage> {
   // ------------------------------------------------------------- 小部件
 
   Widget _label(ThemeData theme, String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Text(text, style: theme.textTheme.labelLarge),
-      );
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Text(text, style: theme.textTheme.labelLarge),
+  );
 
   /// 作者用下拉而不是输入框：本地库已经知道有哪些作者，
   /// 手打 `@screen_name` 既容易打错，也看不到「这个人我有多少条」。
@@ -786,24 +815,31 @@ class _SearchPageState extends State<SearchPage> {
     }
 
     return DropdownButtonFormField<String>(
-      initialValue: (current != null && names.contains(current)) ? current : null,
+      initialValue: (current != null && names.contains(current))
+          ? current
+          : null,
       isExpanded: true,
       items: [
         DropdownMenuItem(value: null, child: Text(t('filter.all'))),
-        for (final n in names) DropdownMenuItem(value: n, child: Text(
-          labelOf(n),
-          overflow: TextOverflow.ellipsis,
-        )),
+        for (final n in names)
+          DropdownMenuItem(
+            value: n,
+            child: Text(labelOf(n), overflow: TextOverflow.ellipsis),
+          ),
       ],
       onChanged: (v) {
         if (isLocal) {
-          _setLocal(v == null
-              ? _localFilter.copyWith(clearAuthor: true)
-              : _localFilter.copyWith(authorScreenName: v));
+          _setLocal(
+            v == null
+                ? _localFilter.copyWith(clearAuthor: true)
+                : _localFilter.copyWith(authorScreenName: v),
+          );
         } else {
-          setState(() => _xQuery = v == null
-              ? _xQuery.copyWith(clearFrom: true)
-              : _xQuery.copyWith(from: v));
+          setState(
+            () => _xQuery = v == null
+                ? _xQuery.copyWith(clearFrom: true)
+                : _xQuery.copyWith(from: v),
+          );
         }
       },
     );
@@ -813,25 +849,21 @@ class _SearchPageState extends State<SearchPage> {
     required String title,
     required bool value,
     required ValueChanged<bool> onChanged,
-  }) =>
-      SwitchListTile(
-        contentPadding: EdgeInsets.zero,
-        dense: true,
-        title: Text(title),
-        value: value,
-        onChanged: onChanged,
-      );
+  }) => SwitchListTile(
+    contentPadding: EdgeInsets.zero,
+    dense: true,
+    title: Text(title),
+    value: value,
+    onChanged: onChanged,
+  );
 
   Widget _intBox(TextEditingController c, String hint) => TextField(
-        controller: c,
-        keyboardType: TextInputType.number,
-        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-        onChanged: (_) => setState(_syncXInts),
-        decoration: InputDecoration(
-          hintText: hint,
-          isDense: true,
-        ),
-      );
+    controller: c,
+    keyboardType: TextInputType.number,
+    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+    onChanged: (_) => setState(_syncXInts),
+    decoration: InputDecoration(hintText: hint, isDense: true),
+  );
 
   Widget _dateButton(
     ThemeData theme, {
@@ -897,8 +929,7 @@ class _SearchPageState extends State<SearchPage> {
                     : null,
               );
               if (range == null) return;
-              _setLocal(
-                  f.copyWith(from: range.start, to: range.end));
+              _setLocal(f.copyWith(from: range.start, to: range.end));
             },
           ),
         ),
@@ -919,19 +950,19 @@ String _fmtDate(DateTime d) =>
     '${d.day.toString().padLeft(2, '0')}';
 
 String _mediaFilterLabel(SearchMediaFilter f) => switch (f) {
-      SearchMediaFilter.any => t('search.mediaAll'),
-      SearchMediaFilter.media => t('search.mediaAny'),
-      SearchMediaFilter.images => t('filter.image'),
-      SearchMediaFilter.videos => t('filter.video'),
-      SearchMediaFilter.nativeVideo => t('search.mediaNativeVideo'),
-    };
+  SearchMediaFilter.any => t('search.mediaAll'),
+  SearchMediaFilter.media => t('search.mediaAny'),
+  SearchMediaFilter.images => t('filter.image'),
+  SearchMediaFilter.videos => t('filter.video'),
+  SearchMediaFilter.nativeVideo => t('search.mediaNativeVideo'),
+};
 
 String _mediaFilterLabelLocal(MediaFilter f) => switch (f) {
-      MediaFilter.video => t('filter.video'),
-      MediaFilter.image => t('filter.image'),
-      MediaFilter.gif => t('filter.gif'),
-      MediaFilter.text => t('filter.text'),
-    };
+  MediaFilter.video => t('filter.video'),
+  MediaFilter.image => t('filter.image'),
+  MediaFilter.gif => t('filter.gif'),
+  MediaFilter.text => t('filter.text'),
+};
 
 const Map<String, String> _langs = <String, String>{
   '': 'search.anyLanguage',

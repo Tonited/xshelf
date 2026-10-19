@@ -99,7 +99,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final browse = app.browse;
 
     final anchor = view.anchorSeq;
-    final firstSeq = browse.items.isNotEmpty ? browse.items.first.feedRank : null;
+    final firstSeq = browse.items.isNotEmpty
+        ? browse.items.first.feedRank
+        : null;
     if (anchor != null && browse.items.isNotEmpty && anchor != firstSeq) {
       await browse.jumpToSeq(anchor);
       if (!mounted) return;
@@ -120,8 +122,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (browse.mode == mode) return;
 
     if (_scroll.hasClients) {
-      await app.settings.setScrollOf(
-          browse.mode.name, _scroll.position.pixels);
+      await app.settings.setScrollOf(browse.mode.name, _scroll.position.pixels);
     }
     await browse.setMode(mode);
     if (!mounted) return;
@@ -209,15 +210,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void _openAuthor(LikeItem item) {
     final author = item.author;
     if (author == null || author.screenName.isEmpty) return;
-    Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => AuthorPage(author: author, cache: _app?.mediaCache),
-    ));
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AuthorPage(author: author, cache: _app?.mediaCache),
+      ),
+    );
   }
 
   void _openSearch() {
-    Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => const SearchPage(),
-    ));
+    Navigator.of(context)
+        .push(MaterialPageRoute<void>(builder: (_) => const SearchPage()));
   }
 
   @override
@@ -240,9 +242,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               child: Center(
                 child: Text(
                   '${app.browse.totalCount}',
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: Theme.of(context).colorScheme.outline,
-                      ),
+                  style: Theme.of(context).textTheme.labelLarge
+                      ?.copyWith(color: Theme.of(context).colorScheme.outline),
                 ),
               ),
             ),
@@ -269,10 +270,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           preferredSize: const Size.fromHeight(44),
           child: ListenableBuilder(
             listenable: app.browse,
-            builder: (context, _) => _ModeBar(
-              browse: app.browse,
-              onModeChanged: _switchMode,
-            ),
+            builder: (context, _) =>
+                _ModeBar(browse: app.browse, onModeChanged: _switchMode),
           ),
         ),
       ),
@@ -327,32 +326,39 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   NavigationDestination _navDestination(String key) => switch (key) {
-        'search' => NavigationDestination(
-            icon: const Icon(Icons.search), label: t('nav.search')),
-        'swipe' => NavigationDestination(
-            icon: const Icon(Icons.play_circle_outline),
-            label: t('nav.swipe')),
-        'grok' => NavigationDestination(
-            icon: const Icon(Icons.auto_awesome_outlined),
-            label: t('nav.grok')),
-        'settings' => NavigationDestination(
-            icon: const Icon(Icons.settings), label: t('nav.settings')),
-        _ => NavigationDestination(
-            icon: const Icon(Icons.dynamic_feed), label: t('nav.browse')),
-      };
+    'search' => NavigationDestination(
+      icon: const Icon(Icons.search),
+      label: t('nav.search'),
+    ),
+    'swipe' => NavigationDestination(
+      icon: const Icon(Icons.play_circle_outline),
+      label: t('nav.swipe'),
+    ),
+    'grok' => NavigationDestination(
+      icon: const Icon(Icons.auto_awesome_outlined),
+      label: t('nav.grok'),
+    ),
+    'settings' => NavigationDestination(
+      icon: const Icon(Icons.settings),
+      label: t('nav.settings'),
+    ),
+    _ => NavigationDestination(
+      icon: const Icon(Icons.dynamic_feed),
+      label: t('nav.browse'),
+    ),
+  };
 
   /// Grok 页：grok.com 官方页面，内嵌网页。
   ///
   /// 登录态：grok.com 的登录本来就跳 X 授权，而 WebView 里 x.com 的 cookie
   /// 已经注入了 —— 所以点一次「Sign in with X」就会自动通过，不用另配账号。
   void _openGrok() {
-    unawaited(openXPage(
-      context,
-      const XWebPage(
-        url: 'https://grok.com',
-        title: 'Grok',
+    unawaited(
+      openXPage(
+        context,
+        const XWebPage(url: 'https://grok.com', title: 'Grok'),
       ),
-    ));
+    );
   }
 
   void _openSwipe() {
@@ -360,9 +366,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   void _openSettings(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const SettingsPage()),
-    );
+    Navigator.of(context)
+        .push(MaterialPageRoute<void>(builder: (_) => const SettingsPage()));
   }
 
   Future<bool> _confirmBackfill(BuildContext context) async {
@@ -373,11 +378,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         content: Text(t('sync.backfillConfirm')),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(t('action.cancel'))),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(t('action.cancel')),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(t('action.confirm'))),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(t('action.confirm')),
+          ),
         ],
       ),
     );
@@ -416,10 +423,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (browse.loadingPage) {
         return const Center(child: CircularProgressIndicator());
       }
-      return _EmptyState(onBackfill: () async {
-        final ok = await _confirmBackfill(context);
-        if (ok) await app.sync.startBackfill();
-      });
+      return _EmptyState(
+        onBackfill: () async {
+          final ok = await _confirmBackfill(context);
+          if (ok) await app.sync.startBackfill();
+        },
+      );
     }
 
     // 列表用**已滤掉本次取消喜欢**的视图；播放页仍用 browse.items，
@@ -460,26 +469,22 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               // ---- center 之上：更新的条目（倒序排，索引 0 最靠近 center）
               SliverList(
                 delegate: SliverChildBuilderDelegate(
-                  (context, i) =>
-                      _cardAt(app, all, olderCount - 1 - i),
+                  (context, i) => _cardAt(app, all, olderCount - 1 - i),
                   childCount: olderCount,
                 ),
               ),
               // ---- center 及以下
               SliverList(
                 key: _centerKey,
-                delegate: SliverChildBuilderDelegate(
-                  (context, i) {
-                    if (i >= belowCount) {
-                      return const Padding(
-                        padding: EdgeInsets.all(24),
-                        child: Center(child: CircularProgressIndicator()),
-                      );
-                    }
-                    return _cardAt(app, all, olderCount + i);
-                  },
-                  childCount: belowCount + (browse.hasMore ? 1 : 0),
-                ),
+                delegate: SliverChildBuilderDelegate((context, i) {
+                  if (i >= belowCount) {
+                    return const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  return _cardAt(app, all, olderCount + i);
+                }, childCount: belowCount + (browse.hasMore ? 1 : 0)),
               ),
             ],
           ),
@@ -549,8 +554,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       children: [
                         Text('1 — $total'),
                         const Spacer(),
-                        Text('$position',
-                            style: theme.textTheme.titleMedium),
+                        Text('$position', style: theme.textTheme.titleMedium),
                       ],
                     ),
                     Slider(
@@ -580,9 +584,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       width: double.infinity,
                       child: OutlinedButton.icon(
                         icon: const Icon(Icons.event, size: 18),
-                        label: Text(date == null
-                            ? t('filter.dateRange')
-                            : _fmtDate(date!)),
+                        label: Text(
+                          date == null
+                              ? t('filter.dateRange')
+                              : _fmtDate(date!),
+                        ),
                         onPressed: () async {
                           final picked = await showDatePicker(
                             context: ctx,
@@ -622,7 +628,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   static String _fmtDate(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-'
       '${d.day.toString().padLeft(2, '0')}';
-
 }
 
 /// 响应式断点（搜索页/作者空间复用）。
@@ -685,12 +690,17 @@ class _ModeBar extends StatelessWidget {
             ),
             segments: [
               ButtonSegment(
-                  value: SortMode.likeOrder, label: Text(t('mode.likeOrder'))),
+                value: SortMode.likeOrder,
+                label: Text(t('mode.likeOrder')),
+              ),
               ButtonSegment(
-                  value: SortMode.publishDate,
-                  label: Text(t('mode.publishDate'))),
+                value: SortMode.publishDate,
+                label: Text(t('mode.publishDate')),
+              ),
               ButtonSegment(
-                  value: SortMode.random, label: Text(t('mode.random'))),
+                value: SortMode.random,
+                label: Text(t('mode.random')),
+              ),
             ],
             selected: {browse.mode},
             onSelectionChanged: (s) => onModeChanged(s.first),
@@ -721,15 +731,16 @@ class _SyncBanner extends StatelessWidget {
       final text = isError
           ? '${t("sync.error")}: $error'
           : last!.inserted > 0
-              ? '${t("sync.done")} · ${last.pages} ${t("sync.pages")} '
-                  '· +${last.inserted} ${t("sync.items")}'
-              : '${t("sync.done")} · ${t("sync.noNew")}';
+          ? '${t("sync.done")} · ${last.pages} ${t("sync.pages")} '
+                '· +${last.inserted} ${t("sync.items")}'
+          : '${t("sync.done")} · ${t("sync.noNew")}';
       return Material(
         color: isError ? scheme.errorContainer : scheme.secondaryContainer,
         child: ListTile(
           dense: true,
-          leading:
-              Icon(isError ? Icons.error_outline : Icons.check_circle_outline),
+          leading: Icon(
+            isError ? Icons.error_outline : Icons.check_circle_outline,
+          ),
           title: Text(text),
           trailing: IconButton(
             icon: const Icon(Icons.close),

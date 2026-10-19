@@ -189,11 +189,11 @@ class _MediaImageState extends State<MediaImage> {
   @override
   Widget build(BuildContext context) {
     Widget fallback(Widget child) => ColoredBox(
-          color: widget.darkFallback
-              ? Colors.black
-              : Theme.of(context).colorScheme.surfaceContainerHighest,
-          child: Center(child: child),
-        );
+      color: widget.darkFallback
+          ? Colors.black
+          : Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: Center(child: child),
+    );
 
     // 只认图片缓存：视频位置缓存的是 mp4，拿它去 Image.file 会解不出来，
     // 于是「播放过的视频在列表里没有封面」。
@@ -237,10 +237,7 @@ class _MediaImageState extends State<MediaImage> {
       // 重试/换清晰度时换 key，强制 Image 重新发起请求（否则它记住上次的失败）。
       key: ValueKey('$url#$_attempt'),
       headers: url.contains('twimg.com')
-          ? {
-              'Referer': 'https://x.com/',
-              'cookie': ?cookie,
-            }
+          ? {'Referer': 'https://x.com/', 'cookie': ?cookie}
           : null,
       fit: widget.fit,
       alignment: widget.alignment,
@@ -329,8 +326,7 @@ class AuthorAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     return CircleAvatar(
       radius: radius,
-      backgroundColor:
-          Theme.of(context).colorScheme.surfaceContainerHighest,
+      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
       child: ClipOval(
         child: SizedBox(
           width: radius * 2,

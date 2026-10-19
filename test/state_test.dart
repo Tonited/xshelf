@@ -25,34 +25,43 @@ void main() {
   });
 
   LikeItem item(String id, {DateTime? created, String? imageUrl}) => LikeItem(
-        tweetId: id,
-        text: 'text $id',
-        createdAt: created ?? DateTime.utc(2021, 5, 1),
-        author: const Author(id: 'u1', screenName: 'alice', name: 'Alice'),
-        media: imageUrl == null
-            ? const []
-            : [
-                MediaItem(
-                    kind: MediaKind.image,
-                    url: imageUrl,
-                    width: 1200,
-                    height: 900),
-              ],
-      );
+    tweetId: id,
+    text: 'text $id',
+    createdAt: created ?? DateTime.utc(2021, 5, 1),
+    author: const Author(id: 'u1', screenName: 'alice', name: 'Alice'),
+    media: imageUrl == null
+        ? const []
+        : [
+            MediaItem(
+              kind: MediaKind.image,
+              url: imageUrl,
+              width: 1200,
+              height: 900,
+            ),
+          ],
+  );
 
   group('image variants', () {
     test('grid thumbnails ask the CDN for a small rendition', () {
-      final it = item('1',
-          imageUrl: 'https://pbs.twimg.com/media/abc.jpg?format=jpg&name=large');
-      expect(it.thumbnailUrl,
-          'https://pbs.twimg.com/media/abc.jpg?format=jpg&name=small');
-      expect(it.fullImageUrl,
-          'https://pbs.twimg.com/media/abc.jpg?format=jpg&name=orig');
+      final it = item(
+        '1',
+        imageUrl: 'https://pbs.twimg.com/media/abc.jpg?format=jpg&name=large',
+      );
+      expect(
+        it.thumbnailUrl,
+        'https://pbs.twimg.com/media/abc.jpg?format=jpg&name=small',
+      );
+      expect(
+        it.fullImageUrl,
+        'https://pbs.twimg.com/media/abc.jpg?format=jpg&name=orig',
+      );
     });
 
     test('urls without a name parameter are left alone', () {
-      expect(withImageVariant('https://example.invalid/a.jpg', 'small'),
-          'https://example.invalid/a.jpg');
+      expect(
+        withImageVariant('https://example.invalid/a.jpg', 'small'),
+        'https://example.invalid/a.jpg',
+      );
     });
   });
 
@@ -73,10 +82,14 @@ void main() {
       addTearDown(db.dispose);
 
       final base = DateTime.utc(2020, 1, 1);
-      db.insertPage([
-        for (var i = 0; i < 250; i++)
-          item('t$i', created: base.add(Duration(days: i))),
-      ], accountId: 1, startSeq: 0);
+      db.insertPage(
+        [
+          for (var i = 0; i < 250; i++)
+            item('t$i', created: base.add(Duration(days: i))),
+        ],
+        accountId: 1,
+        startSeq: 0,
+      );
 
       final buckets = db.estimatedBuckets();
       // seq 从 0 往下递减：第 1 条独占 [0,2e8)，第 2..201 条落 [-2e8,0)，
@@ -109,12 +122,22 @@ void main() {
       if (!available) return;
       final db = AppDatabase.openInMemory();
       addTearDown(db.dispose);
-      db.insertPage([for (var i = 0; i < 7; i++) item('t$i')],
-          accountId: 1, startSeq: 0);
+      db.insertPage(
+        [for (var i = 0; i < 7; i++) item('t$i')],
+        accountId: 1,
+        startSeq: 0,
+      );
 
       final browse = await loaded(db);
-      expect(browse.items.map((i) => i.tweetId),
-          ['t0', 't1', 't2', 't3', 't4', 't5', 't6']);
+      expect(browse.items.map((i) => i.tweetId), [
+        't0',
+        't1',
+        't2',
+        't3',
+        't4',
+        't5',
+        't6',
+      ]);
       expect(browse.hasMore, isFalse);
       expect(browse.totalCount, 7);
     });
@@ -123,40 +146,54 @@ void main() {
       if (!available) return;
       final db = AppDatabase.openInMemory();
       addTearDown(db.dispose);
-      db.insertPage([for (var i = 0; i < 7; i++) item('t$i')],
-          accountId: 1, startSeq: 0);
+      db.insertPage(
+        [for (var i = 0; i < 7; i++) item('t$i')],
+        accountId: 1,
+        startSeq: 0,
+      );
 
       final browse = await loaded(db);
       final anchor = browse.items[3].feedRank!;
       await browse.jumpToSeq(anchor);
       // 差一错误会直接跳过被点的那个月份的第一条。
       expect(browse.items.first.tweetId, 't3');
-      expect(browse.items.map((i) => i.tweetId),
-          ['t3', 't4', 't5', 't6']);
+      expect(browse.items.map((i) => i.tweetId), ['t3', 't4', 't5', 't6']);
     });
 
     test('refresh after sync keeps the visible anchor', () async {
       if (!available) return;
       final db = AppDatabase.openInMemory();
       addTearDown(db.dispose);
-      db.insertPage([for (var i = 0; i < 7; i++) item('t$i')],
-          accountId: 1, startSeq: 0);
+      db.insertPage(
+        [for (var i = 0; i < 7; i++) item('t$i')],
+        accountId: 1,
+        startSeq: 0,
+      );
 
       final browse = await loaded(db);
       await browse.jumpToSeq(browse.items[2].feedRank!);
       expect(browse.items.first.tweetId, 't2');
 
       // 同步插入了更新的一条（seq 在最大处之上）
-      db.insertPage([item('fresh')],
-          accountId: 1, startSeq: db.maxSeqOverall()! + AppDatabase.seqStep);
+      db.insertPage(
+        [item('fresh')],
+        accountId: 1,
+        startSeq: db.maxSeqOverall()! + AppDatabase.seqStep,
+      );
       await browse.refresh();
 
       // center 那一条是用户当前看的位置，刷新不能把它顶走；新同步进来的条目
       // 排在它**上方**（`_older`），所以 `items.first` 会变，但 center 不变。
-      expect(browse.items[browse.olderCount].tweetId, 't2',
-          reason: '刷新不应把用户弹回顶部');
-      expect(browse.items.first.tweetId, 'fresh',
-          reason: '新同步的条目应出现在 center 上方');
+      expect(
+        browse.items[browse.olderCount].tweetId,
+        't2',
+        reason: '刷新不应把用户弹回顶部',
+      );
+      expect(
+        browse.items.first.tweetId,
+        'fresh',
+        reason: '新同步的条目应出现在 center 上方',
+      );
       expect(browse.totalCount, 8);
 
       await browse.reload(reset: true);
@@ -167,8 +204,11 @@ void main() {
       if (!available) return;
       final db = AppDatabase.openInMemory();
       addTearDown(db.dispose);
-      db.insertPage([for (var i = 0; i < 3; i++) item('t$i')],
-          accountId: 1, startSeq: 0);
+      db.insertPage(
+        [for (var i = 0; i < 3; i++) item('t$i')],
+        accountId: 1,
+        startSeq: 0,
+      );
 
       final browse = await loaded(db);
       browse.select('t1');
@@ -185,11 +225,17 @@ void main() {
       if (!available) return;
       final db = AppDatabase.openInMemory();
       addTearDown(db.dispose);
-      db.insertPage([for (var i = 0; i < 3; i++) item('t$i')],
-          accountId: 1, startSeq: 0);
+      db.insertPage(
+        [for (var i = 0; i < 3; i++) item('t$i')],
+        accountId: 1,
+        startSeq: 0,
+      );
 
       final saved = <ViewSnapshot>[];
-      final browse = BrowseState(db: db, persistView: (v) async => saved.add(v));
+      final browse = BrowseState(
+        db: db,
+        persistView: (v) async => saved.add(v),
+      );
       browse.restoreFrom(const ViewSnapshot(mode: SortMode.publishDate));
       await browse.reload(reset: true);
       await browse.saveView(scrollOffset: 120);

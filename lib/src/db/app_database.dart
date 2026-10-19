@@ -28,8 +28,10 @@ enum SortMode {
   /// 随机
   random;
 
-  static SortMode fromName(String? name) =>
-      SortMode.values.firstWhere((m) => m.name == name, orElse: () => SortMode.likeOrder);
+  static SortMode fromName(String? name) => SortMode.values.firstWhere(
+    (m) => m.name == name,
+    orElse: () => SortMode.likeOrder,
+  );
 }
 
 /// 媒体类型筛选。
@@ -101,57 +103,61 @@ class LikesFilter {
     bool clearRange = false,
     bool clearSearch = false,
     bool clearLang = false,
-  }) =>
-      LikesFilter(
-        media: media ?? this.media,
-        authorScreenName:
-            clearAuthor ? null : (authorScreenName ?? this.authorScreenName),
-        authorsIn: clearAuthor ? const {} : (authorsIn ?? this.authorsIn),
-        from: clearRange ? null : (from ?? this.from),
-        to: clearRange ? null : (to ?? this.to),
-        search: clearSearch ? null : (search ?? this.search),
-        lang: clearLang ? null : (lang ?? this.lang),
-        excludeReplies: excludeReplies ?? this.excludeReplies,
-        excludeRetweets: excludeRetweets ?? this.excludeRetweets,
-      );
+  }) => LikesFilter(
+    media: media ?? this.media,
+    authorScreenName: clearAuthor
+        ? null
+        : (authorScreenName ?? this.authorScreenName),
+    authorsIn: clearAuthor ? const {} : (authorsIn ?? this.authorsIn),
+    from: clearRange ? null : (from ?? this.from),
+    to: clearRange ? null : (to ?? this.to),
+    search: clearSearch ? null : (search ?? this.search),
+    lang: clearLang ? null : (lang ?? this.lang),
+    excludeReplies: excludeReplies ?? this.excludeReplies,
+    excludeRetweets: excludeRetweets ?? this.excludeRetweets,
+  );
 
   Map<String, Object?> toJson() => {
-        'media': [for (final m in media) m.name],
-        if (authorScreenName != null) 'author': authorScreenName,
-        if (authorsIn.isNotEmpty) 'authors': authorsIn.toList(),
-        if (from != null) 'from': from!.millisecondsSinceEpoch,
-        if (to != null) 'to': to!.millisecondsSinceEpoch,
-        if (search != null) 'search': search,
-        if (lang != null) 'lang': lang,
-        if (excludeReplies) 'noReplies': true,
-        if (excludeRetweets) 'noRetweets': true,
-      };
+    'media': [for (final m in media) m.name],
+    if (authorScreenName != null) 'author': authorScreenName,
+    if (authorsIn.isNotEmpty) 'authors': authorsIn.toList(),
+    if (from != null) 'from': from!.millisecondsSinceEpoch,
+    if (to != null) 'to': to!.millisecondsSinceEpoch,
+    if (search != null) 'search': search,
+    if (lang != null) 'lang': lang,
+    if (excludeReplies) 'noReplies': true,
+    if (excludeRetweets) 'noRetweets': true,
+  };
 
   factory LikesFilter.fromJson(Map<String, Object?> j) => LikesFilter(
-        media: {
-          for (final m in (j['media'] as List? ?? const []))
-            MediaFilter.values.firstWhere((v) => v.name == m,
-                orElse: () => MediaFilter.text),
-        },
-        authorScreenName: j['author'] as String?,
-        authorsIn: {
-          for (final a in (j['authors'] as List? ?? const [])) a.toString(),
-        },
-        from: j['from'] == null
-            ? null
-            : DateTime.fromMillisecondsSinceEpoch(
-                (j['from'] as num).toInt(),
-                isUtc: true),
-        to: j['to'] == null
-            ? null
-            : DateTime.fromMillisecondsSinceEpoch(
-                (j['to'] as num).toInt(),
-                isUtc: true),
-        search: j['search'] as String?,
-        lang: j['lang'] as String?,
-        excludeReplies: j['noReplies'] == true,
-        excludeRetweets: j['noRetweets'] == true,
-      );
+    media: {
+      for (final m in (j['media'] as List? ?? const []))
+        MediaFilter.values.firstWhere(
+          (v) => v.name == m,
+          orElse: () => MediaFilter.text,
+        ),
+    },
+    authorScreenName: j['author'] as String?,
+    authorsIn: {
+      for (final a in (j['authors'] as List? ?? const [])) a.toString(),
+    },
+    from: j['from'] == null
+        ? null
+        : DateTime.fromMillisecondsSinceEpoch(
+            (j['from'] as num).toInt(),
+            isUtc: true,
+          ),
+    to: j['to'] == null
+        ? null
+        : DateTime.fromMillisecondsSinceEpoch(
+            (j['to'] as num).toInt(),
+            isUtc: true,
+          ),
+    search: j['search'] as String?,
+    lang: j['lang'] as String?,
+    excludeReplies: j['noReplies'] == true,
+    excludeRetweets: j['noRetweets'] == true,
+  );
 }
 
 /// 分页游标：三种模式各用其中一个字段。
@@ -228,18 +234,18 @@ class SyncState {
     int? probeRemoteCount,
     int? rotateSeq,
     bool clearBackfillCursor = false,
-  }) =>
-      SyncState(
-        topCursor: topCursor ?? this.topCursor,
-        backfillCursor:
-            clearBackfillCursor ? null : (backfillCursor ?? this.backfillCursor),
-        minSeq: minSeq ?? this.minSeq,
-        maxSeq: maxSeq ?? this.maxSeq,
-        backfillDone: backfillDone ?? this.backfillDone,
-        probeAt: probeAt ?? this.probeAt,
-        probeRemoteCount: probeRemoteCount ?? this.probeRemoteCount,
-        rotateSeq: rotateSeq ?? this.rotateSeq,
-      );
+  }) => SyncState(
+    topCursor: topCursor ?? this.topCursor,
+    backfillCursor: clearBackfillCursor
+        ? null
+        : (backfillCursor ?? this.backfillCursor),
+    minSeq: minSeq ?? this.minSeq,
+    maxSeq: maxSeq ?? this.maxSeq,
+    backfillDone: backfillDone ?? this.backfillDone,
+    probeAt: probeAt ?? this.probeAt,
+    probeRemoteCount: probeRemoteCount ?? this.probeRemoteCount,
+    rotateSeq: rotateSeq ?? this.rotateSeq,
+  );
 }
 
 class AppDatabase {
@@ -482,9 +488,10 @@ class AppDatabase {
   }
 
   void _kvSet(String key, String value) => _db.execute(
-      'INSERT INTO kv(key, value) VALUES(?, ?) '
-      'ON CONFLICT(key) DO UPDATE SET value = excluded.value',
-      [key, value]);
+    'INSERT INTO kv(key, value) VALUES(?, ?) '
+    'ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+    [key, value],
+  );
 
   // -------------------------------------------------------------- accounts
 
@@ -494,23 +501,29 @@ class AppDatabase {
     String? displayName,
     String? avatarUrl,
   }) {
-    _db.execute('''
+    _db.execute(
+      '''
       INSERT INTO accounts(x_user_id, screen_name, display_name, avatar_url)
       VALUES(?, ?, ?, ?)
       ON CONFLICT(x_user_id) DO UPDATE SET
         screen_name = COALESCE(excluded.screen_name, accounts.screen_name),
         display_name = COALESCE(excluded.display_name, accounts.display_name),
         avatar_url = COALESCE(excluded.avatar_url, accounts.avatar_url)
-    ''', [xUserId, screenName, displayName, avatarUrl]);
-    final rows = _db.select('SELECT id FROM accounts WHERE x_user_id = ?', [xUserId]);
+    ''',
+      [xUserId, screenName, displayName, avatarUrl],
+    );
+    final rows = _db.select('SELECT id FROM accounts WHERE x_user_id = ?', [
+      xUserId,
+    ]);
     return rows.first['id'] as int;
   }
 
   // ----------------------------------------------------------------- likes
 
   SyncState loadSyncState(int accountId) {
-    final rows =
-        _db.select('SELECT * FROM sync_state WHERE account_id = ?', [accountId]);
+    final rows = _db.select('SELECT * FROM sync_state WHERE account_id = ?', [
+      accountId,
+    ]);
     if (rows.isEmpty) return const SyncState();
     final r = rows.first;
     return SyncState(
@@ -521,14 +534,18 @@ class AppDatabase {
       backfillDone: (r['backfill_done'] as int? ?? 0) == 1,
       probeAt: r['probe_at'] == null
           ? null
-          : DateTime.fromMillisecondsSinceEpoch(r['probe_at'] as int, isUtc: true),
+          : DateTime.fromMillisecondsSinceEpoch(
+              r['probe_at'] as int,
+              isUtc: true,
+            ),
       probeRemoteCount: r['probe_remote_count'] as int?,
       rotateSeq: r['rotate_seq'] as int?,
     );
   }
 
   void saveSyncState(int accountId, SyncState s) {
-    _db.execute('''
+    _db.execute(
+      '''
       INSERT INTO sync_state(account_id, top_cursor, backfill_cursor, min_seq, max_seq,
         backfill_done, probe_at, probe_remote_count, rotate_seq)
       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -541,17 +558,19 @@ class AppDatabase {
         probe_at = excluded.probe_at,
         probe_remote_count = excluded.probe_remote_count,
         rotate_seq = excluded.rotate_seq
-    ''', [
-      accountId,
-      s.topCursor,
-      s.backfillCursor,
-      s.minSeq,
-      s.maxSeq,
-      s.backfillDone ? 1 : 0,
-      s.probeAt?.millisecondsSinceEpoch,
-      s.probeRemoteCount,
-      s.rotateSeq,
-    ]);
+    ''',
+      [
+        accountId,
+        s.topCursor,
+        s.backfillCursor,
+        s.minSeq,
+        s.maxSeq,
+        s.backfillDone ? 1 : 0,
+        s.probeAt?.millisecondsSinceEpoch,
+        s.probeRemoteCount,
+        s.rotateSeq,
+      ],
+    );
   }
 
   int countLikes({bool includeDeleted = true}) {
@@ -564,7 +583,9 @@ class AppDatabase {
   }
 
   bool hasTweet(String tweetId) {
-    final rows = _db.select('SELECT 1 FROM likes WHERE tweet_id = ?', [tweetId]);
+    final rows = _db.select('SELECT 1 FROM likes WHERE tweet_id = ?', [
+      tweetId,
+    ]);
     return rows.isNotEmpty;
   }
 
@@ -577,7 +598,9 @@ class AppDatabase {
       final chunk = list.sublist(i, math.min(i + 500, list.length));
       final holders = List.filled(chunk.length, '?').join(',');
       final rows = _db.select(
-          'SELECT tweet_id FROM likes WHERE tweet_id IN ($holders)', chunk);
+        'SELECT tweet_id FROM likes WHERE tweet_id IN ($holders)',
+        chunk,
+      );
       out.addAll(rows.map((r) => r['tweet_id'] as String));
     }
     return out;
@@ -592,8 +615,9 @@ class AppDatabase {
       final chunk = list.sublist(i, math.min(i + 500, list.length));
       final holders = List.filled(chunk.length, '?').join(',');
       final rows = _db.select(
-          'SELECT tweet_id, feed_seq FROM likes WHERE tweet_id IN ($holders)',
-          chunk);
+        'SELECT tweet_id, feed_seq FROM likes WHERE tweet_id IN ($holders)',
+        chunk,
+      );
       for (final r in rows) {
         final seq = r['feed_seq'] as int?;
         if (seq != null) out[r['tweet_id'] as String] = seq;
@@ -622,7 +646,8 @@ class AppDatabase {
     _db.execute('BEGIN');
     try {
       final existsStmt = _db.prepare(
-          'SELECT feed_seq, text, author_name, author_screen_name FROM likes WHERE tweet_id = ?');
+        'SELECT feed_seq, text, author_name, author_screen_name FROM likes WHERE tweet_id = ?',
+      );
       final insertStmt = _db.prepare('''
         INSERT INTO likes(tweet_id, account_id, feed_seq, rand_key, created_at, text, lang,
           author_id, author_name, author_screen_name, author_avatar, media_json,
@@ -645,30 +670,36 @@ class AppDatabase {
           duration_ms=excluded.duration_ms
       ''');
       final ftsStmt = _db.prepare(
-          'INSERT INTO likes_fts(tweet_id, text, author_name, author_screen_name) VALUES(?,?,?,?)');
-      final ftsDelStmt = _db.prepare('DELETE FROM likes_fts WHERE tweet_id = ?');
+        'INSERT INTO likes_fts(tweet_id, text, author_name, author_screen_name) VALUES(?,?,?,?)',
+      );
+      final ftsDelStmt = _db.prepare(
+        'DELETE FROM likes_fts WHERE tweet_id = ?',
+      );
 
-      final mediaTrimStmt =
-          _db.prepare('DELETE FROM media WHERE tweet_id = ? AND idx >= ?');
+      final mediaTrimStmt = _db.prepare(
+        'DELETE FROM media WHERE tweet_id = ? AND idx >= ?',
+      );
 
       try {
         for (final item in items) {
           final existing = existsStmt.select([item.tweetId]);
           final isNew = existing.isEmpty;
           final row = isNew ? null : existing.first;
-          final seqValue = isNew
-              ? seq
-              : ((row!['feed_seq'] as int?) ?? seq);
+          final seqValue = isNew ? seq : ((row!['feed_seq'] as int?) ?? seq);
           seq -= seqStep;
           final randKey = item.randKey ?? randomSortKey();
-          final mediaJson = jsonEncode([for (final m in item.media) m.toJson()]);
+          final mediaJson = jsonEncode([
+            for (final m in item.media) m.toJson(),
+          ]);
 
           // 刷新同一页时内容往往没变：此时跳过 FTS 的删+写，
           // 回填 5 万条能省下几万次 B 树写入（trigram 索引很贵）。
-          final textUnchanged = row != null &&
+          final textUnchanged =
+              row != null &&
               row['text'] == item.text &&
               (row['author_name'] ?? '') == (item.author?.name ?? '') &&
-              (row['author_screen_name'] ?? '') == (item.author?.screenName ?? '');
+              (row['author_screen_name'] ?? '') ==
+                  (item.author?.screenName ?? '');
 
           if (isNew) {
             inserted++;
@@ -781,71 +812,85 @@ class AppDatabase {
   /// 取相邻的 seq：比 [seq] 小的最大者、比 [seq] 大的最小者。
   ({int? above, int? below}) neighborsOf(int seq) {
     final above = _db.select(
-        'SELECT MAX(feed_seq) v FROM likes WHERE feed_seq < ?', [seq]);
-    final below = _db.select(
-        'SELECT MIN(feed_seq) v FROM likes WHERE feed_seq > ?', [seq]);
-    return (
-      above: above.first['v'] as int?,
-      below: below.first['v'] as int?,
+      'SELECT MAX(feed_seq) v FROM likes WHERE feed_seq < ?',
+      [seq],
     );
+    final below = _db.select(
+      'SELECT MIN(feed_seq) v FROM likes WHERE feed_seq > ?',
+      [seq],
+    );
+    return (above: above.first['v'] as int?, below: below.first['v'] as int?);
   }
 
-  bool _writeSingle(LikeItem item,
-      {required int accountId, required int seq}) {
+  bool _writeSingle(LikeItem item, {required int accountId, required int seq}) {
     final ts = DateTime.now().millisecondsSinceEpoch;
     final randKey = item.randKey ?? randomSortKey();
     _db.execute('BEGIN');
     try {
-      _db.execute('''
+      _db.execute(
+        '''
         INSERT INTO likes(tweet_id, account_id, feed_seq, rand_key, created_at, text, lang,
           author_id, author_name, author_screen_name, author_avatar, media_json,
           has_video, has_image, has_gif, sensitive, reply_to, quote_of, retweet_of,
           state, fetched_at, verified_at, raw_json)
         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-      ''', [
-        item.tweetId,
-        accountId,
-        seq,
-        randKey,
-        item.createdAt?.millisecondsSinceEpoch,
-        item.text,
-        item.lang,
-        item.author?.id,
-        item.author?.name,
-        item.author?.screenName,
-        item.author?.avatarUrl,
-        jsonEncode([for (final m in item.media) m.toJson()]),
-        item.hasVideo ? 1 : 0,
-        item.hasImage ? 1 : 0,
-        item.hasGif ? 1 : 0,
-        item.sensitive ? 1 : 0,
-        item.replyTo,
-        item.quoteOf,
-        item.retweetOf,
-        LikeState.normal.name,
-        ts,
-        ts,
-        item.raw == null ? null : jsonEncode(item.raw),
-      ]);
+      ''',
+        [
+          item.tweetId,
+          accountId,
+          seq,
+          randKey,
+          item.createdAt?.millisecondsSinceEpoch,
+          item.text,
+          item.lang,
+          item.author?.id,
+          item.author?.name,
+          item.author?.screenName,
+          item.author?.avatarUrl,
+          jsonEncode([for (final m in item.media) m.toJson()]),
+          item.hasVideo ? 1 : 0,
+          item.hasImage ? 1 : 0,
+          item.hasGif ? 1 : 0,
+          item.sensitive ? 1 : 0,
+          item.replyTo,
+          item.quoteOf,
+          item.retweetOf,
+          LikeState.normal.name,
+          ts,
+          ts,
+          item.raw == null ? null : jsonEncode(item.raw),
+        ],
+      );
       for (var i = 0; i < item.media.length; i++) {
         final m = item.media[i];
-        _db.execute('''
+        _db.execute(
+          '''
           INSERT INTO media(tweet_id, idx, kind, url, playback_url, duration_ms)
           VALUES(?,?,?,?,?,?)
           ON CONFLICT(tweet_id, idx) DO UPDATE SET
             kind=excluded.kind, url=excluded.url, playback_url=excluded.playback_url,
             duration_ms=excluded.duration_ms
-        ''', [item.tweetId, i, m.kind.name, m.url, m.bestPlaybackUrl, m.durationMs]);
+        ''',
+          [
+            item.tweetId,
+            i,
+            m.kind.name,
+            m.url,
+            m.bestPlaybackUrl,
+            m.durationMs,
+          ],
+        );
       }
       _db.execute('DELETE FROM likes_fts WHERE tweet_id = ?', [item.tweetId]);
       _db.execute(
-          'INSERT INTO likes_fts(tweet_id, text, author_name, author_screen_name) VALUES(?,?,?,?)',
-          [
-            item.tweetId,
-            item.text,
-            item.author?.name ?? '',
-            item.author?.screenName ?? '',
-          ]);
+        'INSERT INTO likes_fts(tweet_id, text, author_name, author_screen_name) VALUES(?,?,?,?)',
+        [
+          item.tweetId,
+          item.text,
+          item.author?.name ?? '',
+          item.author?.screenName ?? '',
+        ],
+      );
       _db.execute('COMMIT');
       return true;
     } catch (_) {
@@ -864,30 +909,30 @@ class AppDatabase {
     String? cursor,
     DateTime? verifiedAt,
   }) {
-    _db.execute('''
+    _db.execute(
+      '''
       INSERT INTO segments(account_id, start_seq, end_seq, cursor, verified_at)
       VALUES(?,?,?,?,?)
       ON CONFLICT(account_id, start_seq) DO UPDATE SET
         end_seq = excluded.end_seq,
         cursor = COALESCE(excluded.cursor, segments.cursor),
         verified_at = COALESCE(excluded.verified_at, segments.verified_at)
-    ''', [
-      accountId,
-      startSeq,
-      endSeq,
-      cursor,
-      verifiedAt?.millisecondsSinceEpoch,
-    ]);
+    ''',
+      [accountId, startSeq, endSeq, cursor, verifiedAt?.millisecondsSinceEpoch],
+    );
   }
 
   /// 最久没核对过的区段（点名给巡边器）。
   List<({int startSeq, int endSeq, String? cursor, DateTime? verifiedAt})>
-      stalestSegments(int accountId, {int limit = 20}) {
-    final rows = _db.select('''
+  stalestSegments(int accountId, {int limit = 20}) {
+    final rows = _db.select(
+      '''
       SELECT start_seq, end_seq, cursor, verified_at FROM segments
       WHERE account_id = ? AND cursor IS NOT NULL
       ORDER BY COALESCE(verified_at, 0) ASC LIMIT ?
-    ''', [accountId, limit]);
+    ''',
+      [accountId, limit],
+    );
     return [
       for (final r in rows)
         (
@@ -896,16 +941,19 @@ class AppDatabase {
           cursor: r['cursor'] as String?,
           verifiedAt: r['verified_at'] == null
               ? null
-              : DateTime.fromMillisecondsSinceEpoch(r['verified_at'] as int,
-                  isUtc: true),
+              : DateTime.fromMillisecondsSinceEpoch(
+                  r['verified_at'] as int,
+                  isUtc: true,
+                ),
         ),
     ];
   }
 
   /// 某条记录的 seq。
   int? seqOf(String tweetId) {
-    final rows =
-        _db.select('SELECT feed_seq FROM likes WHERE tweet_id = ?', [tweetId]);
+    final rows = _db.select('SELECT feed_seq FROM likes WHERE tweet_id = ?', [
+      tweetId,
+    ]);
     if (rows.isEmpty) return null;
     return rows.first['feed_seq'] as int?;
   }
@@ -922,8 +970,7 @@ class AppDatabase {
 
   /// 某条记录所在的区段起点（把任意 seq 对齐到区段边界）。
   int segmentStartFor(int seq) =>
-      (seq / (AppDatabase.seqStep * 200)).floor() *
-      (AppDatabase.seqStep * 200);
+      (seq / (AppDatabase.seqStep * 200)).floor() * (AppDatabase.seqStep * 200);
 
   /// 把条目标记为「已删除」（作者删推 / 账号受保护）。
   ///
@@ -931,7 +978,9 @@ class AppDatabase {
   /// 「我取消了喜欢」是另一回事。
   void markDeleted(Iterable<String> tweetIds) {
     if (tweetIds.isEmpty) return;
-    final stmt = _db.prepare("UPDATE likes SET state='deleted' WHERE tweet_id = ?");
+    final stmt = _db.prepare(
+      "UPDATE likes SET state='deleted' WHERE tweet_id = ?",
+    );
     try {
       for (final id in tweetIds) {
         stmt.execute([id]);
@@ -945,7 +994,9 @@ class AppDatabase {
   /// 但**列表里不该再出现**（[fetchPage] 会过滤掉这个状态）。
   void markRemoved(Iterable<String> tweetIds) {
     if (tweetIds.isEmpty) return;
-    final stmt = _db.prepare("UPDATE likes SET state='removed' WHERE tweet_id = ?");
+    final stmt = _db.prepare(
+      "UPDATE likes SET state='removed' WHERE tweet_id = ?",
+    );
     try {
       for (final id in tweetIds) {
         stmt.execute([id]);
@@ -967,14 +1018,15 @@ class AppDatabase {
   /// 取消喜欢现在是**标记**而不是物理删除（见 `SyncService.unlike`），
   /// 所以用户在播放页里再点一次就能原样恢复，不用重新下载。
   void restoreLike(String tweetId) {
-    _db.execute(
-      "UPDATE likes SET state = 'normal' WHERE tweet_id = ?",
-      [tweetId],
-    );
+    _db.execute("UPDATE likes SET state = 'normal' WHERE tweet_id = ?", [
+      tweetId,
+    ]);
   }
 
   LikeItem? getLike(String tweetId) {
-    final rows = _db.select('SELECT * FROM likes WHERE tweet_id = ?', [tweetId]);
+    final rows = _db.select('SELECT * FROM likes WHERE tweet_id = ?', [
+      tweetId,
+    ]);
     if (rows.isEmpty) return null;
     return _rowToItem(rows.first);
   }
@@ -1032,7 +1084,9 @@ class AppDatabase {
             if (after != null) return includeStart ? '<=' : '<';
             return includeStart ? '>=' : '>';
           }();
-          where.add('(created_at $cmp ? OR (created_at = ? AND tweet_id $cmp ?))');
+          where.add(
+            '(created_at $cmp ? OR (created_at = ? AND tweet_id $cmp ?))',
+          );
           args
             ..add(pubAt)
             ..add(pubAt)
@@ -1081,9 +1135,9 @@ class AppDatabase {
       next = switch (mode) {
         SortMode.likeOrder => PageKey(seq: edge['feed_seq'] as int?),
         SortMode.publishDate => PageKey(
-            publishedAt: edge['created_at'] as int?,
-            tweetId: edge['tweet_id'] as String?,
-          ),
+          publishedAt: edge['created_at'] as int?,
+          tweetId: edge['tweet_id'] as String?,
+        ),
         SortMode.random => PageKey(randKey: edge['rand_key'] as int?),
       };
     }
@@ -1130,9 +1184,9 @@ class AppDatabase {
     return switch (mode) {
       SortMode.likeOrder => PageKey(seq: r['feed_seq'] as int?),
       SortMode.publishDate => PageKey(
-          publishedAt: r['created_at'] as int?,
-          tweetId: r['tweet_id'] as String?,
-        ),
+        publishedAt: r['created_at'] as int?,
+        tweetId: r['tweet_id'] as String?,
+      ),
       SortMode.random => PageKey(randKey: r['rand_key'] as int?),
     };
   }
@@ -1206,7 +1260,10 @@ class AppDatabase {
   /// [fetchPage] 和 [keyAtOffset] 共用同一份 —— 两边各写一遍的话，
   /// 「按位置跳」会跳到「翻页」看不到的地方去。
   void _appendFilter(
-      LikesFilter filter, List<String> where, List<Object?> args) {
+    LikesFilter filter,
+    List<String> where,
+    List<Object?> args,
+  ) {
     // 「我取消了喜欢」的行永远不进列表（数据保留，重新喜欢能原样恢复）。
     // 作者删掉的帖子是 `deleted`，那个要显示（卡片上标「已删除」）。
     where.add("state <> 'removed'");
@@ -1263,8 +1320,10 @@ class AppDatabase {
 
     // 已经是 FTS 表达式（搜索页多关键词会拼成 `"a" AND "b"`）就原样用；
     // 再包一层引号会把它当成单个短语，多关键词就失效了。
-    final isExpression =
-        RegExp(r'\b(AND|OR|NOT)\b', caseSensitive: false).hasMatch(q);
+    final isExpression = RegExp(
+      r'\b(AND|OR|NOT)\b',
+      caseSensitive: false,
+    ).hasMatch(q);
 
     // trigram 的索引粒度是 3 个字符，**短于 3 个字符的查询它一个都命中不了** ——
     // 而中文习惯两个字的词（「天气」「猫狗」），所以这里必须真的退回 LIKE。
@@ -1299,11 +1358,14 @@ class AppDatabase {
   }
 
   List<AuthorCount> topAuthors({int limit = 200}) {
-    final rows = _db.select('''
+    final rows = _db.select(
+      '''
       SELECT author_screen_name sn, MAX(author_name) nm, COUNT(*) c
       FROM likes WHERE author_screen_name IS NOT NULL
       GROUP BY author_screen_name ORDER BY c DESC LIMIT ?
-    ''', [limit]);
+    ''',
+      [limit],
+    );
     return [
       for (final r in rows)
         AuthorCount(
@@ -1336,17 +1398,22 @@ class AppDatabase {
   /// 某个发布月份（`YYYY-MM`）里「喜欢顺序最靠前」的一条的 seq。
   /// 时间轴跳到某个月时用它当锚点（seq 越大越新）。
   int? newestSeqInMonth(String month) {
-    final rows = _db.select('''
+    final rows = _db.select(
+      '''
       SELECT MAX(feed_seq) seq FROM likes
       WHERE strftime('%Y-%m', created_at/1000, 'unixepoch') = ?
-    ''', [month]);
+    ''',
+      [month],
+    );
     if (rows.isEmpty) return null;
     return rows.first['seq'] as int?;
   }
 
   /// 全局 seq 区间（时间轴把「拖动比例」映射成 seq 用）。
   ({int? minSeq, int? maxSeq}) seqBounds() {
-    final r = _db.select('SELECT MIN(feed_seq) mn, MAX(feed_seq) mx FROM likes').first;
+    final r = _db
+        .select('SELECT MIN(feed_seq) mn, MAX(feed_seq) mx FROM likes')
+        .first;
     return (minSeq: r['mn'] as int?, maxSeq: r['mx'] as int?);
   }
 
@@ -1357,7 +1424,7 @@ class AppDatabase {
   /// 以前这里是「每个桶两次查询」（COUNT + 取 created_at 排序），5 万条时要跑
   /// 500 条 SQL；现在改成一次全表扫描 + 内存分桶，首帧时间轴从数百毫秒降到十几毫秒。
   List<({int fromSeq, int toSeq, int count, DateTime? approxDate})>
-      estimatedBuckets({int bucketSize = 200}) {
+  estimatedBuckets({int bucketSize = 200}) {
     final width = bucketSize * AppDatabase.seqStep;
     final rows = _db.select('SELECT feed_seq, created_at FROM likes');
     if (rows.isEmpty) return const [];
@@ -1395,14 +1462,18 @@ class AppDatabase {
   DateTime? _medianDate(List<int> values) {
     if (values.isEmpty) return null;
     final sorted = List<int>.of(values)..sort();
-    return DateTime.fromMillisecondsSinceEpoch(sorted[sorted.length ~/ 2],
-        isUtc: true);
+    return DateTime.fromMillisecondsSinceEpoch(
+      sorted[sorted.length ~/ 2],
+      isUtc: true,
+    );
   }
 
   /// 随机重洗：给所有条目重新分配 rand_key。
   void reshuffle() {
     final rows = _db.select('SELECT tweet_id FROM likes');
-    final stmt = _db.prepare('UPDATE likes SET rand_key = ? WHERE tweet_id = ?');
+    final stmt = _db.prepare(
+      'UPDATE likes SET rand_key = ? WHERE tweet_id = ?',
+    );
     _db.execute('BEGIN');
     try {
       for (final r in rows) {
@@ -1433,10 +1504,16 @@ class AppDatabase {
       deleted: (r['deleted'] as int?) ?? 0,
       oldest: r['oldest'] == null
           ? null
-          : DateTime.fromMillisecondsSinceEpoch(r['oldest'] as int, isUtc: true),
+          : DateTime.fromMillisecondsSinceEpoch(
+              r['oldest'] as int,
+              isUtc: true,
+            ),
       newest: r['newest'] == null
           ? null
-          : DateTime.fromMillisecondsSinceEpoch(r['newest'] as int, isUtc: true),
+          : DateTime.fromMillisecondsSinceEpoch(
+              r['newest'] as int,
+              isUtc: true,
+            ),
     );
   }
 
@@ -1475,32 +1552,27 @@ class AppDatabase {
     int rank = 0,
   }) {
     final now = DateTime.now().millisecondsSinceEpoch;
-    _db.execute('''
+    _db.execute(
+      '''
       UPDATE media SET
         local_path = ?, bytes = ?, last_used_at = ?, cache_variant = ?,
         best_variant = CASE WHEN ? > COALESCE(best_rank, -1) THEN ? ELSE best_variant END,
         best_rank    = CASE WHEN ? > COALESCE(best_rank, -1) THEN ? ELSE best_rank END
       WHERE tweet_id = ? AND idx = ?
-    ''', [
-      path,
-      bytes,
-      now,
-      variant,
-      rank,
-      variant,
-      rank,
-      rank,
-      tweetId,
-      idx,
-    ]);
+    ''',
+      [path, bytes, now, variant, rank, variant, rank, rank, tweetId, idx],
+    );
   }
 
   /// 记住「这条媒体用过这一档」。只在比已记录的更清晰时才写。
   void rememberMediaVariant(String tweetId, int idx, String variant, int rank) {
-    _db.execute('''
+    _db.execute(
+      '''
       UPDATE media SET best_variant = ?, best_rank = ?
       WHERE tweet_id = ? AND idx = ? AND ? > COALESCE(best_rank, -1)
-    ''', [variant, rank, tweetId, idx, rank]);
+    ''',
+      [variant, rank, tweetId, idx, rank],
+    );
   }
 
   /// 这条媒体**播过/看过**的最好档位。
@@ -1525,19 +1597,20 @@ class AppDatabase {
 
   /// 一次查完「本地文件 / 文件是哪档 / 看过最好哪档」——
   /// 列表里每张卡片都要问，三次 SQL 会变成滚动的卡顿来源。
-  ({
-    String? path,
-    String? cacheVariant,
-    String? bestVariant,
-    int? bestRank,
-  }) mediaCacheRow(String tweetId, int idx) {
+  ({String? path, String? cacheVariant, String? bestVariant, int? bestRank})
+  mediaCacheRow(String tweetId, int idx) {
     final rows = _db.select(
       'SELECT local_path, cache_variant, best_variant, best_rank FROM media '
       'WHERE tweet_id = ? AND idx = ?',
       [tweetId, idx],
     );
     if (rows.isEmpty) {
-      return (path: null, cacheVariant: null, bestVariant: null, bestRank: null);
+      return (
+        path: null,
+        cacheVariant: null,
+        bestVariant: null,
+        bestRank: null,
+      );
     }
     final r = rows.first;
     return (
@@ -1569,13 +1642,11 @@ class AppDatabase {
 
   String? cachedTranslation(String key) => _kvGet('tr.$key');
 
-  void saveTranslation(String key, String value) =>
-      _kvSet('tr.$key', value);
+  void saveTranslation(String key, String value) => _kvSet('tr.$key', value);
 
   /// 已经缓存了多少条译文（设置页可以显示/清理）。
   int translationCacheCount() {
-    final rows = _db.select(
-        "SELECT COUNT(*) c FROM kv WHERE key LIKE 'tr.%'");
+    final rows = _db.select("SELECT COUNT(*) c FROM kv WHERE key LIKE 'tr.%'");
     return rows.first['c'] as int? ?? 0;
   }
 
@@ -1584,15 +1655,21 @@ class AppDatabase {
 
   /// 触摸（LRU 用）。
   void touchMedia(String tweetId) {
-    _db.execute('UPDATE media SET last_used_at = ? WHERE tweet_id = ?',
-        [DateTime.now().millisecondsSinceEpoch, tweetId]);
+    _db.execute('UPDATE media SET last_used_at = ? WHERE tweet_id = ?', [
+      DateTime.now().millisecondsSinceEpoch,
+      tweetId,
+    ]);
   }
 
   /// LRU 淘汰：超过 [maxBytes] 时从最久未用的开始删，返回删掉的字节数。
   int evictMediaCache(int maxBytes) {
-    var total = _db
-        .select('SELECT COALESCE(SUM(bytes),0) s FROM media WHERE local_path IS NOT NULL')
-        .first['s'] as int;
+    var total =
+        _db
+                .select(
+                  'SELECT COALESCE(SUM(bytes),0) s FROM media WHERE local_path IS NOT NULL',
+                )
+                .first['s']
+            as int;
     if (total <= maxBytes) return 0;
     var freed = 0;
     final rows = _db.select('''
@@ -1600,8 +1677,9 @@ class AppDatabase {
       WHERE local_path IS NOT NULL ORDER BY COALESCE(last_used_at, 0) ASC
     ''');
     final stmt = _db.prepare(
-        'UPDATE media SET local_path = NULL, bytes = 0, cache_variant = NULL '
-        'WHERE id = ?');
+      'UPDATE media SET local_path = NULL, bytes = 0, cache_variant = NULL '
+      'WHERE id = ?',
+    );
     try {
       for (final r in rows) {
         if (total <= maxBytes) break;
@@ -1623,8 +1701,11 @@ class AppDatabase {
 
   int mediaCacheBytes() =>
       (_db
-              .select('SELECT COALESCE(SUM(bytes),0) s FROM media WHERE local_path IS NOT NULL')
-              .first['s'] as int?) ??
+              .select(
+                'SELECT COALESCE(SUM(bytes),0) s FROM media WHERE local_path IS NOT NULL',
+              )
+              .first['s']
+          as int?) ??
       0;
 
   String? localMediaPath(String tweetId, int idx) {
@@ -1656,7 +1737,10 @@ class AppDatabase {
       text: r['text'] as String? ?? '',
       createdAt: r['created_at'] == null
           ? null
-          : DateTime.fromMillisecondsSinceEpoch(r['created_at'] as int, isUtc: true),
+          : DateTime.fromMillisecondsSinceEpoch(
+              r['created_at'] as int,
+              isUtc: true,
+            ),
       lang: r['lang'] as String?,
       author: r['author_id'] == null
           ? null
@@ -1679,7 +1763,10 @@ class AppDatabase {
       randKey: r['rand_key'] as int?,
       verifiedAt: r['verified_at'] == null
           ? null
-          : DateTime.fromMillisecondsSinceEpoch(r['verified_at'] as int, isUtc: true),
+          : DateTime.fromMillisecondsSinceEpoch(
+              r['verified_at'] as int,
+              isUtc: true,
+            ),
       // 正文里的 #话题 / @提及 / 外链要靠 entities 里的 indices 与
       // expanded_url 才能准确渲染（尤其 t.co 短链，只有它知道真实地址）。
       // 解析失败就当没有，UI 会退回正则兜底 —— 不能因为一条脏数据让整页挂掉。

@@ -25,11 +25,7 @@ Future<String?> saveMediaToGallery({
 }) async {
   try {
     // 1. 本地文件：命中缓存直接用，否则下载（和播放共用同一个缓存，不重复下）。
-    final file = await cache.ensureCached(
-      tweetId: tweetId,
-      idx: idx,
-      url: url,
-    );
+    final file = await cache.ensureCached(tweetId: tweetId, idx: idx, url: url);
     if (file == null || !file.existsSync()) {
       return t('gallery.downloadFailed');
     }
@@ -76,5 +72,4 @@ File? cachedMediaFile({
   required MediaCache cache,
   required String tweetId,
   required int idx,
-}) =>
-    cache.cachedFile(tweetId, idx);
+}) => cache.cachedFile(tweetId, idx);

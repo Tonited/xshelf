@@ -34,28 +34,28 @@ void main() {
     DateTime? created,
     bool video = false,
     String? author = 'alice',
-  }) =>
-      LikeItem(
-        tweetId: id,
-        text: text,
-        createdAt: created ?? DateTime.utc(2021, 5, 1),
-        author: author == null
-            ? null
-            : Author(id: 'u_$author', screenName: author, name: author),
-        media: video
-            ? const [
-                MediaItem(
-                  kind: MediaKind.video,
-                  url: 'https://example.invalid/p.jpg',
-                  variants: [
-                    MediaVariant(
-                        url: 'https://example.invalid/v.mp4',
-                        contentType: 'video/mp4'),
-                  ],
-                )
-              ]
-            : const [],
-      );
+  }) => LikeItem(
+    tweetId: id,
+    text: text,
+    createdAt: created ?? DateTime.utc(2021, 5, 1),
+    author: author == null
+        ? null
+        : Author(id: 'u_$author', screenName: author, name: author),
+    media: video
+        ? const [
+            MediaItem(
+              kind: MediaKind.video,
+              url: 'https://example.invalid/p.jpg',
+              variants: [
+                MediaVariant(
+                  url: 'https://example.invalid/v.mp4',
+                  contentType: 'video/mp4',
+                ),
+              ],
+            ),
+          ]
+        : const [],
+  );
 
   group('schema + seq allocation', () {
     test('assigns decreasing seq with a gap for later inserts', () {
@@ -81,8 +81,11 @@ void main() {
       addTearDown(db.dispose);
 
       db.insertPage([item('a', text: 'first')], accountId: 1, startSeq: 0);
-      final again =
-          db.insertPage([item('a', text: 'second')], accountId: 1, startSeq: -999);
+      final again = db.insertPage(
+        [item('a', text: 'second')],
+        accountId: 1,
+        startSeq: -999,
+      );
       expect(again.inserted, 0);
       expect(db.getLike('a')!.feedRank, 0);
       expect(db.getLike('a')!.text, 'second');
@@ -128,11 +131,15 @@ void main() {
       final db = newDb();
       addTearDown(db.dispose);
 
-      db.insertPage([
-        item('old', created: DateTime.utc(2020, 1, 1)),
-        item('new', created: DateTime.utc(2024, 1, 1)),
-        item('mid', created: DateTime.utc(2022, 1, 1)),
-      ], accountId: 1, startSeq: 0);
+      db.insertPage(
+        [
+          item('old', created: DateTime.utc(2020, 1, 1)),
+          item('new', created: DateTime.utc(2024, 1, 1)),
+          item('mid', created: DateTime.utc(2022, 1, 1)),
+        ],
+        accountId: 1,
+        startSeq: 0,
+      );
 
       final first = db.fetchPage(
         mode: SortMode.publishDate,
@@ -157,10 +164,11 @@ void main() {
       final db = newDb();
       addTearDown(db.dispose);
 
-      db.insertPage([
-        item('vid', video: true),
-        item('txt'),
-      ], accountId: 1, startSeq: 0);
+      db.insertPage(
+        [item('vid', video: true), item('txt')],
+        accountId: 1,
+        startSeq: 0,
+      );
 
       final videos = db.fetchPage(
         mode: SortMode.likeOrder,
@@ -182,11 +190,15 @@ void main() {
       final db = newDb();
       addTearDown(db.dispose);
 
-      db.insertPage([
-        item('a1', author: 'alice', created: DateTime.utc(2021, 1, 1)),
-        item('b1', author: 'bob', created: DateTime.utc(2021, 6, 1)),
-        item('a2', author: 'alice', created: DateTime.utc(2023, 1, 1)),
-      ], accountId: 1, startSeq: 0);
+      db.insertPage(
+        [
+          item('a1', author: 'alice', created: DateTime.utc(2021, 1, 1)),
+          item('b1', author: 'bob', created: DateTime.utc(2021, 6, 1)),
+          item('a2', author: 'alice', created: DateTime.utc(2023, 1, 1)),
+        ],
+        accountId: 1,
+        startSeq: 0,
+      );
 
       final page = db.fetchPage(
         mode: SortMode.likeOrder,
@@ -207,10 +219,14 @@ void main() {
       final db = newDb();
       addTearDown(db.dispose);
 
-      db.insertPage([
-        item('x', text: 'cats and dogs', author: 'alice'),
-        item('y', text: '天气预报', author: 'bob'),
-      ], accountId: 1, startSeq: 0);
+      db.insertPage(
+        [
+          item('x', text: 'cats and dogs', author: 'alice'),
+          item('y', text: '天气预报', author: 'bob'),
+        ],
+        accountId: 1,
+        startSeq: 0,
+      );
 
       final byText = db.fetchPage(
         mode: SortMode.likeOrder,
@@ -242,8 +258,11 @@ void main() {
       final db = newDb();
       addTearDown(db.dispose);
 
-      db.insertPage([item('gone', text: 'unique-phrase-xyz')],
-          accountId: 1, startSeq: 0);
+      db.insertPage(
+        [item('gone', text: 'unique-phrase-xyz')],
+        accountId: 1,
+        startSeq: 0,
+      );
       db.deleteLike('gone');
       expect(db.getLike('gone'), isNull);
 
@@ -280,7 +299,10 @@ void main() {
 
       final order = db
           .fetchPage(
-              mode: SortMode.likeOrder, filter: const LikesFilter(), limit: 10)
+            mode: SortMode.likeOrder,
+            filter: const LikesFilter(),
+            limit: 10,
+          )
           .items
           .map((i) => i.tweetId)
           .toList();
@@ -294,11 +316,15 @@ void main() {
       final db = newDb();
       addTearDown(db.dispose);
 
-      db.insertPage([
-        item('may', created: DateTime.utc(2021, 5, 10)),
-        item('jun', created: DateTime.utc(2021, 6, 10)),
-        item('may2', created: DateTime.utc(2021, 5, 20)),
-      ], accountId: 1, startSeq: 0);
+      db.insertPage(
+        [
+          item('may', created: DateTime.utc(2021, 5, 10)),
+          item('jun', created: DateTime.utc(2021, 6, 10)),
+          item('may2', created: DateTime.utc(2021, 5, 20)),
+        ],
+        accountId: 1,
+        startSeq: 0,
+      );
 
       final months = db.months();
       expect(months.map((m) => m.month), ['2021-06', '2021-05']);
@@ -342,8 +368,14 @@ void main() {
       expect(db.mediaBestVariant('a', 0), '720_2176000');
 
       // 缓存文件落盘：记录文件是哪一档
-      db.markMediaCached('a', 0, '/tmp/a.mp4', 1234,
-          variant: '720_2176000', rank: 2176000);
+      db.markMediaCached(
+        'a',
+        0,
+        '/tmp/a.mp4',
+        1234,
+        variant: '720_2176000',
+        rank: 2176000,
+      );
       final row = db.mediaCacheRow('a', 0);
       expect(row.path, '/tmp/a.mp4');
       expect(row.cacheVariant, '720_2176000');
@@ -351,8 +383,11 @@ void main() {
       expect(row.bestRank, 2176000);
 
       // 重新同步同一条推文不能把缓存/画质记录冲掉
-      db.insertPage([item('a', video: true, text: 'updated')],
-          accountId: 1, startSeq: -999);
+      db.insertPage(
+        [item('a', video: true, text: 'updated')],
+        accountId: 1,
+        startSeq: -999,
+      );
       expect(db.mediaCacheRow('a', 0).cacheVariant, '720_2176000');
     });
 
@@ -362,8 +397,14 @@ void main() {
       addTearDown(db.dispose);
 
       db.insertPage([item('a', video: true)], accountId: 1, startSeq: 0);
-      db.markMediaCached('a', 0, '/tmp/a.mp4', 10,
-          variant: '720_2176000', rank: 2176000);
+      db.markMediaCached(
+        'a',
+        0,
+        '/tmp/a.mp4',
+        10,
+        variant: '720_2176000',
+        rank: 2176000,
+      );
       db.clearMediaPath('a', 0);
 
       final row = db.mediaCacheRow('a', 0);

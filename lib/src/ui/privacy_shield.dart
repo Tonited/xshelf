@@ -75,10 +75,7 @@ class _PrivacyShieldState extends State<PrivacyShield>
     return Stack(
       children: [
         widget.child,
-        if (_covered)
-          const Positioned.fill(
-            child: _Cover(),
-          ),
+        if (_covered) const Positioned.fill(child: _Cover()),
       ],
     );
   }
@@ -105,13 +102,17 @@ class _Cover extends StatelessWidget {
                 child: CustomPaint(painter: _MarkPainter()),
               ),
               const SizedBox(height: 18),
-              Icon(Icons.lock_outline,
-                  size: 18, color: theme.colorScheme.outline),
+              Icon(
+                Icons.lock_outline,
+                size: 18,
+                color: theme.colorScheme.outline,
+              ),
               const SizedBox(height: 8),
               Text(
                 t('privacy.covered'),
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: theme.colorScheme.outline),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.outline,
+                ),
               ),
             ],
           ),
@@ -141,13 +142,19 @@ class _MarkPainter extends CustomPainter {
     paint.color = const Color(0xFFF7FAFC);
     canvas.drawPath(
       quad([
-        [32.6, 38.7], [66.6, 78.7], [75.4, 71.3], [41.4, 31.3],
+        [32.6, 38.7],
+        [66.6, 78.7],
+        [75.4, 71.3],
+        [41.4, 31.3],
       ]),
       paint,
     );
     canvas.drawPath(
       quad([
-        [66.6, 31.3], [32.6, 71.3], [41.4, 78.7], [75.4, 38.7],
+        [66.6, 31.3],
+        [32.6, 71.3],
+        [41.4, 78.7],
+        [75.4, 38.7],
       ]),
       paint,
     );
@@ -155,7 +162,10 @@ class _MarkPainter extends CustomPainter {
     paint.color = const Color(0xFF6CC7F5);
     canvas.drawPath(
       quad([
-        [44.8, 57.0], [32.6, 71.3], [41.4, 78.7], [59.9, 57.0],
+        [44.8, 57.0],
+        [32.6, 71.3],
+        [41.4, 78.7],
+        [59.9, 57.0],
       ]),
       paint,
     );

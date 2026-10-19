@@ -13,8 +13,7 @@ import 'package:flutter/services.dart';
 class KeepAwake {
   KeepAwake._();
 
-  static const MethodChannel _channel =
-      MethodChannel('app.xlikemanage/system');
+  static const MethodChannel _channel = MethodChannel('app.xlikemanage/system');
 
   /// 上一次真正发出去的状态（避免每帧都跨平台调用）。
   static bool? _applied;

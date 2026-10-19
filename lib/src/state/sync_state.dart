@@ -45,14 +45,17 @@ class SyncController extends ChangeNotifier {
   }
 
   Future<void> startBackfill({int? maxItems}) => _run(
-        (svc, acc, progress) =>
-            svc.backfill(accountId: acc, maxItems: maxItems, onProgress: progress),
-      );
+    (svc, acc, progress) =>
+        svc.backfill(accountId: acc, maxItems: maxItems, onProgress: progress),
+  );
 
   Future<void> syncNew() => _run(
-        (svc, acc, progress) =>
-            svc.syncNew(accountId: acc, maxItems: autoSyncOf().maxItems, onProgress: progress),
-      );
+    (svc, acc, progress) => svc.syncNew(
+      accountId: acc,
+      maxItems: autoSyncOf().maxItems,
+      onProgress: progress,
+    ),
+  );
 
   /// 上一次 [syncRecent] 的时间，用于节流。
   DateTime? _lastRecentAt;
@@ -88,7 +91,8 @@ class SyncController extends ChangeNotifier {
       SyncService service,
       int accountId,
       void Function(SyncProgress) onProgress,
-    ) action,
+    )
+    action,
   ) async {
     final svc = serviceOf();
     final acc = accountIdOf();

@@ -17,11 +17,8 @@ enum SearchMediaFilter {
   videos,
   nativeVideo;
 
-  static SearchMediaFilter fromName(String? name) =>
-      SearchMediaFilter.values.firstWhere(
-        (v) => v.name == name,
-        orElse: () => SearchMediaFilter.any,
-      );
+  static SearchMediaFilter fromName(String? name) => SearchMediaFilter.values
+      .firstWhere((v) => v.name == name, orElse: () => SearchMediaFilter.any);
 }
 
 class XSearchQuery {
@@ -103,27 +100,25 @@ class XSearchQuery {
     bool clearMinFaves = false,
     bool clearMinRetweets = false,
     bool clearMinReplies = false,
-  }) =>
-      XSearchQuery(
-        text: text ?? this.text,
-        from: clearFrom ? null : (from ?? this.from),
-        to: clearTo ? null : (to ?? this.to),
-        since: clearSince ? null : (since ?? this.since),
-        until: clearUntil ? null : (until ?? this.until),
-        lang: clearLang ? null : (lang ?? this.lang),
-        minFaves: clearMinFaves ? null : (minFaves ?? this.minFaves),
-        minRetweets:
-            clearMinRetweets ? null : (minRetweets ?? this.minRetweets),
-        minReplies: clearMinReplies ? null : (minReplies ?? this.minReplies),
-        media: media ?? this.media,
-        excludeReplies: excludeReplies ?? this.excludeReplies,
-        excludeRetweets: excludeRetweets ?? this.excludeRetweets,
-        excludeLinks: excludeLinks ?? this.excludeLinks,
-        verifiedOnly: verifiedOnly ?? this.verifiedOnly,
-        hashtags: hashtags ?? this.hashtags,
-        anyOf: anyOf ?? this.anyOf,
-        noneOf: noneOf ?? this.noneOf,
-      );
+  }) => XSearchQuery(
+    text: text ?? this.text,
+    from: clearFrom ? null : (from ?? this.from),
+    to: clearTo ? null : (to ?? this.to),
+    since: clearSince ? null : (since ?? this.since),
+    until: clearUntil ? null : (until ?? this.until),
+    lang: clearLang ? null : (lang ?? this.lang),
+    minFaves: clearMinFaves ? null : (minFaves ?? this.minFaves),
+    minRetweets: clearMinRetweets ? null : (minRetweets ?? this.minRetweets),
+    minReplies: clearMinReplies ? null : (minReplies ?? this.minReplies),
+    media: media ?? this.media,
+    excludeReplies: excludeReplies ?? this.excludeReplies,
+    excludeRetweets: excludeRetweets ?? this.excludeRetweets,
+    excludeLinks: excludeLinks ?? this.excludeLinks,
+    verifiedOnly: verifiedOnly ?? this.verifiedOnly,
+    hashtags: hashtags ?? this.hashtags,
+    anyOf: anyOf ?? this.anyOf,
+    noneOf: noneOf ?? this.noneOf,
+  );
 
   /// 拼成 `rawQuery`。空条件返回空串，由调用方拦下（X 不接受空查询）。
   String build() {
@@ -204,7 +199,10 @@ class XSearchQuery {
     final v = _normalize(raw);
     if (v.isEmpty) return '';
     final needsQuote =
-        v.contains(' ') || v.contains(':') || v.contains('(') || v.contains(')');
+        v.contains(' ') ||
+        v.contains(':') ||
+        v.contains('(') ||
+        v.contains(')');
     if (!needsQuote) return v;
     // 引号内的引号会把查询语法打断，直接剥掉而不是转义（X 不认反斜杠转义）。
     return '"${v.replaceAll('"', '')}"';

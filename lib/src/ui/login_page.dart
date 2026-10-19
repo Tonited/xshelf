@@ -34,6 +34,7 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   bool _busy = false;
   String? _error;
+
   /// Windows 也用 WebView2 内嵌登录：它的 UA 本来就是 Edge，没有 `wv` 标记，
   /// Google 对它的拦截比 Android WebView 宽松得多。
   final bool _webViewAvailable =
@@ -66,8 +67,10 @@ class _LoginPageState extends State<LoginPage> {
                       const Icon(Icons.info_outline, size: 20),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: Text(t('login.googleBlocked'),
-                            style: theme.textTheme.bodySmall),
+                        child: Text(
+                          t('login.googleBlocked'),
+                          style: theme.textTheme.bodySmall,
+                        ),
                       ),
                     ],
                   ),
@@ -109,10 +112,7 @@ class _LoginPageState extends State<LoginPage> {
               ],
               if (_error != null) ...[
                 const SizedBox(height: 16),
-                Text(
-                  _error!,
-                  style: TextStyle(color: theme.colorScheme.error),
-                ),
+                Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
               ],
             ],
           ),
@@ -122,11 +122,11 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _openEmbeddedLogin() async {
-    await Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => _EmbeddedLoginPage(
-        onSession: (s) => _finish(s),
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => _EmbeddedLoginPage(onSession: (s) => _finish(s)),
       ),
-    ));
+    );
   }
 
   /// 从剪贴板导入另一台设备导出的登录态（桌面端登录 → 手机直接用）。
@@ -161,14 +161,17 @@ class _LoginPageState extends State<LoginPage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(t('login.cookieSteps'),
-                  style: Theme.of(ctx).textTheme.bodySmall),
+              Text(
+                t('login.cookieSteps'),
+                style: Theme.of(ctx).textTheme.bodySmall,
+              ),
               const SizedBox(height: 12),
               TextField(
                 controller: controller,
                 maxLines: 4,
-                decoration:
-                    const InputDecoration(hintText: 'auth_token=…; ct0=…'),
+                decoration: const InputDecoration(
+                  hintText: 'auth_token=…; ct0=…',
+                ),
               ),
               const SizedBox(height: 8),
               Align(
@@ -206,11 +209,13 @@ class _LoginPageState extends State<LoginPage> {
       setState(() => _error = t('login.missingCookies'));
       return;
     }
-    await _finish(XSession(
-      authToken: parsed.authToken!,
-      ct0: parsed.ct0!,
-      userId: parsed.userId ?? '',
-    ));
+    await _finish(
+      XSession(
+        authToken: parsed.authToken!,
+        ct0: parsed.ct0!,
+        userId: parsed.userId ?? '',
+      ),
+    );
   }
 
   Future<void> _finish(XSession session) async {
@@ -348,8 +353,9 @@ class _EmbeddedLoginPageState extends State<_EmbeddedLoginPage> {
       body: ua == null
           ? const Center(child: CircularProgressIndicator())
           : InAppWebView(
-              initialUrlRequest:
-                  URLRequest(url: WebUri('https://x.com/i/flow/login')),
+              initialUrlRequest: URLRequest(
+                url: WebUri('https://x.com/i/flow/login'),
+              ),
               initialSettings: InAppWebViewSettings(
                 isInspectable: false,
                 useShouldOverrideUrlLoading: false,
@@ -372,13 +378,17 @@ class _EmbeddedLoginPageState extends State<_EmbeddedLoginPage> {
               },
               onReceivedError: (controller, request, error) {
                 if (request.isForMainFrame != true) return;
-                setState(() => _lastIssue =
-                    '${error.type} ${error.description} (${request.url})');
+                setState(
+                  () => _lastIssue =
+                      '${error.type} ${error.description} (${request.url})',
+                );
               },
               onReceivedHttpError: (controller, request, response) {
                 if (request.isForMainFrame != true) return;
-                setState(() =>
-                    _lastIssue = 'HTTP ${response.statusCode} (${request.url})');
+                setState(
+                  () => _lastIssue =
+                      'HTTP ${response.statusCode} (${request.url})',
+                );
               },
               onLoadStop: (controller, url) async {
                 setState(() => _currentUrl = url?.toString() ?? '');
@@ -413,8 +423,9 @@ class _EmbeddedLoginPageState extends State<_EmbeddedLoginPage> {
                       _lastIssue!,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: theme.colorScheme.error),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.error,
+                      ),
                     ),
                   Text(
                     url.isEmpty ? '—' : url,
@@ -427,14 +438,14 @@ class _EmbeddedLoginPageState extends State<_EmbeddedLoginPage> {
             ),
             IconButton(
               tooltip: t('login.copyDiag'),
-              onPressed:
-                  url.isEmpty && _lastIssue == null ? null : _copyDiagnostics,
+              onPressed: url.isEmpty && _lastIssue == null
+                  ? null
+                  : _copyDiagnostics,
               icon: const Icon(Icons.copy_all, size: 18),
             ),
             IconButton(
               tooltip: t('login.openInBrowser'),
-              onPressed:
-                  url.isEmpty ? null : () => _openExternally(url),
+              onPressed: url.isEmpty ? null : () => _openExternally(url),
               icon: const Icon(Icons.open_in_browser, size: 18),
             ),
           ],
@@ -444,10 +455,13 @@ class _EmbeddedLoginPageState extends State<_EmbeddedLoginPage> {
   }
 
   Future<void> _copyDiagnostics() async {
-    await Clipboard.setData(ClipboardData(
-      text: 'v$kAppVersion | UA=${_uaMode.name} | url=$_currentUrl | '
-          'issue=${_lastIssue ?? '-'}',
-    ));
+    await Clipboard.setData(
+      ClipboardData(
+        text:
+            'v$kAppVersion | UA=${_uaMode.name} | url=$_currentUrl | '
+            'issue=${_lastIssue ?? '-'}',
+      ),
+    );
     if (mounted) {
       ScaffoldMessenger.maybeOf(context)
           ?.showSnackBar(SnackBar(content: Text(t('error.copied'))));
@@ -461,17 +475,20 @@ class _EmbeddedLoginPageState extends State<_EmbeddedLoginPage> {
   }
 
   void _openPopup(int windowId) {
-    Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => _PopupWebViewPage(windowId: windowId),
-    ));
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => _PopupWebViewPage(windowId: windowId),
+      ),
+    );
   }
 
   Future<void> _tryCapture() async {
     if (_capturing || _done) return;
     _capturing = true;
     try {
-      final cookies =
-          await CookieManager.instance().getCookies(url: WebUri('https://x.com'));
+      final cookies = await CookieManager.instance().getCookies(
+        url: WebUri('https://x.com'),
+      );
       String? authToken;
       String? ct0;
       String? userId;

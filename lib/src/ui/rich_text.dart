@@ -97,8 +97,7 @@ List<BodyEntity>? _fromRawEntities(LikeItem item, String text) {
   final raw = item.raw;
   if (raw == null) return null;
 
-  final noteResult =
-      _dig(raw, ['note_tweet', 'note_tweet_results', 'result']);
+  final noteResult = _dig(raw, ['note_tweet', 'note_tweet_results', 'result']);
   final noteText = noteResult is Map ? noteResult['text'] as String? : null;
 
   // indices 是相对「取正文的那份 JSON」计算的：
@@ -123,9 +122,7 @@ List<BodyEntity>? _fromRawEntities(LikeItem item, String text) {
   final lower = text.toLowerCase();
 
   // ---- 外链（含媒体链接：它也是正文末尾的一条 t.co）
-  final links = <Map<dynamic, dynamic>>[
-    ..._listOf(set['urls']),
-  ];
+  final links = <Map<dynamic, dynamic>>[..._listOf(set['urls'])];
   if (!fromNote) {
     // 媒体实体的 indices 是按 legacy.full_text 算的，长推文的正文里没有它。
     links.addAll(_listOf(_dig(raw, ['legacy', 'extended_entities', 'media'])));
@@ -144,17 +141,19 @@ List<BodyEntity>? _fromRawEntities(LikeItem item, String text) {
     ];
     final resolved = _resolve(lower, indices.$1, indices.$2, tokens);
     if (resolved == null) continue; // 对不上就交给原文自己显示，别吃掉字符
-    out.add(BodyEntity(
-      start: resolved.start,
-      end: resolved.end,
-      kind: BodyEntityKind.url,
-      display: _urlLabel(
-        displayUrl: (u['display_url'] as String?)?.trim(),
-        expanded: expanded,
-        original: shortUrl ?? _slice(text, resolved),
+    out.add(
+      BodyEntity(
+        start: resolved.start,
+        end: resolved.end,
+        kind: BodyEntityKind.url,
+        display: _urlLabel(
+          displayUrl: (u['display_url'] as String?)?.trim(),
+          expanded: expanded,
+          original: shortUrl ?? _slice(text, resolved),
+        ),
+        url: expanded ?? shortUrl ?? '',
       ),
-      url: expanded ?? shortUrl ?? '',
-    ));
+    );
   }
 
   // ---- 话题
@@ -167,15 +166,17 @@ List<BodyEntity>? _fromRawEntities(LikeItem item, String text) {
       '＃$tag',
     ]);
     if (resolved == null) continue;
-    out.add(BodyEntity(
-      start: resolved.start,
-      end: resolved.end,
-      kind: BodyEntityKind.hashtag,
-      // 显示用原文那一截：全角 ＃、大小写都和正文完全一致，不会「少几个字」。
-      display: _slice(text, resolved),
-      // 话题直接跳 X 官方话题页；没有独立页面时它会落到搜索结果。
-      url: 'https://x.com/hashtag/${Uri.encodeComponent(tag)}',
-    ));
+    out.add(
+      BodyEntity(
+        start: resolved.start,
+        end: resolved.end,
+        kind: BodyEntityKind.hashtag,
+        // 显示用原文那一截：全角 ＃、大小写都和正文完全一致，不会「少几个字」。
+        display: _slice(text, resolved),
+        // 话题直接跳 X 官方话题页；没有独立页面时它会落到搜索结果。
+        url: 'https://x.com/hashtag/${Uri.encodeComponent(tag)}',
+      ),
+    );
   }
 
   // ---- 提及
@@ -185,13 +186,15 @@ List<BodyEntity>? _fromRawEntities(LikeItem item, String text) {
     if (indices == null || screen == null || screen.isEmpty) continue;
     final resolved = _resolve(lower, indices.$1, indices.$2, ['@$screen']);
     if (resolved == null) continue;
-    out.add(BodyEntity(
-      start: resolved.start,
-      end: resolved.end,
-      kind: BodyEntityKind.mention,
-      display: _slice(text, resolved),
-      url: 'https://x.com/${Uri.encodeComponent(screen)}',
-    ));
+    out.add(
+      BodyEntity(
+        start: resolved.start,
+        end: resolved.end,
+        kind: BodyEntityKind.mention,
+        display: _slice(text, resolved),
+        url: 'https://x.com/${Uri.encodeComponent(screen)}',
+      ),
+    );
   }
 
   out.sort((a, b) => a.start.compareTo(b.start));
@@ -212,12 +215,7 @@ List<BodyEntity>? _fromRawEntities(LikeItem item, String text) {
 /// 1. 先看原位置那一截是不是它 —— 是就原地用；
 /// 2. 不是就按内容重新定位（取离原位置最近的那一处）；
 /// 3. 还找不到就放弃这个实体 —— 原文照原样显示。宁可不美化，也不能吃掉字符。
-_Resolved? _resolve(
-  String lowerText,
-  int start,
-  int end,
-  List<String> tokens,
-) {
+_Resolved? _resolve(String lowerText, int start, int end, List<String> tokens) {
   final cleaned = [
     for (final t in tokens)
       if (t.isNotEmpty) t,
@@ -286,7 +284,10 @@ List<BodyEntity> _sanitize(List<BodyEntity> list, int textLength) {
 
 List<Map<dynamic, dynamic>> _listOf(Object? value) {
   if (value is! List) return const [];
-  return [for (final v in value) if (v is Map) v];
+  return [
+    for (final v in value)
+      if (v is Map) v,
+  ];
 }
 
 /// 外链显示成什么：优先 `display_url`（`youtube.com/watch?v=…`），
@@ -328,37 +329,43 @@ List<BodyEntity> _fromRegex(String text) {
     if (token.startsWith('http://') || token.startsWith('https://')) {
       final url = _trimUrlTail(token);
       if (url.length <= 'https://'.length) continue;
-      out.add(BodyEntity(
-        start: m.start,
-        end: m.start + url.length,
-        kind: BodyEntityKind.url,
-        display: _urlLabel(displayUrl: null, expanded: null, original: url),
-        url: url,
-      ));
+      out.add(
+        BodyEntity(
+          start: m.start,
+          end: m.start + url.length,
+          kind: BodyEntityKind.url,
+          display: _urlLabel(displayUrl: null, expanded: null, original: url),
+          url: url,
+        ),
+      );
       continue;
     }
     if (token.startsWith('#') || token.startsWith('＃')) {
       final tag = token.substring(1);
       if (tag.isEmpty) continue;
-      out.add(BodyEntity(
-        start: m.start,
-        end: m.end,
-        kind: BodyEntityKind.hashtag,
-        // 显示原文（全角/半角、大小写都和正文一致）
-        display: token,
-        url: 'https://x.com/hashtag/${Uri.encodeComponent(tag)}',
-      ));
+      out.add(
+        BodyEntity(
+          start: m.start,
+          end: m.end,
+          kind: BodyEntityKind.hashtag,
+          // 显示原文（全角/半角、大小写都和正文一致）
+          display: token,
+          url: 'https://x.com/hashtag/${Uri.encodeComponent(tag)}',
+        ),
+      );
       continue;
     }
     final screen = token.substring(1);
     if (screen.isEmpty) continue;
-    out.add(BodyEntity(
-      start: m.start,
-      end: m.end,
-      kind: BodyEntityKind.mention,
-      display: token,
-      url: 'https://x.com/${Uri.encodeComponent(screen)}',
-    ));
+    out.add(
+      BodyEntity(
+        start: m.start,
+        end: m.end,
+        kind: BodyEntityKind.mention,
+        display: token,
+        url: 'https://x.com/${Uri.encodeComponent(screen)}',
+      ),
+    );
   }
   return out;
 }
@@ -513,7 +520,8 @@ class _PostBodyState extends State<PostBody> {
     final base = widget.style ?? theme.textTheme.bodyMedium;
     // 末尾空白不进渲染：隐藏短链之后常常会剩下一截换行/空格。
     final text = widget.item.text.trimRight();
-    final linkStyle = widget.linkStyle ??
+    final linkStyle =
+        widget.linkStyle ??
         base?.copyWith(
           color: theme.colorScheme.primary,
           fontWeight: FontWeight.w500,
@@ -528,8 +536,7 @@ class _PostBodyState extends State<PostBody> {
     );
 
     // 全部被隐藏（正文本来就只是一条媒体短链）时不要留一个空行。
-    if (spans.isEmpty ||
-        spans.every((s) => (s.toPlainText()).trim().isEmpty)) {
+    if (spans.isEmpty || spans.every((s) => (s.toPlainText()).trim().isEmpty)) {
       return const SizedBox.shrink();
     }
 
@@ -570,11 +577,9 @@ class _PostBodyState extends State<PostBody> {
         // 原文这一截换成一个短标签，点开跳到真实地址。
         final recognizer = TapGestureRecognizer()..onTap = () => _open(e.url);
         _recognizers.add(recognizer);
-        spans.add(TextSpan(
-          text: e.display,
-          style: linkStyle,
-          recognizer: recognizer,
-        ));
+        spans.add(
+          TextSpan(text: e.display, style: linkStyle, recognizer: recognizer),
+        );
       }
       cursor = e.end;
     }
@@ -597,21 +602,24 @@ class _PostBodyState extends State<PostBody> {
       final s = m.start.clamp(pos, end);
       if (s > pos) out.add(TextSpan(text: text.substring(pos, s)));
       final e = m.end.clamp(s, end);
-      out.add(TextSpan(
-        text: text.substring(s, e),
-        style: TextStyle(
-          backgroundColor:
-              theme.colorScheme.primary.withValues(alpha: 0.22),
-          fontWeight: FontWeight.w600,
+      out.add(
+        TextSpan(
+          text: text.substring(s, e),
+          style: TextStyle(
+            backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.22),
+            fontWeight: FontWeight.w600,
+          ),
         ),
-      ));
+      );
       pos = e;
     }
     if (pos < end) out.add(TextSpan(text: text.substring(pos, end)));
   }
 
   List<({int start, int end})> _mergeHighlights(
-      List<({int start, int end})> raw, int length) {
+    List<({int start, int end})> raw,
+    int length,
+  ) {
     if (raw.isEmpty) return const [];
     final cleaned = <({int start, int end})>[];
     for (final h in raw) {

@@ -31,9 +31,13 @@ void main() {
     test('没有这个节点 / 标记不可用 → 没有译文', () {
       expect(const LikeItem(tweetId: '1', text: 'hi').translation, isNull);
       expect(
-        const LikeItem(tweetId: '2', text: 'hi', raw: {
-          'grok_translated_post_with_availability': {'is_available': false},
-        }).translation,
+        const LikeItem(
+          tweetId: '2',
+          text: 'hi',
+          raw: {
+            'grok_translated_post_with_availability': {'is_available': false},
+          },
+        ).translation,
         isNull,
       );
     });
@@ -76,13 +80,13 @@ void main() {
                 {
                   'text': '话题',
                   'indices': [4, 7],
-                }
+                },
               ],
               'user_mentions': [
                 {
                   'screen_name': 'alice',
                   'indices': [10, 16],
-                }
+                },
               ],
               'urls': [
                 {
@@ -90,7 +94,7 @@ void main() {
                   'expanded_url': 'https://example.com/x',
                   'display_url': 'example.com/x',
                   'indices': [20, 36],
-                }
+                },
               ],
             },
           },

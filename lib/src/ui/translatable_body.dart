@@ -143,14 +143,17 @@ class _TranslatableBodyState extends State<TranslatableBody> {
 
     // 有译文（X 的或兜底的）且不是中文，才切到译文。
     final translated =
-        xTranslation?.text ?? (_fallback?.isNotEmpty == true ? _fallback : null);
+        xTranslation?.text ??
+        (_fallback?.isNotEmpty == true ? _fallback : null);
     final usable = auto && !chinese && translated != null;
     final showing = usable && !_showOriginal;
 
     final badge = xTranslation != null
         ? (xTranslation.destLang == null
-            ? t('translate.translated')
-            : tf('translate.badge', {'lang': xTranslation.destLang!.toUpperCase()}))
+              ? t('translate.translated')
+              : tf('translate.badge', {
+                  'lang': xTranslation.destLang!.toUpperCase(),
+                }))
         : t('translate.translated');
 
     return Column(
@@ -190,8 +193,9 @@ class _TranslatableBodyState extends State<TranslatableBody> {
                   const SizedBox(width: 5),
                   Text(
                     t('translate.working'),
-                    style: theme.textTheme.labelSmall
-                        ?.copyWith(color: theme.colorScheme.outline),
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.outline,
+                    ),
                   ),
                 ] else if (_failed && translated == null)
                   // 失败时给一个能点的重试：免费接口偶发抽风，用户不该只能干等。
@@ -208,8 +212,9 @@ class _TranslatableBodyState extends State<TranslatableBody> {
                       children: [
                         Text(
                           t('translate.failed'),
-                          style: theme.textTheme.labelSmall
-                              ?.copyWith(color: theme.colorScheme.outline),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.outline,
+                          ),
                         ),
                         const SizedBox(width: 4),
                         Text(
@@ -225,13 +230,13 @@ class _TranslatableBodyState extends State<TranslatableBody> {
                 else ...[
                   Text(
                     showing ? badge : t('translate.original'),
-                    style: theme.textTheme.labelSmall
-                        ?.copyWith(color: theme.colorScheme.outline),
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.outline,
+                    ),
                   ),
                   const SizedBox(width: 6),
                   InkWell(
-                    onTap: () =>
-                        setState(() => _showOriginal = !_showOriginal),
+                    onTap: () => setState(() => _showOriginal = !_showOriginal),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 1),
                       child: Text(

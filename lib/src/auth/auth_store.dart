@@ -14,13 +14,14 @@ import '../sync/x_client.dart';
 
 class AuthStore {
   AuthStore([FlutterSecureStorage? storage])
-      : _storage = storage ??
-            const FlutterSecureStorage(
-              // Windows：只用 Dart + DPAPI 的文件存储。上游的「向后兼容」通道是
-              // C++/ATL 实现，我们已经在 third_party 里把它去掉了（见 pubspec.yaml），
-              // 这里显式关掉，保证永远不会调到那个 MethodChannel。
-              wOptions: WindowsOptions(useBackwardCompatibility: false),
-            );
+    : _storage =
+          storage ??
+          const FlutterSecureStorage(
+            // Windows：只用 Dart + DPAPI 的文件存储。上游的「向后兼容」通道是
+            // C++/ATL 实现，我们已经在 third_party 里把它去掉了（见 pubspec.yaml），
+            // 这里显式关掉，保证永远不会调到那个 MethodChannel。
+            wOptions: WindowsOptions(useBackwardCompatibility: false),
+          );
 
   final FlutterSecureStorage _storage;
 

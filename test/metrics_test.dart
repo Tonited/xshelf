@@ -29,10 +29,7 @@ void main() {
 
     test('数字是字符串 / 包在 count 里也能解', () {
       final m = TweetMetrics.fromRaw({
-        'legacy': {
-          'reply_count': '8',
-          'favorite_count': 1000,
-        },
+        'legacy': {'reply_count': '8', 'favorite_count': 1000},
         'views': {'count': '12345'},
       });
       expect(m!.replies, 8);

@@ -61,8 +61,10 @@ void main() {
     final verified = await client.verify();
 
     // ignore: avoid_print
-    print('verified: @${verified.screenName} (${verified.displayName}) '
-        'id=${verified.userId} avatar=${verified.avatarUrl}');
+    print(
+      'verified: @${verified.screenName} (${verified.displayName}) '
+      'id=${verified.userId} avatar=${verified.avatarUrl}',
+    );
     expect(verified.screenName, isNotNull);
     expect(verified.screenName!.isNotEmpty, isTrue);
     expect(verified.userId, isNotEmpty);
@@ -78,13 +80,17 @@ void main() {
     final page = await client.fetchLikes(count: 20);
 
     // ignore: avoid_print
-    print('items=${page.items.length} hasMore=${page.hasMore} '
-        'topCursor=${page.topCursor != null}');
+    print(
+      'items=${page.items.length} hasMore=${page.hasMore} '
+      'topCursor=${page.topCursor != null}',
+    );
     for (final item in page.items.take(3)) {
       // ignore: avoid_print
-      print(' - @${item.author?.screenName} | '
-          '${item.text.replaceAll('\n', ' ').substring(0, item.text.length.clamp(0, 40) > 40 ? 40 : item.text.length)} '
-          '| media=${item.media.length}');
+      print(
+        ' - @${item.author?.screenName} | '
+        '${item.text.replaceAll('\n', ' ').substring(0, item.text.length.clamp(0, 40) > 40 ? 40 : item.text.length)} '
+        '| media=${item.media.length}',
+      );
     }
 
     expect(page.items, isNotEmpty);

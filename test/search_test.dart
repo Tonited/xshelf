@@ -33,41 +33,41 @@ Map<String, Object?> _tweet({
   int replyCount = 1,
   bool favorited = false,
   List<Map<String, Object?>> media = const [],
-}) =>
-    {
-      'rest_id': id,
-      '__typename': 'Tweet',
-      'core': {
-        'user_results': {
-          'result': {
-            'rest_id': 'u-$screenName',
-            'core': {'screen_name': screenName, 'name': name},
-            'legacy': {
-              'profile_image_url_https': 'https://pbs.twimg.com/$screenName.jpg',
-            },
-          },
+}) => {
+  'rest_id': id,
+  '__typename': 'Tweet',
+  'core': {
+    'user_results': {
+      'result': {
+        'rest_id': 'u-$screenName',
+        'core': {'screen_name': screenName, 'name': name},
+        'legacy': {
+          'profile_image_url_https': 'https://pbs.twimg.com/$screenName.jpg',
         },
       },
-      'legacy': {
-        'full_text': text,
-        'created_at': createdAt,
-        'favorite_count': favoriteCount,
-        'retweet_count': retweetCount,
-        'reply_count': replyCount,
-        'favorited': favorited,
-        if (media.isNotEmpty) 'extended_entities': {'media': media},
-      },
-    };
+    },
+  },
+  'legacy': {
+    'full_text': text,
+    'created_at': createdAt,
+    'favorite_count': favoriteCount,
+    'retweet_count': retweetCount,
+    'reply_count': replyCount,
+    'favorited': favorited,
+    if (media.isNotEmpty) 'extended_entities': {'media': media},
+  },
+};
 
 /// 一条照片媒体（`legacy.extended_entities.media` 的元素）。
 Map<String, Object?> _photo(String url) => {
-      'type': 'photo',
-      'media_url_https': url,
-      'original_info': {'width': 1200, 'height': 800},
-    };
+  'type': 'photo',
+  'media_url_https': url,
+  'original_info': {'width': 1200, 'height': 800},
+};
 
 /// 一个 `TimelineTimelineItem` 条目（普通推文）。
-Map<String, Object?> _tweetEntry(String entryId, Map<String, Object?> result) => {
+Map<String, Object?> _tweetEntry(String entryId, Map<String, Object?> result) =>
+    {
       'entryId': entryId,
       'content': {
         'entryType': 'TimelineTimelineItem',
@@ -82,70 +82,67 @@ Map<String, Object?> _tweetEntry(String entryId, Map<String, Object?> result) =>
 Map<String, Object?> _rawEntry(
   String entryId,
   Map<String, Object?> itemContent,
-) =>
-    {
-      'entryId': entryId,
-      'content': {
-        'entryType': 'TimelineTimelineItem',
-        'itemContent': itemContent,
-      },
-    };
+) => {
+  'entryId': entryId,
+  'content': {'entryType': 'TimelineTimelineItem', 'itemContent': itemContent},
+};
 
 /// 一个游标条目。
 Map<String, Object?> _cursorEntry(
   String entryId,
   String cursorType,
   String value,
-) =>
-    {
-      'entryId': entryId,
-      'content': {
-        'entryType': 'TimelineTimelineCursor',
-        'cursorType': cursorType,
-        'value': value,
-      },
-    };
+) => {
+  'entryId': entryId,
+  'content': {
+    'entryType': 'TimelineTimelineCursor',
+    'cursorType': cursorType,
+    'value': value,
+  },
+};
 
 /// 线程模块条目：老响应用 `items`、新响应用 `moduleItems`，两种都要能展开。
 Map<String, Object?> _moduleEntry(
   String entryId, {
   required String itemsKey,
   required List<Map<String, Object?>> tweets,
-}) =>
-    {
-      'entryId': entryId,
-      'content': {
-        'entryType': 'TimelineTimelineModule',
-        itemsKey: [
-          for (final t in tweets)
-            {
-              'item': {
-                'itemContent': {
-                  'itemType': 'TimelineTweet',
-                  'tweet_results': {'result': t},
-                },
-              },
+}) => {
+  'entryId': entryId,
+  'content': {
+    'entryType': 'TimelineTimelineModule',
+    itemsKey: [
+      for (final t in tweets)
+        {
+          'item': {
+            'itemContent': {
+              'itemType': 'TimelineTweet',
+              'tweet_results': {'result': t},
             },
-        ],
-      },
-    };
+          },
+        },
+    ],
+  },
+};
 
-Map<String, Object?> _addEntries(List<Object?> entries) =>
-    {'type': 'TimelineAddEntries', 'entries': entries};
+Map<String, Object?> _addEntries(List<Object?> entries) => {
+  'type': 'TimelineAddEntries',
+  'entries': entries,
+};
 
 /// 完整的一页 SearchTimeline 响应：`data.search_by_raw_query.search_timeline.timeline.instructions`。
 Map<String, Object?> _payload(List<Object?> instructions) => {
-      'data': {
-        'search_by_raw_query': {
-          'search_timeline': {
-            'timeline': {'instructions': instructions},
-          },
-        },
+  'data': {
+    'search_by_raw_query': {
+      'search_timeline': {
+        'timeline': {'instructions': instructions},
       },
-    };
+    },
+  },
+};
 
-List<String> _ids(SearchResultPage page) =>
-    [for (final h in page.items) h.item.tweetId];
+List<String> _ids(SearchResultPage page) => [
+  for (final h in page.items) h.item.tweetId,
+];
 
 void main() {
   // =========================================================================
@@ -233,7 +230,11 @@ void main() {
       expect(const XSearchQuery(minFaves: 100).build(), 'min_faves:100');
       // 三个下限各自独立，别互相覆盖。
       expect(
-        const XSearchQuery(minFaves: 100, minRetweets: 10, minReplies: 5).build(),
+        const XSearchQuery(
+          minFaves: 100,
+          minRetweets: 10,
+          minReplies: 5,
+        ).build(),
         'min_faves:100 min_retweets:10 min_replies:5',
       );
     });
@@ -284,23 +285,25 @@ void main() {
   // =========================================================================
   group('parseSearchPage()', () {
     test('B1 正常一页：2 条推文 + 上下游标 → 字段与游标都对', () {
-      final page = parseSearchPage(_payload([
-        _addEntries([
-          _tweetEntry('tweet-111', _tweet(id: '111')),
-          _cursorEntry('cursor-top-1', 'Top', 'TOP_CURSOR'),
-          _tweetEntry(
-            'tweet-222',
-            _tweet(
-              id: '222',
-              text: 'second tweet',
-              screenName: 'bob',
-              favorited: true,
-              media: [_photo('https://pbs.twimg.com/media/x.jpg')],
+      final page = parseSearchPage(
+        _payload([
+          _addEntries([
+            _tweetEntry('tweet-111', _tweet(id: '111')),
+            _cursorEntry('cursor-top-1', 'Top', 'TOP_CURSOR'),
+            _tweetEntry(
+              'tweet-222',
+              _tweet(
+                id: '222',
+                text: 'second tweet',
+                screenName: 'bob',
+                favorited: true,
+                media: [_photo('https://pbs.twimg.com/media/x.jpg')],
+              ),
             ),
-          ),
-          _cursorEntry('cursor-bottom-1', 'Bottom', 'BOTTOM_CURSOR'),
+            _cursorEntry('cursor-bottom-1', 'Bottom', 'BOTTOM_CURSOR'),
+          ]),
         ]),
-      ]));
+      );
 
       expect(_ids(page), ['111', '222']);
       expect(page.topCursor, 'TOP_CURSOR');
@@ -335,19 +338,24 @@ void main() {
     });
 
     test('B2 广告条目被剔除（entryId 前缀 + promotedMetadata 双路）', () {
-      final page = parseSearchPage(_payload([
-        _addEntries([
-          // 线上广告的 entryId 形如 promoted-tweet-<id>。
-          _tweetEntry('promoted-tweet-999', _tweet(id: '999', text: 'sponsored')),
-          _tweetEntry('tweet-111', _tweet(id: '111')),
-          // 广告推文也走 TimelineTweet，只是多带 promotedMetadata。
-          _rawEntry('tweet-222', {
-            'itemType': 'TimelineTweet',
-            'promotedMetadata': {'impressionId': 'imp-1'},
-            'tweet_results': {'result': _tweet(id: '222', text: 'also ad')},
-          }),
+      final page = parseSearchPage(
+        _payload([
+          _addEntries([
+            // 线上广告的 entryId 形如 promoted-tweet-<id>。
+            _tweetEntry(
+              'promoted-tweet-999',
+              _tweet(id: '999', text: 'sponsored'),
+            ),
+            _tweetEntry('tweet-111', _tweet(id: '111')),
+            // 广告推文也走 TimelineTweet，只是多带 promotedMetadata。
+            _rawEntry('tweet-222', {
+              'itemType': 'TimelineTweet',
+              'promotedMetadata': {'impressionId': 'imp-1'},
+              'tweet_results': {'result': _tweet(id: '222', text: 'also ad')},
+            }),
+          ]),
         ]),
-      ]));
+      );
 
       // 两条广告一条都不能漏进结果列表。
       expect(_ids(page), ['111']);
@@ -357,17 +365,22 @@ void main() {
     });
 
     test('B3 itemType != TimelineTweet（People 标签页的用户条目）被忽略', () {
-      final page = parseSearchPage(_payload([
-        _addEntries([
-          _rawEntry('user-777', {
-            'itemType': 'TimelineUser',
-            'user_results': {
-              'result': {'rest_id': 'u777', 'core': {'screen_name': 'carol'}},
-            },
-          }),
-          _tweetEntry('tweet-111', _tweet(id: '111')),
+      final page = parseSearchPage(
+        _payload([
+          _addEntries([
+            _rawEntry('user-777', {
+              'itemType': 'TimelineUser',
+              'user_results': {
+                'result': {
+                  'rest_id': 'u777',
+                  'core': {'screen_name': 'carol'},
+                },
+              },
+            }),
+            _tweetEntry('tweet-111', _tweet(id: '111')),
+          ]),
         ]),
-      ]));
+      );
 
       // 用户条目没有推文节点，硬解析会抛异常或塞进一条空推文。
       expect(_ids(page), ['111']);
@@ -375,15 +388,17 @@ void main() {
     });
 
     test('B4 TweetTombstone 被丢弃，且不影响同一页的其它条目', () {
-      final page = parseSearchPage(_payload([
-        _addEntries([
-          _tweetEntry('tweet-111', _tweet(id: '111')),
-          // 搜索里的 tombstone 是「内容不可见」（已删/受保护/被限流），不是取消喜欢，
-          // 所以它既不能进 items，也不该进「已删除」名单。
-          _tweetEntry('tweet-222', {'__typename': 'TweetTombstone'}),
-          _tweetEntry('tweet-333', _tweet(id: '333', text: 'third')),
+      final page = parseSearchPage(
+        _payload([
+          _addEntries([
+            _tweetEntry('tweet-111', _tweet(id: '111')),
+            // 搜索里的 tombstone 是「内容不可见」（已删/受保护/被限流），不是取消喜欢，
+            // 所以它既不能进 items，也不该进「已删除」名单。
+            _tweetEntry('tweet-222', {'__typename': 'TweetTombstone'}),
+            _tweetEntry('tweet-333', _tweet(id: '333', text: 'third')),
+          ]),
         ]),
-      ]));
+      );
 
       expect(_ids(page), ['111', '333']);
       expect(page.entryCount, 3);
@@ -391,14 +406,22 @@ void main() {
     });
 
     test('B5 TimelineTimelineModule 的 items / moduleItems 两种形态都能展开', () {
-      final page = parseSearchPage(_payload([
-        _addEntries([
-          _moduleEntry('module-old', itemsKey: 'items', tweets: [_tweet(id: '111')]),
-          _moduleEntry('module-new', itemsKey: 'moduleItems', tweets: [
-            _tweet(id: '222', text: 'from moduleItems'),
+      final page = parseSearchPage(
+        _payload([
+          _addEntries([
+            _moduleEntry(
+              'module-old',
+              itemsKey: 'items',
+              tweets: [_tweet(id: '111')],
+            ),
+            _moduleEntry(
+              'module-new',
+              itemsKey: 'moduleItems',
+              tweets: [_tweet(id: '222', text: 'from moduleItems')],
+            ),
           ]),
         ]),
-      ]));
+      );
 
       // 只认一种形态的话，线程里的推文会整段消失（新老响应切换时的经典回归）。
       expect(_ids(page), ['111', '222']);
@@ -406,13 +429,15 @@ void main() {
     });
 
     test('B6 TimelineTerminateTimeline → terminated=true，但不吞掉本页游标', () {
-      final page = parseSearchPage(_payload([
-        _addEntries([
-          _tweetEntry('tweet-111', _tweet(id: '111')),
-          _cursorEntry('cursor-bottom-1', 'Bottom', 'CURSOR_2'),
+      final page = parseSearchPage(
+        _payload([
+          _addEntries([
+            _tweetEntry('tweet-111', _tweet(id: '111')),
+            _cursorEntry('cursor-bottom-1', 'Bottom', 'CURSOR_2'),
+          ]),
+          {'type': 'TimelineTerminateTimeline', 'direction': 'Bottom'},
         ]),
-        {'type': 'TimelineTerminateTimeline', 'direction': 'Bottom'},
-      ]));
+      );
 
       expect(page.terminated, isTrue);
       expect(page.items, hasLength(1));
@@ -423,17 +448,23 @@ void main() {
     });
 
     test('B7 线程模块里重复出现的同一推文按 tweet_id 去重，保留第一条', () {
-      final page = parseSearchPage(_payload([
-        _addEntries([
-          _tweetEntry('tweet-111', _tweet(id: '111', text: 'root')),
-          _moduleEntry('module-thread', itemsKey: 'items', tweets: [
-            // 线程模块会把「根推文」再带一遍，内容相同但位置不同。
-            _tweet(id: '111', text: 'root (again)'),
-            _tweet(id: '222', text: 'reply'),
-            _tweet(id: '222', text: 'reply (again)'),
+      final page = parseSearchPage(
+        _payload([
+          _addEntries([
+            _tweetEntry('tweet-111', _tweet(id: '111', text: 'root')),
+            _moduleEntry(
+              'module-thread',
+              itemsKey: 'items',
+              tweets: [
+                // 线程模块会把「根推文」再带一遍，内容相同但位置不同。
+                _tweet(id: '111', text: 'root (again)'),
+                _tweet(id: '222', text: 'reply'),
+                _tweet(id: '222', text: 'reply (again)'),
+              ],
+            ),
           ]),
         ]),
-      ]));
+      );
 
       expect(_ids(page), ['111', '222']);
       // 保留的是先解析到的那条，内容不能被后来者的版本覆盖成怪东西。
@@ -441,69 +472,80 @@ void main() {
       expect(page.items[1].item.text, 'reply');
     });
 
-    test('B8 data 为空 / search_by_raw_query 为 null → 抛 SearchParseException', () {
-      // 这两种都是「结构不对」，必须抛类型化异常让上层区分于「没有更多数据」。
-      expect(
-        () => parseSearchPage({'data': {}}),
-        throwsA(isA<SearchParseException>()),
-      );
-      // X 在查询被整体拒绝/风控时正是返回 search_by_raw_query: null（而不是 errors）。
-      expect(
-        () => parseSearchPage({
-          'data': {'search_by_raw_query': null},
-        }),
-        throwsA(isA<SearchParseException>()),
-      );
-      // 非 JSON 对象同样要抛，而不是在某处 null 崩溃。
-      expect(
-        () => parseSearchPage(const []),
-        throwsA(isA<SearchParseException>()),
-      );
-      // 只有 errors 没有 data：异常 message 要带上服务端原因，方便 UI 直接提示。
-      expect(
-        () => parseSearchPage({
-          'errors': [
-            {'message': 'query rejected'},
-          ],
-        }),
-        throwsA(
-          isA<SearchParseException>()
-              .having((e) => e.message, 'message', contains('query rejected')),
-        ),
-      );
-    });
-
-    test('B9 highlights（itemContent.highlights.textHighlights）解析进 SearchHit', () {
-      final page = parseSearchPage(_payload([
-        _addEntries([
-          _rawEntry('tweet-111', {
-            'itemType': 'TimelineTweet',
-            'highlights': {
-              'textHighlights': [
-                {'startIndex': 0, 'endIndex': 5},
-                {'startIndex': 6, 'endIndex': 11},
-                // 空区间必须丢掉：end<=start 的高亮区间会让 UI 画出 0 宽的怪标记。
-                {'startIndex': 20, 'endIndex': 20},
-              ],
-            },
-            'tweet_results': {'result': _tweet(id: '111')},
+    test(
+      'B8 data 为空 / search_by_raw_query 为 null → 抛 SearchParseException',
+      () {
+        // 这两种都是「结构不对」，必须抛类型化异常让上层区分于「没有更多数据」。
+        expect(
+          () => parseSearchPage({'data': {}}),
+          throwsA(isA<SearchParseException>()),
+        );
+        // X 在查询被整体拒绝/风控时正是返回 search_by_raw_query: null（而不是 errors）。
+        expect(
+          () => parseSearchPage({
+            'data': {'search_by_raw_query': null},
           }),
-        ]),
-      ]));
+          throwsA(isA<SearchParseException>()),
+        );
+        // 非 JSON 对象同样要抛，而不是在某处 null 崩溃。
+        expect(
+          () => parseSearchPage(const []),
+          throwsA(isA<SearchParseException>()),
+        );
+        // 只有 errors 没有 data：异常 message 要带上服务端原因，方便 UI 直接提示。
+        expect(
+          () => parseSearchPage({
+            'errors': [
+              {'message': 'query rejected'},
+            ],
+          }),
+          throwsA(
+            isA<SearchParseException>().having(
+              (e) => e.message,
+              'message',
+              contains('query rejected'),
+            ),
+          ),
+        );
+      },
+    );
 
-      final hit = page.items.single;
-      expect(hit.highlights, hasLength(2));
-      expect(hit.highlights.first.start, 0);
-      expect(hit.highlights.first.end, 5);
-      expect(hit.highlights[1].start, 6);
-      expect(hit.highlights[1].end, 11);
-      // 没有 highlights 字段的推文应该是空列表而不是 null（UI 直接遍历）。
-      final plain = parseSearchPage(_payload([
-        _addEntries([
-          _tweetEntry('tweet-222', _tweet(id: '222')),
-        ]),
-      ]));
-      expect(plain.items.single.highlights, isEmpty);
-    });
+    test(
+      'B9 highlights（itemContent.highlights.textHighlights）解析进 SearchHit',
+      () {
+        final page = parseSearchPage(
+          _payload([
+            _addEntries([
+              _rawEntry('tweet-111', {
+                'itemType': 'TimelineTweet',
+                'highlights': {
+                  'textHighlights': [
+                    {'startIndex': 0, 'endIndex': 5},
+                    {'startIndex': 6, 'endIndex': 11},
+                    // 空区间必须丢掉：end<=start 的高亮区间会让 UI 画出 0 宽的怪标记。
+                    {'startIndex': 20, 'endIndex': 20},
+                  ],
+                },
+                'tweet_results': {'result': _tweet(id: '111')},
+              }),
+            ]),
+          ]),
+        );
+
+        final hit = page.items.single;
+        expect(hit.highlights, hasLength(2));
+        expect(hit.highlights.first.start, 0);
+        expect(hit.highlights.first.end, 5);
+        expect(hit.highlights[1].start, 6);
+        expect(hit.highlights[1].end, 11);
+        // 没有 highlights 字段的推文应该是空列表而不是 null（UI 直接遍历）。
+        final plain = parseSearchPage(
+          _payload([
+            _addEntries([_tweetEntry('tweet-222', _tweet(id: '222'))]),
+          ]),
+        );
+        expect(plain.items.single.highlights, isEmpty);
+      },
+    );
   });
 }

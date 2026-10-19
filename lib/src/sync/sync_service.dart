@@ -99,7 +99,9 @@ class SyncService {
         }
         attempt++;
         final wait =
-            retryDelay ?? _resetIn(e.resetAt) ?? Duration(seconds: 15 * attempt);
+            retryDelay ??
+            _resetIn(e.resetAt) ??
+            Duration(seconds: 15 * attempt);
         onNotice?.call('被 X 限流，${wait.inSeconds}s 后重试（第 $attempt 次）');
         await Future<void>.delayed(wait);
       }
@@ -162,12 +164,14 @@ class SyncService {
       try {
         page = await _fetchPage(
           cursor,
-          onNotice: (msg) => onProgress?.call(SyncProgress(
-            pages: pages,
-            fetched: fetched,
-            inserted: inserted,
-            message: msg,
-          )),
+          onNotice: (msg) => onProgress?.call(
+            SyncProgress(
+              pages: pages,
+              fetched: fetched,
+              inserted: inserted,
+              message: msg,
+            ),
+          ),
         );
       } on XRequestException catch (e) {
         // 限流用尽：本轮先收工，游标留着重来，别把「暂时抓不动」变成「报错」。
@@ -183,8 +187,10 @@ class SyncService {
       final items = since == null
           ? allItems
           : allItems
-              .where((i) => i.createdAt == null || !i.createdAt!.isBefore(since))
-              .toList();
+                .where(
+                  (i) => i.createdAt == null || !i.createdAt!.isBefore(since),
+                )
+                .toList();
 
       if (page.deletedTweetIds.isNotEmpty) {
         db.markDeleted(page.deletedTweetIds);
@@ -243,17 +249,20 @@ class SyncService {
         emptyPages = 0;
       }
 
-      lastNote = '第 ${pages + 1} 页：${allItems.length} 条 '
+      lastNote =
+          '第 ${pages + 1} 页：${allItems.length} 条 '
           '(entry ${page.entryCount})，'
           'terminate=${page.terminatedBottom}，'
           '游标${advanced ? "前进" : "未前进"}';
 
-      onProgress?.call(SyncProgress(
-        pages: pages,
-        fetched: fetched,
-        inserted: inserted,
-        note: lastNote,
-      ));
+      onProgress?.call(
+        SyncProgress(
+          pages: pages,
+          fetched: fetched,
+          inserted: inserted,
+          note: lastNote,
+        ),
+      );
 
       // ---- 终止判定 ----
       if (!advanced) {
@@ -290,9 +299,7 @@ class SyncService {
       fetched: fetched,
       inserted: inserted,
       done: exhausted,
-      message: exhausted
-          ? null
-          : (paused ? '已暂停（下次从这里继续）' : null),
+      message: exhausted ? null : (paused ? '已暂停（下次从这里继续）' : null),
       note: lastNote,
     );
     onProgress?.call(result);
@@ -331,12 +338,14 @@ class SyncService {
       try {
         page = await _fetchPage(
           cursor,
-          onNotice: (msg) => onProgress?.call(SyncProgress(
-            pages: pages,
-            fetched: fetched,
-            inserted: 0,
-            message: msg,
-          )),
+          onNotice: (msg) => onProgress?.call(
+            SyncProgress(
+              pages: pages,
+              fetched: fetched,
+              inserted: 0,
+              message: msg,
+            ),
+          ),
         );
       } on XRequestException catch (e) {
         if (e.kind == XErrorKind.rateLimited) break;
@@ -367,15 +376,17 @@ class SyncService {
       pages++;
       fetched = collected.length;
 
-      onProgress?.call(SyncProgress(
-        pages: pages,
-        fetched: fetched,
-        inserted: 0,
-      ));
+      onProgress?.call(
+        SyncProgress(pages: pages, fetched: fetched, inserted: 0),
+      );
 
       cursor = page.bottomCursor;
       // 没有新条目、撞上本地已有数据、或已经翻出时间窗，就没必要继续翻
-      if (!pageHasNew || hitExisting || hitSince || cursor == null || cursor.isEmpty) {
+      if (!pageHasNew ||
+          hitExisting ||
+          hitSince ||
+          cursor == null ||
+          cursor.isEmpty) {
         break;
       }
       if (page.terminatedBottom) break;
@@ -396,10 +407,7 @@ class SyncService {
       inserted = res.inserted;
       db.saveSyncState(
         accountId,
-        state.copyWith(
-          maxSeq: db.maxSeqOverall(),
-          minSeq: db.minSeqOverall(),
-        ),
+        state.copyWith(maxSeq: db.maxSeqOverall(), minSeq: db.minSeqOverall()),
       );
     }
 

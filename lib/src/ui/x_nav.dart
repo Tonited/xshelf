@@ -17,9 +17,8 @@ import '../app_controller.dart';
 /// 不要传已经由别处 push 过的实例。
 Future<void> openXPage(BuildContext context, Widget page) async {
   final app = AppScope.read(context);
-  await Navigator.of(context).push(
-    MaterialPageRoute<void>(builder: (_) => page),
-  );
+  await Navigator.of(context)
+      .push(MaterialPageRoute<void>(builder: (_) => page));
   // 这里不再摸 context：回来的可能是 App 真要退出的时刻，而同步只需要 app 本身。
   unawaited(app.sync.syncRecent());
 }

@@ -121,7 +121,8 @@ LikesPage parseLikesPage(Object? json) {
         case 'TimelineTimelineCursor':
           final value = content['value'] as String?;
           if (value == null || value.isEmpty) break;
-          final direction = content['cursorType'] as String? ??
+          final direction =
+              content['cursorType'] as String? ??
               (entryId.startsWith('cursor-top') ? 'Top' : 'Bottom');
           if (direction == 'Top') {
             topCursor ??= value;
@@ -220,11 +221,16 @@ LikeItem? _parseTweet(Map tweet, String entryId) {
     media: _parseMedia(legacyMap),
     sensitive: legacyMap['possibly_sensitive'] == true,
     replyTo: legacyMap['in_reply_to_status_id_str'] as String?,
-    quoteOf: _dig(legacyMap, ['quoted_status_result', 'result', 'rest_id'])
-        as String?,
-    retweetOf:
-        _dig(legacyMap, ['retweeted_status_result', 'result', 'rest_id'])
-            as String?,
+    quoteOf: _dig(legacyMap, [
+      'quoted_status_result',
+      'result',
+      'rest_id',
+    ]) as String?,
+    retweetOf: _dig(legacyMap, [
+      'retweeted_status_result',
+      'result',
+      'rest_id',
+    ]) as String?,
     raw: Map<String, Object?>.from(tweet),
   );
 }
@@ -235,25 +241,24 @@ Author? _parseAuthor(Map tweet) {
   final userLegacy = user['legacy'] is Map ? user['legacy'] as Map : const {};
   final id = user['rest_id'] as String? ?? '';
   if (id.isEmpty) return null;
-  final screenName = _dig(user, ['core', 'screen_name']) as String? ??
+  final screenName =
+      _dig(user, ['core', 'screen_name']) as String? ??
       userLegacy['screen_name'] as String? ??
       '';
-  final name = _dig(user, ['core', 'name']) as String? ??
+  final name =
+      _dig(user, ['core', 'name']) as String? ??
       userLegacy['name'] as String? ??
       '';
-  var avatar = _dig(user, ['avatar', 'image_url']) as String? ??
+  var avatar =
+      _dig(user, ['avatar', 'image_url']) as String? ??
       userLegacy['profile_image_url_https'] as String?;
   if (avatar != null) avatar = avatar.replaceAll('_normal', '_bigger');
-  return Author(
-    id: id,
-    screenName: screenName,
-    name: name,
-    avatarUrl: avatar,
-  );
+  return Author(id: id, screenName: screenName, name: name, avatarUrl: avatar);
 }
 
 List<MediaItem> _parseMedia(Map legacy) {
-  final rawMedia = _dig(legacy, ['extended_entities', 'media']) ??
+  final rawMedia =
+      _dig(legacy, ['extended_entities', 'media']) ??
       _dig(legacy, ['entities', 'media']);
   if (rawMedia is! List) return const [];
 
@@ -263,21 +268,27 @@ List<MediaItem> _parseMedia(Map legacy) {
     final type = raw['type'] as String? ?? 'photo';
     final url = raw['media_url_https'] as String?;
     if (url == null) continue;
-    final info = raw['original_info'] is Map ? raw['original_info'] as Map : const {};
+    final info = raw['original_info'] is Map
+        ? raw['original_info'] as Map
+        : const {};
     final alt = raw['ext_alt_text'] as String?;
 
     if (type == 'photo') {
-      out.add(MediaItem(
-        kind: MediaKind.image,
-        url: _imageVariant(url, 'large'),
-        width: (info['width'] as num?)?.toInt(),
-        height: (info['height'] as num?)?.toInt(),
-        altText: alt,
-      ));
+      out.add(
+        MediaItem(
+          kind: MediaKind.image,
+          url: _imageVariant(url, 'large'),
+          width: (info['width'] as num?)?.toInt(),
+          height: (info['height'] as num?)?.toInt(),
+          altText: alt,
+        ),
+      );
       continue;
     }
 
-    final videoInfo = raw['video_info'] is Map ? raw['video_info'] as Map : const {};
+    final videoInfo = raw['video_info'] is Map
+        ? raw['video_info'] as Map
+        : const {};
     final variants = <MediaVariant>[];
     final rawVariants = videoInfo['variants'];
     if (rawVariants is List) {
@@ -285,23 +296,27 @@ List<MediaItem> _parseMedia(Map legacy) {
         if (v is! Map) continue;
         final vUrl = v['url'] as String?;
         if (vUrl == null || vUrl.isEmpty) continue;
-        variants.add(MediaVariant(
-          url: vUrl,
-          contentType: v['content_type'] as String? ?? '',
-          bitRate: (v['bit_rate'] as num?)?.toInt(),
-        ));
+        variants.add(
+          MediaVariant(
+            url: vUrl,
+            contentType: v['content_type'] as String? ?? '',
+            bitRate: (v['bit_rate'] as num?)?.toInt(),
+          ),
+        );
       }
     }
 
-    out.add(MediaItem(
-      kind: type == 'animated_gif' ? MediaKind.gif : MediaKind.video,
-      url: _imageVariant(url, 'large'),
-      variants: variants,
-      width: (info['width'] as num?)?.toInt(),
-      height: (info['height'] as num?)?.toInt(),
-      durationMs: (videoInfo['duration_millis'] as num?)?.toInt(),
-      altText: alt,
-    ));
+    out.add(
+      MediaItem(
+        kind: type == 'animated_gif' ? MediaKind.gif : MediaKind.video,
+        url: _imageVariant(url, 'large'),
+        variants: variants,
+        width: (info['width'] as num?)?.toInt(),
+        height: (info['height'] as num?)?.toInt(),
+        durationMs: (videoInfo['duration_millis'] as num?)?.toInt(),
+        altText: alt,
+      ),
+    );
   }
   return out;
 }

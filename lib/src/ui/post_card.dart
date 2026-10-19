@@ -77,13 +77,17 @@ class PostCard extends StatelessWidget {
                       const SizedBox(height: 4),
                       Row(
                         children: [
-                          Icon(Icons.info_outline,
-                              size: 13, color: theme.colorScheme.outline),
+                          Icon(
+                            Icons.info_outline,
+                            size: 13,
+                            color: theme.colorScheme.outline,
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             t('play.deleted'),
-                            style: theme.textTheme.labelSmall
-                                ?.copyWith(color: theme.colorScheme.outline),
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: theme.colorScheme.outline,
+                            ),
                           ),
                         ],
                       ),
@@ -94,8 +98,9 @@ class PostCard extends StatelessWidget {
                         item: item,
                         highlights: highlights,
                         maxLines: 6,
-                        style: theme.textTheme.bodyMedium
-                            ?.copyWith(height: 1.35),
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          height: 1.35,
+                        ),
                       ),
                     ],
                     if (item.media.isNotEmpty) ...[
@@ -160,15 +165,21 @@ class PostCard extends StatelessWidget {
       child: Row(
         children: [
           // 点回复数直接看 X 自己的回复列表（折叠/排序都是原生行为）。
-          chip(Icons.mode_comment_outlined, m.replies, onTap: () {
-            unawaited(openXPage(
-              context,
-              XWebPage(
-                url: 'https://x.com/i/status/${item.tweetId}',
-                title: t('post.replies'),
-              ),
-            ));
-          }),
+          chip(
+            Icons.mode_comment_outlined,
+            m.replies,
+            onTap: () {
+              unawaited(
+                openXPage(
+                  context,
+                  XWebPage(
+                    url: 'https://x.com/i/status/${item.tweetId}',
+                    title: t('post.replies'),
+                  ),
+                ),
+              );
+            },
+          ),
           chip(Icons.repeat, m.retweets),
           chip(Icons.favorite_border, m.likes),
           chip(Icons.bar_chart, m.heat),
@@ -190,8 +201,14 @@ class PostCard extends StatelessWidget {
   }
 
   Widget _header(
-      BuildContext context, ThemeData theme, Author? author, bool deleted) {
-    final small = theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.outline);
+    BuildContext context,
+    ThemeData theme,
+    Author? author,
+    bool deleted,
+  ) {
+    final small = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.outline,
+    );
     return Row(
       children: [
         Flexible(
@@ -200,11 +217,13 @@ class PostCard extends StatelessWidget {
             (author?.name.isNotEmpty == true)
                 ? author!.name
                 : (author?.screenName.isNotEmpty == true
-                    ? author!.screenName
-                    : 'unknown'),
+                      ? author!.screenName
+                      : 'unknown'),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
         const SizedBox(width: 4),
@@ -248,75 +267,86 @@ class _MediaGrid extends StatelessWidget {
       return _tile(context, media.first, 0, maxHeight: 320, single: true);
     }
 
-    return LayoutBuilder(builder: (context, constraints) {
-      final w = constraints.maxWidth;
-      const gap = 4.0;
-      if (media.length == 2) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = constraints.maxWidth;
+        const gap = 4.0;
+        if (media.length == 2) {
+          return SizedBox(
+            height: w * 0.5,
+            child: Row(
+              children: [
+                for (var i = 0; i < 2; i++) ...[
+                  if (i > 0) const SizedBox(width: gap),
+                  Expanded(child: _tile(context, media[i], i)),
+                ],
+              ],
+            ),
+          );
+        }
+        if (media.length == 3) {
+          final h = w * 0.62;
+          return SizedBox(
+            height: h,
+            child: Row(
+              children: [
+                Expanded(flex: 2, child: _tile(context, media[0], 0)),
+                const SizedBox(width: gap),
+                Expanded(
+                  child: Column(
+                    children: [
+                      Expanded(child: _tile(context, media[1], 1)),
+                      const SizedBox(height: gap),
+                      Expanded(child: _tile(context, media[2], 2)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+        // 4 张及以上：2×2，多余的在最后一张上叠 +N。
         return SizedBox(
-          height: w * 0.5,
-          child: Row(
+          height: w * 0.82,
+          child: Column(
             children: [
-              for (var i = 0; i < 2; i++) ...[
-                if (i > 0) const SizedBox(width: gap),
-                Expanded(child: _tile(context, media[i], i)),
+              for (var row = 0; row < 2; row++) ...[
+                if (row > 0) const SizedBox(height: gap),
+                Expanded(
+                  child: Row(
+                    children: [
+                      for (var col = 0; col < 2; col++) ...[
+                        if (col > 0) const SizedBox(width: gap),
+                        Expanded(
+                          child: _wrapOverflow(
+                            context,
+                            child: _tile(
+                              context,
+                              media[row * 2 + col],
+                              row * 2 + col,
+                            ),
+                            remaining: row * 2 + col == 3
+                                ? media.length - 4
+                                : 0,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               ],
             ],
           ),
         );
-      }
-      if (media.length == 3) {
-        final h = w * 0.62;
-        return SizedBox(
-          height: h,
-          child: Row(
-            children: [
-              Expanded(flex: 2, child: _tile(context, media[0], 0)),
-              const SizedBox(width: gap),
-              Expanded(
-                child: Column(
-                  children: [
-                    Expanded(child: _tile(context, media[1], 1)),
-                    const SizedBox(height: gap),
-                    Expanded(child: _tile(context, media[2], 2)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      }
-      // 4 张及以上：2×2，多余的在最后一张上叠 +N。
-      return SizedBox(
-        height: w * 0.82,
-        child: Column(
-          children: [
-            for (var row = 0; row < 2; row++) ...[
-              if (row > 0) const SizedBox(height: gap),
-              Expanded(
-                child: Row(
-                  children: [
-                    for (var col = 0; col < 2; col++) ...[
-                      if (col > 0) const SizedBox(width: gap),
-                      Expanded(
-                        child: _wrapOverflow(
-                          context,
-                          child: _tile(context, media[row * 2 + col], row * 2 + col),
-                          remaining: row * 2 + col == 3 ? media.length - 4 : 0,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ],
-        ),
-      );
-    });
+      },
+    );
   }
 
-  Widget _wrapOverflow(BuildContext context,
-      {required Widget child, required int remaining}) {
+  Widget _wrapOverflow(
+    BuildContext context, {
+    required Widget child,
+    required int remaining,
+  }) {
     if (remaining <= 0) return child;
     return Stack(
       fit: StackFit.expand,
@@ -335,8 +365,13 @@ class _MediaGrid extends StatelessWidget {
     );
   }
 
-  Widget _tile(BuildContext context, MediaItem m, int idx,
-      {double? maxHeight, bool single = false}) {
+  Widget _tile(
+    BuildContext context,
+    MediaItem m,
+    int idx, {
+    double? maxHeight,
+    bool single = false,
+  }) {
     final theme = Theme.of(context);
     final isVideo = m.isPlayable;
     Widget img = MediaImage(
@@ -371,8 +406,11 @@ class _MediaGrid extends StatelessWidget {
                   color: Colors.black.withValues(alpha: 0.55),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.play_arrow_rounded,
-                    color: Colors.white, size: 30),
+                child: const Icon(
+                  Icons.play_arrow_rounded,
+                  color: Colors.white,
+                  size: 30,
+                ),
               ),
             ),
           if (m.kind == MediaKind.gif)
@@ -385,8 +423,10 @@ class _MediaGrid extends StatelessWidget {
                   color: Colors.black54,
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: const Text('GIF',
-                    style: TextStyle(color: Colors.white, fontSize: 10)),
+                child: const Text(
+                  'GIF',
+                  style: TextStyle(color: Colors.white, fontSize: 10),
+                ),
               ),
             ),
           if (isVideo && m.durationMs != null)

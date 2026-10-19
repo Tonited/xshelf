@@ -81,9 +81,10 @@ class _FeedPageState extends State<FeedPage> {
       final at = widget.source.items.indexWhere((i) => i.tweetId == id);
       if (at >= 0) index = at;
     }
-    _index = index.clamp(0, widget.source.items.isEmpty
-        ? 0
-        : widget.source.items.length - 1);
+    _index = index.clamp(
+      0,
+      widget.source.items.isEmpty ? 0 : widget.source.items.length - 1,
+    );
     _page = PageController(initialPage: _index);
     // 进来就往前后各预读一条，滑动时才不会白一下。
     _maybeLoadMore(_index);
@@ -340,8 +341,8 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
     // 如果是从低档起播，提示等真正升档时再出。
     if (first && !_handle.qualityHd) return;
     // 提示里也用 `1280P` 这种写法（和右上角按钮统一）。
-    final shown = _currentPlayable()
-            ?.opts
+    final shown =
+        _currentPlayable()?.opts
             .sourceByKey(_handle.qualityKey)
             ?.displayLabel ??
         label;
@@ -402,13 +403,15 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
       if (cache.cachedFile(item.tweetId, i) != null) continue;
       final best = VideoQualityOptions.of(m).best;
       if (best == null) continue;
-      unawaited(cache.ensureCached(
-        tweetId: item.tweetId,
-        idx: i,
-        url: best.url,
-        variant: best.key,
-        rank: best.rank,
-      ));
+      unawaited(
+        cache.ensureCached(
+          tweetId: item.tweetId,
+          idx: i,
+          url: best.url,
+          variant: best.key,
+          rank: best.rank,
+        ),
+      );
     }
   }
 
@@ -419,12 +422,14 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
     setState(() => _landscape = next);
     // 横屏基本都是为了看画面，顺手进沉浸模式（跨条保持）。
     if (next) widget.onImmersiveChanged(true);
-    await SystemChrome.setPreferredOrientations(next
-        ? const [
-            DeviceOrientation.landscapeLeft,
-            DeviceOrientation.landscapeRight,
-          ]
-        : const []);
+    await SystemChrome.setPreferredOrientations(
+      next
+          ? const [
+              DeviceOrientation.landscapeLeft,
+              DeviceOrientation.landscapeRight,
+            ]
+          : const [],
+    );
   }
 
   /// 切后台/锁屏时把声音停掉 —— ExoPlayer 不会自己停，锁屏后视频还在放。
@@ -536,8 +541,7 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
       }
     });
     if (err != null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(err)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
       return;
     }
     _flashHint(alreadyUnliked ? t('play.liked') : t('play.unliked'));
@@ -586,9 +590,11 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
     final author = widget.item.author;
     if (author == null || author.screenName.isEmpty) return;
     _handle.pause();
-    await Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => AuthorPage(author: author, cache: widget.cache),
-    ));
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AuthorPage(author: author, cache: widget.cache),
+      ),
+    );
     if (!mounted) return;
     if (widget.active) _handle.resume();
   }
@@ -604,8 +610,7 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
     final currentIdx = media.isEmpty
         ? 0
         : _pageIndex.clamp(0, media.length - 1);
-    final hasVideo =
-        media.isNotEmpty && media[currentIdx].isPlayable;
+    final hasVideo = media.isNotEmpty && media[currentIdx].isPlayable;
 
     return ColoredBox(
       color: Colors.black,
@@ -759,8 +764,7 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
     );
   }
 
-  Widget _mediaPageContent(LikeItem item, int idx,
-      {required bool current}) {
+  Widget _mediaPageContent(LikeItem item, int idx, {required bool current}) {
     final m = item.media[idx];
     if (m.isPlayable) {
       if (!current) return _mediaPoster(item, idx, current: false);
@@ -823,22 +827,22 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
   }
 
   Widget _bottomScrim() => const IgnorePointer(
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              stops: [0.0, 0.45, 0.72, 1.0],
-              colors: [
-                Color(0x66000000),
-                Color(0x00000000),
-                Color(0xAA000000),
-                Color(0xEE000000),
-              ],
-            ),
-          ),
+    child: DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          stops: [0.0, 0.45, 0.72, 1.0],
+          colors: [
+            Color(0x66000000),
+            Color(0x00000000),
+            Color(0xAA000000),
+            Color(0xEE000000),
+          ],
         ),
-      );
+      ),
+    ),
+  );
 
   Widget _overlay(LikeItem item, bool hasVideo) {
     final theme = Theme.of(context);
@@ -863,19 +867,22 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
                 children: [
                   IconButton(
                     onPressed: widget.onClose,
-                    icon: const Icon(Icons.arrow_back_ios_new,
-                        size: 20, color: Colors.white),
+                    icon: const Icon(
+                      Icons.arrow_back_ios_new,
+                      size: 20,
+                      color: Colors.white,
+                    ),
                     tooltip: t('play.back'),
                   ),
                   const Spacer(),
-                  if (widget.extraTopAction != null)
-                    widget.extraTopAction!,
+                  if (widget.extraTopAction != null) widget.extraTopAction!,
                   // 右上角的画质按钮：显示当前档位（自动 / 高）和实际分辨率。
                   // 点开是「自动 + 低 320P + 中下 480P + …」，选了之后全局生效。
                   _qualityTopButton(),
                   IconButton(
-                    tooltip:
-                        _landscape ? t('play.rotateBack') : t('play.rotate'),
+                    tooltip: _landscape
+                        ? t('play.rotateBack')
+                        : t('play.rotate'),
                     onPressed: _toggleOrientation,
                     icon: Icon(
                       _landscape
@@ -896,7 +903,7 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
         ),
 
         // 暂停标记：画面中间一个浅浅的播放图标，一眼就知道「是我按停了」，
-  // 而不是卡住了。永远不吃点击（IgnorePointer），点它还是继续播放。
+        // 而不是卡住了。永远不吃点击（IgnorePointer），点它还是继续播放。
         Positioned.fill(
           child: IgnorePointer(
             child: AnimatedBuilder(
@@ -934,8 +941,10 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
             child: Align(
               alignment: const Alignment(0, -0.45),
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.black54,
                   borderRadius: BorderRadius.circular(20),
@@ -943,8 +952,11 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.fast_forward_rounded,
-                        color: Colors.white, size: 18),
+                    const Icon(
+                      Icons.fast_forward_rounded,
+                      color: Colors.white,
+                      size: 18,
+                    ),
                     const SizedBox(width: 6),
                     Text(
                       '${widget.settings.longPressSpeed}x',
@@ -964,8 +976,10 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
             child: Align(
               alignment: Alignment.center,
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.55),
                   borderRadius: BorderRadius.circular(24),
@@ -993,7 +1007,6 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
             ),
           ),
         ),
-
 
         // 底部正文 + 进度
         Positioned(
@@ -1082,7 +1095,6 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
     );
   }
 
-
   /// 顶部栏里的画质按钮：`自动 720P` / `高 1080P`。
   ///
   /// 只对「当前这屏是视频」有意义；图片时返回一个占位，保持顶部栏布局稳定。
@@ -1121,9 +1133,10 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
                   Text(
                     text,
                     style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600),
+                      color: Colors.white,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ],
               ),
@@ -1164,10 +1177,16 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
                     width: 10,
                     height: 10,
                     child: CircularProgressIndicator(
-                        strokeWidth: 1.6, color: Colors.white70),
+                      strokeWidth: 1.6,
+                      color: Colors.white70,
+                    ),
                   )
                 else
-                  const Icon(Icons.hd_outlined, size: 14, color: Colors.white70),
+                  const Icon(
+                    Icons.hd_outlined,
+                    size: 14,
+                    color: Colors.white70,
+                  ),
                 const SizedBox(width: 5),
                 Text(
                   switching
@@ -1232,8 +1251,11 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.black, width: 1.5),
                       ),
-                      child:
-                          const Icon(Icons.check, size: 11, color: Colors.black),
+                      child: const Icon(
+                        Icons.check,
+                        size: 11,
+                        color: Colors.black,
+                      ),
                     ),
                   ),
                 ),
@@ -1246,8 +1268,8 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
           icon: _busyUnlike
               ? null
               : (_unliked.contains(item.tweetId)
-                  ? Icons.favorite_border
-                  : Icons.favorite),
+                    ? Icons.favorite_border
+                    : Icons.favorite),
           label: _unliked.contains(item.tweetId)
               ? t('play.like')
               : t('play.liked'),
@@ -1295,7 +1317,9 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
                       width: 18,
                       height: 18,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white),
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     ),
                   )
                 : Icon(icon, color: accent, size: big ? 30 : 25),
@@ -1373,14 +1397,16 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
                     : const NeverScrollableScrollPhysics(),
                 child: GestureDetector(
                   onTap: long
-                      ? () => setState(
-                          () => _textExpanded = !_textExpanded)
+                      ? () => setState(() => _textExpanded = !_textExpanded)
                       : null,
                   child: PostBody(
                     item: item,
                     maxLines: _textExpanded ? null : 2,
                     style: const TextStyle(
-                        color: Colors.white, fontSize: 13.5, height: 1.4),
+                      color: Colors.white,
+                      fontSize: 13.5,
+                      height: 1.4,
+                    ),
                     // 深色底上主题色偏暗，链接提亮一点才看得清。
                     linkStyle: const TextStyle(
                       color: Color(0xFF6CC7F5),
@@ -1395,8 +1421,7 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
           ),
           if (long)
             GestureDetector(
-              onTap: () =>
-                  setState(() => _textExpanded = !_textExpanded),
+              onTap: () => setState(() => _textExpanded = !_textExpanded),
               child: Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
@@ -1439,9 +1464,11 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
                   inactiveTrackColor: Colors.white24,
                   thumbColor: Colors.white,
                   thumbShape: RoundSliderThumbShape(
-                      enabledThumbRadius: _dragging ? 7.5 : 4),
-                  overlayShape:
-                      const RoundSliderOverlayShape(overlayRadius: 14),
+                    enabledThumbRadius: _dragging ? 7.5 : 4,
+                  ),
+                  overlayShape: const RoundSliderOverlayShape(
+                    overlayRadius: 14,
+                  ),
                   overlayColor: Colors.white24,
                   // 细直条：默认的圆角轨道在 3px 高度上看着像胶囊，太抢戏。
                   trackShape: const RectangularSliderTrackShape(),
@@ -1541,39 +1568,46 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
                       play.loop
                           ? Icons.repeat
                           : play.autoNext
-                              ? Icons.skip_next
-                              : Icons.pause_circle_outline,
+                          ? Icons.skip_next
+                          : Icons.pause_circle_outline,
                       color: Colors.white70,
                     ),
                     title: Text(
                       play.loop
                           ? t('play.modeLoop')
                           : play.autoNext
-                              ? t('play.modeNext')
-                              : t('play.modeOff'),
+                          ? t('play.modeNext')
+                          : t('play.modeOff'),
                       style: white,
                     ),
                     subtitle: Text(
                       t('play.modeHint'),
                       style: const TextStyle(
-                          color: Colors.white38, fontSize: 11),
+                        color: Colors.white38,
+                        fontSize: 11,
+                      ),
                     ),
-                    trailing: const Icon(Icons.swap_horiz,
-                        size: 18, color: Colors.white38),
+                    trailing: const Icon(
+                      Icons.swap_horiz,
+                      size: 18,
+                      color: Colors.white38,
+                    ),
                     onTap: () {
                       final next = play.loop
                           ? play.copyWith(loop: false, autoNext: true)
                           : play.autoNext
-                              ? play.copyWith(loop: false, autoNext: false)
-                              : play.copyWith(loop: true, autoNext: false);
+                          ? play.copyWith(loop: false, autoNext: false)
+                          : play.copyWith(loop: true, autoNext: false);
                       savePlay(next);
                       setLocal(() {});
                     },
                   ),
                   const Divider(height: 1, color: Colors.white12),
                   ListTile(
-                    leading: const Icon(Icons.photo_library_outlined,
-                        color: Colors.white70),
+                    leading: const Icon(
+                      Icons.photo_library_outlined,
+                      color: Colors.white70,
+                    ),
                     title: Text(t('play.saveToGallery'), style: white),
                     onTap: () {
                       Navigator.pop(ctx);
@@ -1636,16 +1670,19 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
                     Text(
                       t('play.quality'),
                       style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600),
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const Spacer(),
                     if (_handle.qualityLabel != null)
                       Text(
                         tf('play.qualityNow', {'q': _handle.qualityLabel!}),
                         style: const TextStyle(
-                            color: Colors.white38, fontSize: 11),
+                          color: Colors.white38,
+                          fontSize: 11,
+                        ),
                       ),
                   ],
                 ),
@@ -1658,12 +1695,14 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
                 ),
                 subtitle: Text(
                   t('play.qualityAutoHint'),
-                  style:
-                      const TextStyle(color: Colors.white38, fontSize: 11),
+                  style: const TextStyle(color: Colors.white38, fontSize: 11),
                 ),
                 trailing: _tier.isAuto
-                    ? const Icon(Icons.check,
-                        color: Color(0xFF6CC7F5), size: 20)
+                    ? const Icon(
+                        Icons.check,
+                        color: Color(0xFF6CC7F5),
+                        size: 20,
+                      )
                     : null,
                 onTap: () => Navigator.pop(ctx, QualityTier.auto),
               ),
@@ -1678,15 +1717,16 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
                     [
                       if (slot.source.bitRate > 0)
                         '${(slot.source.bitRate / 1000).round()} kbps',
-                      if (cachedKey == slot.source.key)
-                        t('play.qualityLocal'),
+                      if (cachedKey == slot.source.key) t('play.qualityLocal'),
                     ].join(' · '),
-                    style:
-                        const TextStyle(color: Colors.white38, fontSize: 11),
+                    style: const TextStyle(color: Colors.white38, fontSize: 11),
                   ),
                   trailing: !_tier.isAuto && _tier == slot.tier
-                      ? const Icon(Icons.check,
-                          color: Color(0xFF6CC7F5), size: 20)
+                      ? const Icon(
+                          Icons.check,
+                          color: Color(0xFF6CC7F5),
+                          size: 20,
+                        )
                       : null,
                   onTap: () => Navigator.pop(ctx, slot.tier),
                 ),

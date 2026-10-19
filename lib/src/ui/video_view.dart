@@ -621,17 +621,18 @@ class _VideoSurfaceState extends State<VideoSurface>
       _mpv = player;
       final controller = VideoController(player);
       _mpvController = controller;
-      player.stream.playing
-          .listen((_) => widget.handle?._push(playing: player.state.playing));
-      player.stream.buffering
-          .listen((b) => widget.handle?._push(buffering: b));
+      player.stream.playing.listen(
+        (_) => widget.handle?._push(playing: player.state.playing),
+      );
+      player.stream.buffering.listen((b) => widget.handle?._push(buffering: b));
       player.stream.position.listen((p) => widget.handle?._push(position: p));
       player.stream.duration.listen((d) {
         widget.handle?._push(duration: d);
       });
       player.stream.error.listen((e) => _fail(e));
       await player.setPlaylistMode(
-          widget.loop ? PlaylistMode.single : PlaylistMode.none);
+        widget.loop ? PlaylistMode.single : PlaylistMode.none,
+      );
       if (!mounted) return;
       setState(() => _inited = true);
       widget.handle?._push(ready: true);
@@ -770,8 +771,10 @@ class _VideoSurfaceState extends State<VideoSurface>
     if (_isDesktop) return;
     if (widget.dataSaver) return; // 低数据模式：不采样、不换档
     if (widget.muted) return; // 列表里的静音预览不升画质，也没必要采样
-    _adaptTimer =
-        Timer.periodic(const Duration(milliseconds: 900), (_) => _adaptTick());
+    _adaptTimer = Timer.periodic(
+      const Duration(milliseconds: 900),
+      (_) => _adaptTick(),
+    );
   }
 
   void _adaptTick() {
@@ -935,7 +938,8 @@ class _VideoSurfaceState extends State<VideoSurface>
 
     // 快播完了就别折腾了 —— 换档本身要重新缓冲，收益抵不过那一下。
     final total = _duration;
-    if (total > Duration.zero && total - _position < const Duration(seconds: 4)) {
+    if (total > Duration.zero &&
+        total - _position < const Duration(seconds: 4)) {
       return;
     }
 
@@ -1029,7 +1033,9 @@ class _VideoSurfaceState extends State<VideoSurface>
   }
 
   Future<bool> _switchMobile(
-      vp.VideoPlayerController old, PlaybackSource target) async {
+    vp.VideoPlayerController old,
+    PlaybackSource target,
+  ) async {
     final wasPlaying = old.value.isPlaying;
     final speed = old.value.playbackSpeed;
     final epoch = ++_epoch;
@@ -1122,7 +1128,8 @@ class _VideoSurfaceState extends State<VideoSurface>
           try {
             lastPos = null; // 重新开始观察「在前进」
             await next.seekTo(
-                old.value.position + const Duration(milliseconds: 40));
+              old.value.position + const Duration(milliseconds: 40),
+            );
           } catch (_) {
             return false;
           }
@@ -1176,9 +1183,8 @@ class _VideoSurfaceState extends State<VideoSurface>
     var lastPos = next.value.position;
     while (mounted && _cur == next && stopwatch.elapsedMilliseconds < 900) {
       final nv = next.value;
-      final advancing = nv.isInitialized &&
-          !nv.isBuffering &&
-          nv.position > lastPos;
+      final advancing =
+          nv.isInitialized && !nv.isBuffering && nv.position > lastPos;
       if (nv.position > lastPos) lastPos = nv.position;
       final t = (stopwatch.elapsedMilliseconds / 420).clamp(0.0, 1.0);
       // 卡住就把不透明度压在 45%：旧画面还占主导，不会出现「冻住」。
@@ -1327,22 +1333,17 @@ class _VideoSurfaceState extends State<VideoSurface>
     return FittedBox(
       fit: widget.fit,
       clipBehavior: Clip.hardEdge,
-      child: SizedBox(
-        width: ar * 100,
-        height: 100,
-        child: vp.VideoPlayer(c),
-      ),
+      child: SizedBox(width: ar * 100, height: 100, child: vp.VideoPlayer(c)),
     );
   }
 
   Widget _spinner() => const Center(
-        child: SizedBox(
-          width: 28,
-          height: 28,
-          child: CircularProgressIndicator(
-              strokeWidth: 2.5, color: Colors.white70),
-        ),
-      );
+    child: SizedBox(
+      width: 28,
+      height: 28,
+      child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white70),
+    ),
+  );
 
   Widget _errorLayer() {
     return Center(

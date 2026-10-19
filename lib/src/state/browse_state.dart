@@ -131,7 +131,12 @@ class BrowseState extends ChangeNotifier implements FeedSource {
   bool loadingPrev = false;
 
   int totalCount = 0;
-  LikedStats stats = const LikedStats(total: 0, videos: 0, images: 0, deleted: 0);
+  LikedStats stats = const LikedStats(
+    total: 0,
+    videos: 0,
+    images: 0,
+    deleted: 0,
+  );
   String? selectedTweetId;
 
   bool get isEmpty => _all.isEmpty;
@@ -170,7 +175,8 @@ class BrowseState extends ChangeNotifier implements FeedSource {
     _selectedStale = true;
   }
 
-  List<TimelineBucket> estimatedTimeline() => _estimated ??= db.estimatedBuckets();
+  List<TimelineBucket> estimatedTimeline() =>
+      _estimated ??= db.estimatedBuckets();
 
   List<MonthBucket> months() => _months ??= db.months();
 
@@ -188,13 +194,15 @@ class BrowseState extends ChangeNotifier implements FeedSource {
     _selectedStale = true;
   }
 
-  Future<void> saveView({double? scrollOffset}) => persistView(ViewSnapshot(
-        mode: mode,
-        filter: filter,
-        anchorSeq: _items.isNotEmpty ? _items.first.feedRank : null,
-        selectedTweetId: selectedTweetId,
-        scrollOffset: scrollOffset ?? 0,
-      ));
+  Future<void> saveView({double? scrollOffset}) => persistView(
+    ViewSnapshot(
+      mode: mode,
+      filter: filter,
+      anchorSeq: _items.isNotEmpty ? _items.first.feedRank : null,
+      selectedTweetId: selectedTweetId,
+      scrollOffset: scrollOffset ?? 0,
+    ),
+  );
 
   Future<void> reload({bool reset = false}) async {
     if (reset) {
@@ -223,8 +231,9 @@ class BrowseState extends ChangeNotifier implements FeedSource {
     stats = db.stats();
     totalCount = stats.normal;
 
-    final anchorKey =
-        (keepPosition && _items.isNotEmpty) ? _keyOf(_items.first) : null;
+    final anchorKey = (keepPosition && _items.isNotEmpty)
+        ? _keyOf(_items.first)
+        : null;
     if (anchorKey == null) {
       await reload(reset: true);
       notifyListeners();
@@ -361,17 +370,18 @@ class BrowseState extends ChangeNotifier implements FeedSource {
   }
 
   PageKey? _keyOf(LikeItem item) => switch (mode) {
-        SortMode.likeOrder =>
-          item.feedRank == null ? null : PageKey(seq: item.feedRank),
-        SortMode.publishDate => item.createdAt == null
-            ? null
-            : PageKey(
-                publishedAt: item.createdAt!.millisecondsSinceEpoch,
-                tweetId: item.tweetId,
-              ),
-        SortMode.random =>
-          item.randKey == null ? null : PageKey(randKey: item.randKey),
-      };
+    SortMode.likeOrder =>
+      item.feedRank == null ? null : PageKey(seq: item.feedRank),
+    SortMode.publishDate =>
+      item.createdAt == null
+          ? null
+          : PageKey(
+              publishedAt: item.createdAt!.millisecondsSinceEpoch,
+              tweetId: item.tweetId,
+            ),
+    SortMode.random =>
+      item.randKey == null ? null : PageKey(randKey: item.randKey),
+  };
 
   /// 时间轴跳转：把列表锚定到某个 seq（喜欢顺序）。
   Future<void> jumpToSeq(int seq) => _jumpToKey(PageKey(seq: seq));

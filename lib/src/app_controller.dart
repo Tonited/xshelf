@@ -143,7 +143,9 @@ class AppController extends ChangeNotifier {
   String diagnostics() {
     final buf = StringBuffer()
       ..writeln('xlikemanage $kAppVersion')
-      ..writeln('platform: ${Platform.operatingSystem} ${Platform.operatingSystemVersion}')
+      ..writeln(
+        'platform: ${Platform.operatingSystem} ${Platform.operatingSystemVersion}',
+      )
       ..writeln('locale: ${Platform.localeName}')
       ..writeln('stage: $bootStage');
     if (bootError != null) buf.writeln('error: $bootError');
@@ -384,7 +386,7 @@ class AppController extends ChangeNotifier {
 
   /// 远端「我正在关注的人」。失败返回空列表，调用方回退本地记录。
   Future<List<({String id, String screenName, String name})>>
-      fetchFollowing() async {
+  fetchFollowing() async {
     final c = client;
     if (c == null) return const [];
     try {
@@ -468,7 +470,7 @@ class AppController extends ChangeNotifier {
   /// client —— 以前这里 new 了一个裸 HttpClient，自检走的是直连，
   /// 配了代理的用户会看到「全红」但其实能正常用。
   Future<List<({String host, bool ok, int ms, String? note})>>
-      diagnoseConnectivity() async {
+  diagnoseConnectivity() async {
     final resolution = await buildHttpClient(settings.proxy);
     final http = IOClient(resolution.client);
     const targets = [
@@ -500,7 +502,8 @@ class AppController extends ChangeNotifier {
         host: host,
         ok: resp.statusCode < 500,
         ms: sw.elapsedMilliseconds,
-        note: 'HTTP ${resp.statusCode}'
+        note:
+            'HTTP ${resp.statusCode}'
             '${usedProxy != null ? " via $usedProxy" : " direct"}',
       );
     } catch (e) {

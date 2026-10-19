@@ -18,19 +18,20 @@ class MediaVariant {
 
   bool get isMp4 => contentType == 'video/mp4';
   bool get isHls =>
-      contentType == 'application/x-mpegURL' || contentType == 'application/vnd.apple.mpegurl';
+      contentType == 'application/x-mpegURL' ||
+      contentType == 'application/vnd.apple.mpegurl';
 
   Map<String, Object?> toJson() => {
-        'url': url,
-        'contentType': contentType,
-        if (bitRate != null) 'bitRate': bitRate,
-      };
+    'url': url,
+    'contentType': contentType,
+    if (bitRate != null) 'bitRate': bitRate,
+  };
 
   factory MediaVariant.fromJson(Map<String, Object?> j) => MediaVariant(
-        url: j['url'] as String? ?? '',
-        contentType: j['contentType'] as String? ?? '',
-        bitRate: (j['bitRate'] as num?)?.toInt(),
-      );
+    url: j['url'] as String? ?? '',
+    contentType: j['contentType'] as String? ?? '',
+    bitRate: (j['bitRate'] as num?)?.toInt(),
+  );
 }
 
 class MediaItem {
@@ -67,30 +68,30 @@ class MediaItem {
   bool get isPlayable => kind != MediaKind.image && bestPlaybackUrl != null;
 
   Map<String, Object?> toJson() => {
-        'kind': kind.name,
-        'url': url,
-        'variants': [for (final v in variants) v.toJson()],
-        if (width != null) 'width': width,
-        if (height != null) 'height': height,
-        if (durationMs != null) 'durationMs': durationMs,
-        if (altText != null) 'altText': altText,
-      };
+    'kind': kind.name,
+    'url': url,
+    'variants': [for (final v in variants) v.toJson()],
+    if (width != null) 'width': width,
+    if (height != null) 'height': height,
+    if (durationMs != null) 'durationMs': durationMs,
+    if (altText != null) 'altText': altText,
+  };
 
   factory MediaItem.fromJson(Map<String, Object?> j) => MediaItem(
-        kind: MediaKind.values.firstWhere(
-          (k) => k.name == j['kind'],
-          orElse: () => MediaKind.image,
-        ),
-        url: j['url'] as String? ?? '',
-        variants: [
-          for (final v in (j['variants'] as List? ?? const []))
-            MediaVariant.fromJson(Map<String, Object?>.from(v as Map)),
-        ],
-        width: (j['width'] as num?)?.toInt(),
-        height: (j['height'] as num?)?.toInt(),
-        durationMs: (j['durationMs'] as num?)?.toInt(),
-        altText: j['altText'] as String?,
-      );
+    kind: MediaKind.values.firstWhere(
+      (k) => k.name == j['kind'],
+      orElse: () => MediaKind.image,
+    ),
+    url: j['url'] as String? ?? '',
+    variants: [
+      for (final v in (j['variants'] as List? ?? const []))
+        MediaVariant.fromJson(Map<String, Object?>.from(v as Map)),
+    ],
+    width: (j['width'] as num?)?.toInt(),
+    height: (j['height'] as num?)?.toInt(),
+    durationMs: (j['durationMs'] as num?)?.toInt(),
+    altText: j['altText'] as String?,
+  );
 }
 
 class Author {
@@ -107,18 +108,18 @@ class Author {
   final String? avatarUrl;
 
   Map<String, Object?> toJson() => {
-        'id': id,
-        'screenName': screenName,
-        'name': name,
-        if (avatarUrl != null) 'avatarUrl': avatarUrl,
-      };
+    'id': id,
+    'screenName': screenName,
+    'name': name,
+    if (avatarUrl != null) 'avatarUrl': avatarUrl,
+  };
 
   factory Author.fromJson(Map<String, Object?> j) => Author(
-        id: j['id'] as String? ?? '',
-        screenName: j['screenName'] as String? ?? '',
-        name: j['name'] as String? ?? '',
-        avatarUrl: j['avatarUrl'] as String?,
-      );
+    id: j['id'] as String? ?? '',
+    screenName: j['screenName'] as String? ?? '',
+    name: j['name'] as String? ?? '',
+    avatarUrl: j['avatarUrl'] as String?,
+  );
 }
 
 /// 本地记录状态。
@@ -140,11 +141,7 @@ enum LikeState {
 /// - **零额外请求**，不会因为翻译再打一次 X 的接口（少一分被限流的风险）；
 /// - 它存在 `raw_json` 里，重新打开 App 也还在，不用重翻。
 class PostTranslation {
-  const PostTranslation({
-    required this.text,
-    this.sourceLang,
-    this.destLang,
-  });
+  const PostTranslation({required this.text, this.sourceLang, this.destLang});
 
   final String text;
 
@@ -245,24 +242,23 @@ class LikeItem {
     int? feedRank,
     int? randKey,
     DateTime? verifiedAt,
-  }) =>
-      LikeItem(
-        tweetId: tweetId,
-        text: text,
-        createdAt: createdAt,
-        lang: lang,
-        author: author,
-        media: media,
-        sensitive: sensitive,
-        replyTo: replyTo,
-        quoteOf: quoteOf,
-        retweetOf: retweetOf,
-        state: state ?? this.state,
-        feedRank: feedRank ?? this.feedRank,
-        randKey: randKey ?? this.randKey,
-        verifiedAt: verifiedAt ?? this.verifiedAt,
-        raw: raw,
-      );
+  }) => LikeItem(
+    tweetId: tweetId,
+    text: text,
+    createdAt: createdAt,
+    lang: lang,
+    author: author,
+    media: media,
+    sensitive: sensitive,
+    replyTo: replyTo,
+    quoteOf: quoteOf,
+    retweetOf: retweetOf,
+    state: state ?? this.state,
+    feedRank: feedRank ?? this.feedRank,
+    randKey: randKey ?? this.randKey,
+    verifiedAt: verifiedAt ?? this.verifiedAt,
+    raw: raw,
+  );
 }
 
 /// 改写 X 图片 URL 的尺寸档位（`name=small|medium|large|orig`）。
@@ -276,8 +272,7 @@ String withImageVariant(String url, String name) {
   // 关键：X 的 `media_url_https` **不带** `name`，以前这里只在参数已存在时
   // 才替换，于是列表一直在下载原图（几百 KB），表现就是「封面经常加载不出来」。
   // 现在主动补上，`small` 真的生效，列表快一个数量级。
-  return uri.replace(queryParameters: {
-    ...uri.queryParameters,
-    'name': name,
-  }).toString();
+  return uri
+      .replace(queryParameters: {...uri.queryParameters, 'name': name})
+      .toString();
 }

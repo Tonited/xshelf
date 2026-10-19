@@ -65,7 +65,8 @@ class TweetMetrics {
         : raw;
     final legacy = tweet['legacy'];
     final l = legacy is Map ? legacy : tweet;
-    final views = _intOf(tweet['views']) ??
+    final views =
+        _intOf(tweet['views']) ??
         _intOf(tweet['ext_views']) ??
         _intOf(tweet['view_count_info']);
     final m = TweetMetrics(
