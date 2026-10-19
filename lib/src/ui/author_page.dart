@@ -112,17 +112,19 @@ class _AuthorPageState extends State<AuthorPage>
         title: Text(
           author.name.isNotEmpty ? author.name : '@${author.screenName}',
         ),
-        bottom: TabBar(
-          controller: _tabs,
-          tabs: [
-            Tab(text: '${t('author.likes')} $_likeCount'),
-            Tab(text: '${t('author.bookmarks')} $_bookmarkCount'),
-          ],
-        ),
       ),
       body: Column(
         children: [
+          // 资料卡在上面，两个 Tab 紧跟在它下面（放在 AppBar 里会跟资料卡分开，
+          // 看起来像是「页面的 Tab」而不是「这个人的内容分类」）。
           _profileHeader(context, theme, author, isSelf),
+          TabBar(
+            controller: _tabs,
+            tabs: [
+              Tab(text: '${t('author.likes')} $_likeCount'),
+              Tab(text: '${t('author.bookmarks')} $_bookmarkCount'),
+            ],
+          ),
           const Divider(height: 1),
           Expanded(
             child: TabBarView(

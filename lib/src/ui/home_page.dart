@@ -530,7 +530,13 @@ class _SourceListState extends State<_SourceList>
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onHorizontalDragEnd: _onHorizontalDragEnd,
-      child: _list(),
+      // 必须在这里订阅：本组件活在 PageView 里，外层没有 ListenableBuilder。
+      // 少了它，切排序 / 同步回填之后 `browse.listItems` 变了也不会重建 ——
+      // 表现就是「点了 tab，数据没变，得退出去再进来才更新」。
+      child: ListenableBuilder(
+        listenable: browse,
+        builder: (context, _) => _list(),
+      ),
     );
   }
 
