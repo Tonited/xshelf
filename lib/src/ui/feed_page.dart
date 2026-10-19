@@ -350,6 +350,11 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
       widget.item.tweetId,
       kind: 'bookmark',
     );
+    // 「取消过喜欢」也要从库里认回来：这只是个内存集合，滑走再滑回来
+    // （或退出重进）就是新的 State —— 不初始化的话那条会重新显示「已喜欢」。
+    if (!_app.db.hasVisibleTweet(widget.item.tweetId, kind: 'like')) {
+      _unliked.add(widget.item.tweetId);
+    }
     unawaited(_syncFollowState());
     if (widget.active) _cacheVideoInBackground();
   }

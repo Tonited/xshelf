@@ -195,15 +195,18 @@ class BrowseState extends ChangeNotifier implements FeedSource {
     _selectedStale = true;
   }
 
+  // 这几个统计都必须按**自己的来源**算。不传的话默认是 `like`，
+  // 书签页的时间轴跳转和作者列表就会用喜欢的数据 —— 跳过去对不上。
   List<TimelineBucket> estimatedTimeline() =>
-      _estimated ??= db.estimatedBuckets();
+      _estimated ??= db.estimatedBuckets(kind: kinds.first);
 
-  List<MonthBucket> months() => _months ??= db.months();
+  List<MonthBucket> months() => _months ??= db.months(kinds: kinds);
 
-  ({int? minSeq, int? maxSeq}) bounds() => _bounds ??= db.seqBounds();
+  ({int? minSeq, int? maxSeq}) bounds() =>
+      _bounds ??= db.seqBounds(kind: kinds.first);
 
   List<AuthorCount> topAuthors({int limit = 100}) =>
-      _authors ??= db.topAuthors(limit: limit);
+      _authors ??= db.topAuthors(limit: limit, kinds: kinds);
 
   // ---------------------------------------------------------------- 加载与分页
 

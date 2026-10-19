@@ -216,7 +216,9 @@ class _SearchPageState extends State<SearchPage> {
     final app = AppScope.read(context);
     if (_app == app) return;
     _app = app;
-    _authors = app.browse.topAuthors(limit: 200);
+    // 作者筛选要覆盖**全部来源**：页面支持只搜书签/全部，
+    // 只拿喜欢里的作者会让书签页的作者选不出来。
+    _authors = app.db.topAuthors(limit: 200, kinds: const {'like', 'bookmark'});
   }
 
   @override
