@@ -978,8 +978,6 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
         // 播放页是「用户主动打开、要看清楚」的场景：值得落盘，断网也能再看。
         // 列表缩略图则故意不落盘（5 万条会撑爆存储）。
         cacheToDisk: true,
-        // 已经在看这条了，不走延迟窗口。
-        lazy: false,
         // 看过清晰版就把缓存文件换掉：下次列表里那张也是清晰的。
         cacheHighRes: true,
         // 用户已经打开在看这条了，不需要延迟窗口。
