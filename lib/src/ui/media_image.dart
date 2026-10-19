@@ -37,6 +37,7 @@ class MediaImage extends StatefulWidget {
     this.darkFallback = false,
     this.preferRemembered = false,
     this.cacheToDisk = false,
+    this.cacheHighRes = false,
   });
 
   /// 先显示的地址（通常是 `name=small`）。
@@ -59,6 +60,13 @@ class MediaImage extends StatefulWidget {
   /// 存相册）。也就是说**图片默认从来不落盘**，断网重启后全都回不来。
   /// 全屏看图时打开它（值得占这点空间）；列表里关掉 —— 5 万条缩略图会撑爆存储。
   final bool cacheToDisk;
+
+  /// 解码出清晰版之后，用它**覆盖**缓存文件。
+  ///
+  /// 每个 `(tweetId, idx)` 位置只留一份文件：看过高清就把之前的缩略图换掉，
+  /// 列表里那张图下次直接是清晰的。只给「真正打开看过」的地方开（播放页），
+  /// 列表滚动时不升级 —— 否则滚一遍就是把整个库的高清图都下一遍。
+  final bool cacheHighRes;
 
   final int idx;
   final BoxFit fit;
@@ -212,6 +220,19 @@ class _MediaImageState extends State<MediaImage> {
     if (_recorded == key) return;
     _recorded = key;
     cache.rememberVariant(id, widget.idx, key, imageVariantRank(variantName));
+    // 看过清晰版：把它写进缓存文件，**覆盖**之前那份缩略图。
+    if (widget.cacheToDisk && widget.cacheHighRes) {
+      unawaited(
+        cache.ensureCached(
+          tweetId: id,
+          idx: widget.idx,
+          url: _highUrl!,
+          variant: key,
+          rank: imageVariantRank(variantName),
+          force: true,
+        ),
+      );
+    }
   }
 
   /// `https://pbs.twimg.com/media/x.jpg?name=large` → `large`。

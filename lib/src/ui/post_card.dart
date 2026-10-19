@@ -421,6 +421,9 @@ class _MediaGrid extends StatelessWidget {
       idx: idx,
       fit: BoxFit.cover,
       cacheWidth: 720,
+      // 列表缩略图也落盘（断网还能看到）。视频封面例外：同一位置可能被
+      // 播放器缓存成 mp4，封面走同一路径会被挤掉。
+      cacheToDisk: !isVideo,
       // 这张图的大图**以前已经加载过**就用大图起播：省掉「先糊一下」，
       // 而且只需一次请求（以前每次都是小图+大图两次）。
       preferRemembered: true,

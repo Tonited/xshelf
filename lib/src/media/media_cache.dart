@@ -162,18 +162,24 @@ class MediaCache {
   ///
   /// [variant]/[rank] 描述「这个 url 是哪一档」，会一并记进库；
   /// 不传也能工作（老调用点），只是无法参与画质记忆。
+  ///
+  /// [force] 忽略已有文件、重新下载并**覆盖**同一位置。用于「看过更清晰的版本，
+  /// 把之前的缩略图换掉」——每个 `(tweetId, idx)` 只会留一份文件。
   Future<File?> ensureCached({
     required String tweetId,
     required int idx,
     required String url,
     String? variant,
     int rank = 0,
+    bool force = false,
     void Function(int received, int? total)? onProgress,
   }) {
-    final existing = cachedFile(tweetId, idx);
-    if (existing != null) {
-      db.touchMedia(tweetId);
-      return Future.value(existing);
+    if (!force) {
+      final existing = cachedFile(tweetId, idx);
+      if (existing != null) {
+        db.touchMedia(tweetId);
+        return Future.value(existing);
+      }
     }
     final key = _key(tweetId, idx);
     final running = _inflight[key];
