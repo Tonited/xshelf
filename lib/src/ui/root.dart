@@ -8,6 +8,7 @@ import '../app_controller.dart';
 import '../core/l10n.dart';
 import 'home_page.dart';
 import 'login_page.dart';
+import 'x_action_host.dart';
 
 class RootPage extends StatelessWidget {
   const RootPage({super.key});
@@ -15,8 +16,9 @@ class RootPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final app = AppScope.of(context);
+    final Widget body;
     if (app.booting) {
-      return Scaffold(
+      body = Scaffold(
         body: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -28,11 +30,13 @@ class RootPage extends StatelessWidget {
           ),
         ),
       );
+    } else if (app.bootError != null) {
+      body = _BootFailure(app: app);
+    } else {
+      body = app.loggedIn ? const HomePage() : const LoginPage();
     }
-    if (app.bootError != null) {
-      return _BootFailure(app: app);
-    }
-    return app.loggedIn ? const HomePage() : const LoginPage();
+    // 写操作（喜欢/书签）要靠网页代发，宿主挂在最外层，能覆盖所有页面。
+    return XActionHost(key: XActionHost.hostKey, child: body);
   }
 }
 

@@ -446,6 +446,17 @@ class AppController extends ChangeNotifier {
     await _refreshBookmarkViews();
   }
 
+  /// 喜欢 / 取消喜欢的本地落地（网页兜底写成功之后调用）。
+  Future<void> likeLocally(String tweetId) async {
+    syncService?.likeLocally(tweetId);
+    browse.unmarkRemoved(tweetId);
+  }
+
+  Future<void> unlikeLocally(String tweetId) async {
+    syncService?.unlikeLocally(tweetId);
+    browse.markRemoved(tweetId);
+  }
+
   Future<void> _refreshBookmarkViews() async {
     await browse.refresh();
     await bookmarks.refresh();

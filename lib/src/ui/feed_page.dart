@@ -29,7 +29,7 @@ import 'author_page.dart';
 import 'media_image.dart';
 import 'rich_text.dart';
 import 'video_view.dart';
-import 'web_bookmark_writer.dart';
+import 'x_action_host.dart';
 
 class FeedPage extends StatefulWidget {
   const FeedPage({
@@ -533,58 +533,82 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
     if (_busyUnlike) return;
 
     final alreadyUnliked = _unliked.contains(item.tweetId);
-    setState(() => _busyUnlike = true);
-    final err = alreadyUnliked
+    // 再点一次 = 恢复喜欢。
+    final targetLike = alreadyUnliked;
+    setState(() {
+      _busyUnlike = true;
+      // 乐观：点下去先翻转，写回慢（要走网页）也不让按钮「没反应」。
+      targetLike ? _unliked.remove(item.tweetId) : _unliked.add(item.tweetId);
+    });
+    final err = targetLike
         ? await _app.like(item.tweetId)
         : await _app.unlike(item.tweetId);
     if (!mounted) return;
-    setState(() {
-      _busyUnlike = false;
-      if (err == null) {
-        alreadyUnliked
-            ? _unliked.remove(item.tweetId)
-            : _unliked.add(item.tweetId);
-      }
-    });
-    if (err != null) {
+    if (err == null) {
+      setState(() => _busyUnlike = false);
+      _flashHint(targetLike ? t('play.liked') : t('play.unliked'));
+      return;
+    }
+    // 直连被 X 的签名门槛挡住（它返回空 404）→ 交给屏幕外的网页去点。
+    final ok = await XActionHost.toggle(
+      tweetId: item.tweetId,
+      action: XWriteAction.like,
+      add: targetLike,
+    );
+    if (!mounted) return;
+    setState(() => _busyUnlike = false);
+    if (!ok) {
+      setState(() {
+        // 回滚
+        targetLike ? _unliked.add(item.tweetId) : _unliked.remove(item.tweetId);
+      });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
       return;
     }
-    _flashHint(alreadyUnliked ? t('play.liked') : t('play.unliked'));
+    if (targetLike) {
+      await _app.likeLocally(item.tweetId);
+    } else {
+      await _app.unlikeLocally(item.tweetId);
+    }
+    if (!mounted) return;
+    _flashHint(targetLike ? t('play.liked') : t('play.unliked'));
   }
 
   /// 加入 / 移除书签。
   ///
-  /// 只有网络写回成功才翻转按钮状态 —— 失败时按钮不能骗人。
+  /// 写回现在有两条路（直连多半会被 X 的签名门槛挡下，见 [XActionHost]），
+  /// 两条都慢，所以这里做**乐观更新**：点下去先翻转，失败再回滚并提示。
   Future<void> _toggleBookmark() async {
     if (_busyBookmark) return;
     final item = widget.item;
-    setState(() => _busyBookmark = true);
     final wasBookmarked = _bookmarked;
+    final target = !wasBookmarked;
+    setState(() {
+      _busyBookmark = true;
+      _bookmarked = target; // 乐观
+    });
     final err = wasBookmarked
         ? await _app.unbookmark(item.tweetId)
         : await _app.bookmark(item);
     if (!mounted) return;
     if (err == null) {
-      setState(() {
-        _busyBookmark = false;
-        _bookmarked = !wasBookmarked;
-      });
+      setState(() => _busyBookmark = false);
       _flashHint(
         _bookmarked ? t('play.bookmarkAdded') : t('play.bookmarkRemoved'),
       );
       return;
     }
     // 直连失败：X 对写操作要求 `x-client-transaction-id` 签名（它自家 JS 签的），
-    // 缺了会返回空 404。这时改用 WebView 兜底 —— 那里跑的是 X 自己的前端。
-    setState(() => _busyBookmark = false);
-    final ok = await writeBookmarkViaWeb(
-      context,
+    // 缺了会返回空 404。这时交给屏幕外的网页去点，界面不被打断。
+    final ok = await XActionHost.toggle(
       tweetId: item.tweetId,
-      add: !wasBookmarked,
+      action: XWriteAction.bookmark,
+      add: target,
     );
     if (!mounted) return;
+    setState(() => _busyBookmark = false);
     if (!ok) {
+      setState(() => _bookmarked = wasBookmarked); // 回滚
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
       return;
     }
@@ -594,7 +618,6 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
       await _app.bookmarkLocally(item);
     }
     if (!mounted) return;
-    setState(() => _bookmarked = !wasBookmarked);
     _flashHint(
       _bookmarked ? t('play.bookmarkAdded') : t('play.bookmarkRemoved'),
     );

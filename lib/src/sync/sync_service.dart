@@ -456,6 +456,11 @@ class SyncService {
     db.restoreLike(tweetId);
   }
 
+  /// 喜欢的**本地部分**（写回由 WebView 兜底完成后调用）。
+  void likeLocally(String tweetId) => db.restoreLike(tweetId);
+
+  void unlikeLocally(String tweetId) => db.markRemoved([tweetId]);
+
   /// 加入书签：先写回 X，成功后再落本地。
   ///
   /// 本地可能已经有这条（从喜欢那边来的），也可能没有（直接在书签页里看到了
