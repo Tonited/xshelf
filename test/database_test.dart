@@ -159,6 +159,43 @@ void main() {
       expect(second.key, isNull);
     });
 
+    test('random order can jump to the N-th item too', () {
+      if (!available) return;
+      final db = newDb();
+      addTearDown(db.dispose);
+
+      db.insertPage(
+        [for (var i = 0; i < 6; i++) item('r$i')],
+        accountId: 1,
+        startSeq: 0,
+      );
+
+      // 「随机」也是按 rand_key 排出来的一个顺序，所以一样能按位置取游标 ——
+      // 以前 UI 把随机模式的跳转整个藏掉了，这条守住「它其实能跳」。
+      final key = db.keyAtOffset(
+        mode: SortMode.random,
+        filter: const LikesFilter(),
+        offset: 2,
+      );
+      expect(key, isNotNull);
+      expect(key!.randKey, isNotNull);
+
+      final page = db.fetchPage(
+        mode: SortMode.random,
+        filter: const LikesFilter(),
+        limit: 10,
+        after: key,
+        includeStart: true,
+      );
+      expect(page.items, isNotEmpty);
+      // 从游标开始按 rand_key 升序，第一条就是 offset 指向的那一条。
+      final randKeys = page.items
+          .map((i) => db.getLike(i.tweetId)?.randKey)
+          .whereType<int>()
+          .toList();
+      expect(randKeys.first, key.randKey);
+    });
+
     test('media filters narrow the set', () {
       if (!available) return;
       final db = newDb();

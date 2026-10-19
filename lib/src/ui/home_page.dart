@@ -105,13 +105,12 @@ class _HomePageState extends State<HomePage> {
           ListenableBuilder(
             listenable: browse,
             builder: (context, _) {
-              if (browse.mode == SortMode.random) {
-                return const SizedBox.shrink();
-              }
+              // 三种模式都能跳：随机顺序本身就是「按 rand_key 排的第 N 个」，
+              // 一样有位置可言（以前这里直接把它藏掉了）。
               return IconButton(
-                tooltip: browse.mode == SortMode.likeOrder
-                    ? t('jump.byPosition')
-                    : t('jump.byDate'),
+                tooltip: browse.mode == SortMode.publishDate
+                    ? t('jump.byDate')
+                    : t('jump.byPosition'),
                 onPressed: () => _openJumpSheet(context, app, browse),
                 icon: const Icon(Icons.my_location),
               );
@@ -249,9 +248,10 @@ class _HomePageState extends State<HomePage> {
     BrowseState browse,
   ) async {
     final total = browse.totalCount;
-    if (total == 0 || browse.mode == SortMode.random) return;
+    if (total == 0) return;
 
-    final byPosition = browse.mode == SortMode.likeOrder;
+    // 只有「按发布日期」用日期跳；喜欢顺序和随机都按「第几个」。
+    final byPosition = browse.mode != SortMode.publishDate;
     var position = 1;
     DateTime? date;
 
