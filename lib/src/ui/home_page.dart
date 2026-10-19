@@ -481,7 +481,9 @@ class _SourceListState extends State<_SourceList>
       if (browse.listItems.isNotEmpty) {
         final first = browse.listItems.first.feedRank;
         final last = browse.listItems.last.feedRank;
-        if (first != null && last != null) app.markViewportDirty(last, first);
+        if (first != null && last != null) {
+          app.markViewportDirty(last, first, kind: _kind);
+        }
       }
     });
   }

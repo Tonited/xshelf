@@ -181,3 +181,15 @@ body: 两页（喜欢 / 书签）
 
 未验证：加入/移除书签的网络写回（需要一条真实书签做样本）、bookmarks queryId 失效后的手动兜底入口（尚未实现，见 §8）。
 
+### 9.1 真机实测发现的硬限制（2026-10）
+
+- **写操作的 queryId 已经轮换**：点播放页书签返回 `HTTP 404`，说明 `CreateBookmark = aoDbu3RHznuiSkQ9aNM67Q` 已失效（twikit 上的值也是同一个，同样过期）。失败被正确处理：提示「接口返回 HTTP 404 (queryId 可能已失效)」、按钮状态**不翻转**。
+- **回填返回 0 条**：可能是该账号本来没有书签，也可能是 `Bookmarks` 的 queryId 同样失效——两者在 UI 上无法区分。
+- **自动发现不可用**：`Bookmarks`/`CreateBookmark`/`DeleteBookmark` 的定义在 X 的懒加载 chunk 里，且 chunk 位于 `abs.twimg.com`（与 `x.com` 跨域，页面内 `fetch` 被 CORS 拒绝）。设置页的「从网页自动获取」探针因此抓不到，实测两版都返回空。
+- **兜底方案（已实现）**：设置 → 同步 → 「书签接口 QueryId」，可手动填写三个值，留空则用内置值。
+  手动获取方法：在桌面浏览器登录 x.com，打开 DevTools → Network → 筛选 `/graphql/`，
+  在网页里加/删一次书签、打开一次书签页，把三个请求 URL 里的 `{queryId}/{operationName}`
+  抄下来填进去即可。
+
+结论：**读取闭环与 UI 闭环已完成并在真机验证**；写入依赖 X 当前的 queryId，内置值失效时需手动填一次。这属于外部接口变更，不是实现缺陷。
+

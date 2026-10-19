@@ -34,6 +34,7 @@ class Reconciler {
     required this.db,
     required this.client,
     required this.accountId,
+    this.kind = 'like',
     this.minInterval = const Duration(milliseconds: 1500),
     this.maxPerMinute = 4,
   });
@@ -41,6 +42,11 @@ class Reconciler {
   final AppDatabase db;
   final XClient client;
   final int accountId;
+
+  /// 巡哪个来源：`like` / `bookmark`。两个来源各跑一个实例，
+  /// 因为它们的区段、游标、预算都应该是独立的。
+  final String kind;
+
   final Duration minInterval;
   final int maxPerMinute;
 
@@ -76,7 +82,7 @@ class Reconciler {
     }
 
     // 其次陈段轮转
-    final stale = db.stalestSegments(accountId, limit: 1);
+    final stale = db.stalestSegments(accountId, limit: 1, kind: kind);
     if (stale.isNotEmpty) {
       final s = stale.first;
       final report = await _verifySegment(s.startSeq, 'rotate');
@@ -90,7 +96,7 @@ class Reconciler {
     final endSeq = startSeq + segWidth;
 
     // 只有本地有货才值得核对
-    final localIds = db.tweetIdsInSeqRange(startSeq, endSeq);
+    final localIds = db.tweetIdsInSeqRange(startSeq, endSeq, kind: kind);
     if (localIds.isEmpty) return null;
 
     final cursor = _cursorFor(startSeq);
@@ -99,12 +105,14 @@ class Reconciler {
     _lastRequest = DateTime.now();
     _recent.add(_lastRequest!);
 
-    final page = await client.fetchLikes(cursor: cursor);
+    final page = kind == 'bookmark'
+        ? await client.fetchBookmarks(cursor: cursor)
+        : await client.fetchLikes(cursor: cursor);
     final remoteIds = {for (final i in page.items) i.tweetId};
 
     // 先定位这一页在本地覆盖到哪：区段有 200 条，一页只有 100 条，
     // 不先算覆盖范围就取差集会**误删**页外的本地条目。
-    final seqByid = db.seqsOf(page.items.map((i) => i.tweetId), kind: 'like');
+    final seqByid = db.seqsOf(page.items.map((i) => i.tweetId), kind: kind);
     final matchedSeqs = <int>[];
     for (final item in page.items) {
       final seq = seqByid[item.tweetId];
@@ -118,6 +126,7 @@ class Reconciler {
         endSeq: endSeq,
         cursor: cursor,
         verifiedAt: DateTime.now(),
+        kind: kind,
       );
       return ReconcileReport(
         source: source,
@@ -130,12 +139,16 @@ class Reconciler {
     // 页从区段的「新」端进入（seq 大 → 小），最后一页/最后一条匹配到的最小 seq
     // 才是本页真正覆盖到的下界。页外的更旧条目（seq 更小）一律不动。
     final lowestMatched = matchedSeqs.reduce(math.min);
-    final coveredLocalIds = db.tweetIdsInSeqRange(lowestMatched, endSeq);
+    final coveredLocalIds = db.tweetIdsInSeqRange(
+      lowestMatched,
+      endSeq,
+      kind: kind,
+    );
 
-    // 1) 本地有、服务端没有 → 已在别处取消喜欢
+    // 1) 本地有、服务端没有 → 已在别处取消喜欢 / 移除书签
     var removed = 0;
     for (final id in coveredLocalIds.difference(remoteIds)) {
-      db.deleteLike(id);
+      db.deleteLike(id, kind: kind);
       removed++;
     }
 
@@ -145,7 +158,9 @@ class Reconciler {
       // seq 越大越新：页内顺序就是 new → old，`newer` 记「上一条的 seq」。
       final seqs = [for (final item in page.items) seqByid[item.tweetId]];
       // 段外更新方向的最近邻（seq > endSeq 中最小的那个）
-      var newer = db.neighborsOf(endSeq).below ?? endSeq + AppDatabase.seqStep;
+      var newer =
+          db.neighborsOf(endSeq, kind: kind).below ??
+          endSeq + AppDatabase.seqStep;
 
       for (var i = 0; i < page.items.length; i++) {
         final knownSeq = seqs[i];
@@ -165,7 +180,12 @@ class Reconciler {
           newer,
         );
         if (seq == null) continue;
-        if (db.insertAtSeq(page.items[i], accountId: accountId, seq: seq)) {
+        if (db.insertAtSeq(
+          page.items[i],
+          accountId: accountId,
+          seq: seq,
+          kind: kind,
+        )) {
           seqs[i] = seq;
           newer = seq;
           inserted++;
@@ -179,6 +199,7 @@ class Reconciler {
       endSeq: endSeq,
       cursor: cursor,
       verifiedAt: DateTime.now(),
+      kind: kind,
     );
 
     return ReconcileReport(
@@ -191,10 +212,10 @@ class Reconciler {
 
   /// 找到能重新翻到 [startSeq] 所在区段的游标（由回填时登记）。
   String? _cursorFor(int startSeq) {
-    final exact = db.segmentCursor(accountId, startSeq);
+    final exact = db.segmentCursor(accountId, startSeq, kind: kind);
     if (exact != null) return exact;
     // 没登记过：退回到最近一个更「新」的区段游标（多翻几页也能对上）
-    final segs = db.stalestSegments(accountId, limit: 500);
+    final segs = db.stalestSegments(accountId, limit: 500, kind: kind);
     final newer = segs.where((s) => s.startSeq < startSeq).toList()
       ..sort((a, b) => b.startSeq.compareTo(a.startSeq));
     return newer.isEmpty ? null : newer.first.cursor;

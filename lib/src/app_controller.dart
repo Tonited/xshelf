@@ -247,6 +247,8 @@ class AppController extends ChangeNotifier {
       syncService = null;
       reconciler?.stop();
       reconciler = null;
+      bookmarksReconciler?.stop();
+      bookmarksReconciler = null;
     }
     _autosyncTimer?.cancel();
     _autosyncTimer = null;
@@ -255,19 +257,32 @@ class AppController extends ChangeNotifier {
   }
 
   /// 巡边器：让「滚到哪核到哪」和「陈段轮转」共用一个预算队列。
+  ///
+  /// 两个来源各一个实例：它们的区段、游标、预算互不相干，合成一个会把
+  /// 「喜欢核对」和「书签核对」挤进同一个 4 次/分的预算里。
   Reconciler? reconciler;
+  Reconciler? bookmarksReconciler;
 
   void _ensureReconciler() {
     final acc = accountId;
     final c = client;
     if (acc == null || c == null) return;
     reconciler ??= Reconciler(db: db, client: c, accountId: acc)..start();
+    bookmarksReconciler ??= Reconciler(
+      db: db,
+      client: c,
+      accountId: acc,
+      kind: 'bookmark',
+    )..start();
   }
 
   /// UI 滚动停下时调用：把当前可见的一段标脏。
-  void markViewportDirty(int fromSeq, int toSeq) {
+  void markViewportDirty(int fromSeq, int toSeq, {String kind = 'like'}) {
     _ensureReconciler();
-    reconciler?.markViewportDirty(fromSeq, toSeq);
+    (kind == 'bookmark' ? bookmarksReconciler : reconciler)?.markViewportDirty(
+      fromSeq,
+      toSeq,
+    );
   }
 
   Timer? _autosyncTimer;
@@ -279,8 +294,14 @@ class AppController extends ChangeNotifier {
     _autosyncTimer?.cancel();
     _autosyncTimer = Timer.periodic(
       Duration(minutes: cfg.intervalMinutes),
-      (_) => unawaited(sync.syncNew()),
+      (_) => unawaited(_autoSyncTick()),
     );
+  }
+
+  /// 自动同步一轮：喜欢和书签都要补（书签增量不跑就永远只有回填那一刻的快照）。
+  Future<void> _autoSyncTick() async {
+    await sync.syncNew();
+    await sync.syncNew(kind: 'bookmark');
   }
 
   Future<void> setAutoSync(AutoSyncSettings cfg) async {
@@ -567,6 +588,7 @@ class AppController extends ChangeNotifier {
   void dispose() {
     _autosyncTimer?.cancel();
     reconciler?.stop();
+    bookmarksReconciler?.stop();
     _xHttp?.close();
     _mediaHttp?.close();
     // boot 失败时 db 可能还没建出来。
