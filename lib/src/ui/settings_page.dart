@@ -10,7 +10,6 @@ import '../core/settings.dart';
 import '../net/proxy.dart';
 import '../version.dart';
 import 'media_image.dart';
-import 'queryid_probe_page.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -362,18 +361,6 @@ class _SettingsPageState extends State<SettingsPage> {
                           : () => _startBackfill(app, kind: 'bookmark'),
                     );
                   },
-                ),
-                const Divider(height: 1),
-                // 书签接口参数：失效时点一下，自动去 X 网页学当前值。
-                ListTile(
-                  leading: const Icon(Icons.key_outlined),
-                  title: Text(t('settings.refreshQueryId')),
-                  subtitle: Text(
-                    t('settings.bookmarkQueryIdHint'),
-                    style: theme.textTheme.bodySmall,
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _refreshQueryIds(app),
                 ),
                 const Divider(height: 1),
                 SwitchListTile(
@@ -737,37 +724,6 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
     );
     if (ok == true) await app.sync.startBackfill(kind: kind);
-  }
-
-  /// 手动填写书签相关操作的 queryId。
-  /// 自动学习书签相关接口当前的 queryId。
-  ///
-  /// 不用手填：探针页会打开一张真实推文、自己点一次书签再撤销、最后打开书签页，
-  /// 从 WebView 拦到的 `/graphql/{queryId}/{operation}` 里把值读出来。
-  Future<void> _refreshQueryIds(AppController app) async {
-    const ops = ['Bookmarks', 'CreateBookmark', 'DeleteBookmark'];
-    // 拿本地第一条喜欢当「试验田」；没有就用书签页（只学得到 Bookmarks）。
-    final sample = app.browse.items.isEmpty
-        ? null
-        : app.browse.items.first.tweetId;
-    final found = await Navigator.of(context).push<Map<String, String>>(
-      MaterialPageRoute<Map<String, String>>(
-        builder: (_) => QueryIdProbePage(operations: ops, tweetId: sample),
-      ),
-    );
-    if (!mounted) return;
-    if (found == null || found.isEmpty) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(t('queryid.notFound'))));
-      return;
-    }
-    for (final e in found.entries) {
-      app.db.saveQueryId(e.key, e.value);
-    }
-    setState(() {});
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(tf('queryid.found', {'n': found.length}))),
-    );
   }
 
   Future<void> _savePlay(AppController app, PlaybackSettings next) async {

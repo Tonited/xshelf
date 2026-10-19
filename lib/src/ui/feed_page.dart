@@ -305,6 +305,13 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
   /// 「划过最后一张」的节流时间戳（同一个手势只进一次作者页）。
   DateTime? _pastLastAt;
 
+  /// 在最后一张上继续往左拖的累积距离。
+  ///
+  /// 原来这里用 `OverscrollNotification.velocity < -600` 判断，但 Android 默认的
+  /// Clamping 物理下这个 velocity 恒为 0 —— 条件永远不成立，「划过最后一张进作者页」
+  /// 其实**从没生效过**。改成累积位移，手感也更接近「拖出去一段才触发」。
+  double _overscrollAccum = 0;
+
   /// 播放页专用横屏。退出页面时恢复成跟随系统。
   bool _landscape = false;
 
@@ -716,6 +723,36 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
     );
   }
 
+  /// 纯文字帖子：没有媒体可铺，就把正文放大排好。
+  ///
+  /// 以前这里直接返回一块纯黑 —— 整屏空着，文字只能挤在底部那条小字里。
+  /// 现在按阅读排布（字号放大、行高放宽）；太长时截断，底部仍然可以点开看全文。
+  Widget _textPage(LikeItem item) {
+    final text = item.text.trim();
+    return ColoredBox(
+      color: Colors.black,
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 72, 22, 210),
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: Text(
+              text.isEmpty ? '—' : text,
+              maxLines: 22,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                height: 1.5,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   /// 画面上的手势：单击暂停/继续、双击快进快退、长按倍速。
   Widget _gestureLayer(LikeItem item, bool hasVideo) {
     return Listener(
@@ -779,7 +816,7 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
   /// 另外：滑到最后一张（或这条只有一个视频）还往左划 → 进作者空间。
   Widget _media(LikeItem item) {
     final media = item.media;
-    if (media.isEmpty) return const ColoredBox(color: Colors.black);
+    if (media.isEmpty) return _textPage(item);
     if (media.length == 1) {
       // 单媒体：没有 PageView 可翻，直接听「快速左划」这个手势。
       // 阈值故意设得很高：随手一划（尤其斜着划）不该跳到作者页 ——
@@ -796,16 +833,17 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
 
     return NotificationListener<ScrollNotification>(
       onNotification: (n) {
-        // 已经停在最后一页还继续往左拖（PageView 会冒出一段 overscroll）：
-        // 这时候把用户送到作者空间，而不是让画面原地弹一下。
+        // 已经停在最后一页还继续往左拖：把用户送到作者空间，而不是让画面原地弹一下。
         //
-        // 只有「拖了足够远 + 甩得足够快」才算，否则每次滑到边缘都会误触发，
-        // 屏幕上就会闪一下作者页的浅色背景。
-        if (n is OverscrollNotification &&
-            _pageIndex >= media.length - 1 &&
-            n.overscroll > 56 &&
-            n.velocity < -600) {
-          _swipedPastLast();
+        // 判据用**累积位移**而不是 velocity（Clamping 下 velocity 恒为 0，见
+        // [_overscrollAccum] 的注释）。够远才算，避免滑到边缘时轻微一顿就跳页。
+        if (n is OverscrollNotification) {
+          if (_pageIndex >= media.length - 1 && n.overscroll > 0) {
+            _overscrollAccum += n.overscroll;
+            if (_overscrollAccum > 90) _swipedPastLast();
+          }
+        } else if (n is ScrollEndNotification) {
+          _overscrollAccum = 0;
         }
         return false;
       },
@@ -1101,7 +1139,8 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _caption(item, theme),
+                      // 纯文字帖子的正文已经放大铺在画面上了，底部不再重复。
+                      _caption(item, theme, showText: item.media.isNotEmpty),
                       if (hasVideo) ...[
                         const SizedBox(height: 10),
                         _progressBar(),
@@ -1418,7 +1457,7 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
     );
   }
 
-  Widget _caption(LikeItem item, ThemeData theme) {
+  Widget _caption(LikeItem item, ThemeData theme, {bool showText = true}) {
     final author = item.author;
     final text = item.text.trim();
     final long = text.length > 90 || '\n'.allMatches(text).length >= 3;
@@ -1463,7 +1502,7 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
             ],
           ],
         ),
-        if (text.isNotEmpty) ...[
+        if (showText && text.isNotEmpty) ...[
           const SizedBox(height: 6),
           AnimatedSize(
             duration: const Duration(milliseconds: 220),
