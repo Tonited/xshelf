@@ -614,7 +614,13 @@ class _SourceListState extends State<_SourceList>
           item: item,
           cache: app.mediaCache,
           autoPlayVideo: app.settings.playback.autoPlayInList,
-          bookmarked: app.db.hasTweet(item.tweetId, kind: 'bookmark'),
+          // 每个来源显示「对面那个状态」：喜欢页看书签、书签页看喜欢。
+          bookmarked:
+              _kind == 'like' &&
+              app.db.hasTweet(item.tweetId, kind: 'bookmark'),
+          liked:
+              _kind == 'bookmark' &&
+              app.db.hasTweet(item.tweetId, kind: 'like'),
           onTap: () => _openFeed(item.tweetId),
           onAvatarTap: () => _openAuthor(item),
         ),

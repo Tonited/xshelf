@@ -269,6 +269,9 @@ class _AuthorListState extends State<_AuthorList>
         if (items.isEmpty) {
           return Center(child: Text(t('author.empty')));
         }
+        // 和主页一样：喜欢 Tab 显示「已在书签」，书签 Tab 显示「已喜欢」。
+        final db = AppScope.read(context).db;
+        final isBookmarkTab = widget.source.filter.kinds.contains('bookmark');
         return ListView.builder(
           controller: _scroll,
           itemCount: items.length + (widget.source.hasMore ? 1 : 0),
@@ -285,6 +288,11 @@ class _AuthorListState extends State<_AuthorList>
                 PostCard(
                   item: item,
                   cache: widget.cache,
+                  bookmarked:
+                      !isBookmarkTab &&
+                      db.hasTweet(item.tweetId, kind: 'bookmark'),
+                  liked:
+                      isBookmarkTab && db.hasTweet(item.tweetId, kind: 'like'),
                   onTap: () => Navigator.of(context).push(
                     // 播放页会带着「最后看的那条」pop 回来（<String>），
                     // 这里不接结果，但路由泛型要一致，否则 pop 会类型不匹配。

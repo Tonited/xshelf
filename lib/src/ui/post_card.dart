@@ -32,6 +32,7 @@ class PostCard extends StatelessWidget {
     this.highlights = const [],
     this.autoPlayVideo = false,
     this.bookmarked = false,
+    this.liked = false,
   });
 
   final LikeItem item;
@@ -49,7 +50,13 @@ class PostCard extends StatelessWidget {
 
   /// 这条是否已在书签里。**只做展示**，不提供点击（卡片整块是进播放页的热区，
   /// 再塞一个可点的小按钮只会带来误触）。
+  ///
+  /// 用在**喜欢页**：那边你关心的是「这条我收藏了吗」。
   final bool bookmarked;
+
+  /// 这条是否已喜欢。用在**书签页**：那边每条本身就是书签，你关心的是
+  /// 「这条我点过心吗」。和 [bookmarked] 是「对面那个状态」，同一张卡片只显示一个。
+  final bool liked;
 
   @override
   Widget build(BuildContext context) {
@@ -244,10 +251,28 @@ class PostCard extends StatelessWidget {
           Text(' · ', style: small),
           Text(_ago(item.createdAt!), style: small),
         ],
-        // 已在书签里：只做标记，不提供点击（整张卡片是进播放页的热区）。
+        // 对面那个状态的标记，只做展示、不提供点击（整张卡片是进播放页的热区）。
+        // 喜欢页显示「已在书签」，书签页显示「已喜欢」—— 每条本身的状态不用再标。
         if (bookmarked) ...[
           const Spacer(),
-          Icon(Icons.bookmark, size: 14, color: theme.colorScheme.primary),
+          Tooltip(
+            message: t('play.bookmarked'),
+            child: Icon(
+              Icons.bookmark,
+              size: 14,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+        ] else if (liked) ...[
+          const Spacer(),
+          Tooltip(
+            message: t('play.liked'),
+            child: Icon(
+              Icons.favorite,
+              size: 14,
+              color: theme.colorScheme.error,
+            ),
+          ),
         ],
       ],
     );
