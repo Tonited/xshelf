@@ -209,6 +209,7 @@ const Map<String, String> _zh = {
   'play.follow': '关注',
   'play.following': '已关注',
   'play.followFailed': '关注失败',
+  'play.writeFailed': '写入失败：网页端没能完成。可能登录已失效，重试一次或重新登录',
   'play.followed': '已关注作者',
   'play.unfollowed': '已取消关注',
   'play.quality': '画质',
@@ -546,6 +547,9 @@ const Map<String, String> _en = {
   'play.follow': 'Follow',
   'play.following': 'Following',
   'play.followFailed': 'Follow failed',
+  'play.writeFailed':
+      'Write failed: the web page did not complete. Your sign-in may have '
+      'expired — try again or sign in anew',
   'play.followed': 'Now following',
   'play.unfollowed': 'Unfollowed',
   'play.quality': 'Quality',

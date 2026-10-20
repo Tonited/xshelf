@@ -451,8 +451,8 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
     }
   }
 
-  /// 播放页专用横屏。退出页面时统一恢复成「跟随系统」，
-  /// 否则用户回到列表还是横的，会以为 App 卡住了。
+  /// 播放页专用横屏。退出页面时回到竖屏 —— 恢复成「跟随系统」的话，
+  /// 只要系统自动旋转是开的，回到列表就会横过来（横屏布局没适配过）。
   Future<void> _toggleOrientation() async {
     final next = !_landscape;
     setState(() => _landscape = next);
@@ -464,7 +464,7 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
               DeviceOrientation.landscapeLeft,
               DeviceOrientation.landscapeRight,
             ]
-          : const [],
+          : const [DeviceOrientation.portraitUp],
     );
   }
 
@@ -497,9 +497,9 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
     _hintTimer?.cancel();
     _qualityToastTimer?.cancel();
     _handle.removeListener(_onHandleChanged);
-    // 从播放页离开时把方向还回去，不然列表页会留在横屏。
+    // 从播放页离开时把方向还回去 —— 还成竖屏，不是「跟随系统」。
     if (_landscape) {
-      SystemChrome.setPreferredOrientations(const []);
+      SystemChrome.setPreferredOrientations(const [DeviceOrientation.portraitUp]);
     }
     _handle.dispose();
     super.dispose();
@@ -602,7 +602,14 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
         // 回滚
         targetLike ? _unliked.add(item.tweetId) : _unliked.remove(item.tweetId);
       });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+      // 直连那个 404 是**预期**的（X 的写操作要 `x-client-transaction-id`
+      // 签名，纯 HTTP 必被挡），真正失败的是网页端回退。把 404 原样甩给
+      // 用户只会误导成「接口失效」，所以这里报网页端的失败。
+      // ignore: avoid_print
+      print('[x-write] like fallback failed: $err');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t('play.writeFailed'))),
+      );
       return;
     }
     if (targetLike) {
@@ -657,7 +664,12 @@ class _FeedItemState extends State<_FeedItem> with WidgetsBindingObserver {
     setState(() => _busyBookmark = false);
     if (!ok) {
       setState(() => _bookmarked = !target); // 回滚
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+      // 同上：404 是直连的常态，别把「网页端没点成」说成「接口失效」。
+      // ignore: avoid_print
+      print('[x-write] bookmark fallback failed: $err');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t('play.writeFailed'))),
+      );
       return;
     }
     if (target) {

@@ -1,4 +1,4 @@
-/// 全局写操作宿主：一个**屏幕外**的 WebView，专门替 App 去点 X 网页上的按钮。
+/// 全局写操作宿主：一个屏幕外的 WebView，专门替 App 去点 X 网页上的按钮。
 ///
 /// ## 为什么要这么做
 /// 喜欢 / 取消喜欢 / 加书签 / 移书签都是 GraphQL **mutation**。X 要求它们带一个
@@ -13,6 +13,17 @@
 /// - 调用方先做**乐观更新**，这里跑完再确认/回滚。
 ///
 /// 用户看到的就是：点一下 → 心形/书签立刻变 → 几秒后提示消失。
+///
+/// ## 已知限制（实测）
+/// 这个 WebView 里 X 的前端**渲染不出来**：页面 HTML 正常返回（`document.title`
+/// 已经是推文的标题，说明登录态和 URL 都对），但 `#react-root` 始终是空的 ——
+/// DOM 有 ~290KB、可见文字却只有 35 个字符，一个 `data-testid` 都查不到。
+/// 排除过的方向：离屏还是可见、尺寸大小、Chrome UA、`javaScriptEnabled` /
+/// `domStorageEnabled`、Scaffold 隔离、去掉外层 Stack、把播放器整棵移走、
+/// 首页/作者主页/推文详情三种 URL —— 全都不改善。
+/// 同一个 X 站点用 [XWebPage]（独立路由里、直接挂在 `Scaffold.body`）渲染完全正常，
+/// 所以差异在**宿主方式**而不是站点本身；改成独立路由承载是下一步要试的方案。
+/// 在修好之前，写操作会回滚并提示 [play.writeFailed]，而不是假装成功。
 library;
 
 import 'dart:async';
@@ -20,6 +31,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
+import '../app_controller.dart';
 import '../core/l10n.dart';
 
 /// 要通过网页完成的写操作。
@@ -73,11 +85,23 @@ class XActionHostState extends State<XActionHost> {
     required String tweetId,
     required XWriteAction action,
     required bool add,
-  }) {
+  }) async {
     // 同一时刻只跑一个：两个页面同时点也只会排队（直接拒绝第二个，调用方会回滚）。
-    if (_running) return Future.value(false);
+    if (_running) return false;
     _running = true;
     _completer = Completer<bool>();
+    // 先把登录态写进 WebView 的 cookie 容器，再打开页面。
+    //
+    // 这一步不能省：屏幕外这页只设 `sharedCookiesEnabled: true` 只是「共用
+    // CookieManager」的意思，**冷启动时那个容器里并没有 x.com 的 cookie** ——
+    // 少了 auth_token，`/i/status/<id>` 会停在登录墙后面，推文详情永远渲染不出
+    // 按钮。其他几个 WebView（x_web_page / x_search_page / swipe_feed_page）
+    // 都在打开前自己注入了，这里补齐同一套做法。
+    await _seedCookies();
+    if (!mounted || _completer == null) {
+      _running = false;
+      return false;
+    }
     setState(() => _job = _Job(tweetId, action, add));
     return _completer!.future.timeout(
       const Duration(seconds: 30),
@@ -86,6 +110,31 @@ class XActionHostState extends State<XActionHost> {
         return false;
       },
     );
+  }
+
+  /// 把 App 的登录态写进 WebView 的 cookie 容器。
+  Future<void> _seedCookies() async {
+    try {
+      final session = AppScope.read(context).session;
+      if (session == null) return;
+      final cm = CookieManager.instance();
+      for (final entry in [
+        ('auth_token', session.authToken),
+        ('ct0', session.ct0),
+      ]) {
+        await cm.setCookie(
+          url: WebUri('https://x.com'),
+          name: entry.$1,
+          value: entry.$2,
+          domain: '.x.com',
+          path: '/',
+          isSecure: true,
+          isHttpOnly: true,
+        );
+      }
+    } catch (_) {
+      // 注入失败也照旧往下走：容器里若恰好已有 cookie，页面仍然能打开并点得动。
+    }
   }
 
   void _finish(bool ok) {
@@ -176,9 +225,13 @@ class XActionHostState extends State<XActionHost> {
                   url: WebUri('https://x.com/i/status/${job.tweetId}'),
                 ),
                 initialSettings: InAppWebViewSettings(
+                  // 和 [XWebPage] 保持一致（见文件头的「已知限制」：
+                  // 即便如此这个 WebView 里的 X 前端仍然不渲染）。
                   isInspectable: false,
                   thirdPartyCookiesEnabled: true,
                   sharedCookiesEnabled: true,
+                  supportMultipleWindows: true,
+                  mediaPlaybackRequiresUserGesture: false,
                 ),
                 onLoadStop: (controller, url) => _drive(controller),
               ),
