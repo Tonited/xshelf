@@ -662,8 +662,13 @@ class _SettingsPageState extends State<SettingsPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'X Like Manage · $kAppVersion',
+                    'X Shelf · $kAppVersion',
                     style: theme.textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    t('settings.unofficial'),
+                    style: theme.textTheme.bodySmall,
                   ),
                   const SizedBox(height: 8),
                   Text(

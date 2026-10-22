@@ -62,7 +62,7 @@ class _XLikeAppState extends State<XLikeApp> {
         currentLang = lang;
         return MaterialApp(
           key: ValueKey('app-${lang.name}'),
-          title: 'X Like Manage',
+          title: 'X Shelf',
           debugShowCheckedModeBanner: false,
           theme: buildTheme(Brightness.light),
           darkTheme: buildTheme(Brightness.dark),

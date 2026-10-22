@@ -170,6 +170,7 @@ const Map<String, String> _zh = {
   'settings.cacheClear': '清空缓存',
   'settings.about': '关于',
   'settings.version': '版本',
+  'settings.unofficial': '非官方客户端，与 X Corp. 无任何关联',
   'error.network': '无法连接 X，请检查代理或网络',
   'common.loading': '加载中…',
   'common.yes': '是',
@@ -358,7 +359,7 @@ const Map<String, String> _zh = {
 };
 
 const Map<String, String> _en = {
-  'app.title': 'X Like Manage',
+  'app.title': 'X Shelf',
   'login.title': 'Sign in to X',
   'login.hint':
       'Sign in with your own account below. The app only reads the '
@@ -508,6 +509,7 @@ const Map<String, String> _en = {
   'settings.cacheClear': 'Clear cache',
   'settings.about': 'About',
   'settings.version': 'Version',
+  'settings.unofficial': 'Unofficial client — not affiliated with X Corp.',
   'error.network': 'Cannot reach X — check your proxy or network',
   'common.loading': 'Loading…',
   'common.yes': 'Yes',

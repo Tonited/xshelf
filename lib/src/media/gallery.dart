@@ -52,7 +52,7 @@ Future<String?> saveMediaToGallery({
   }
 }
 
-const String _album = 'X Like Manage';
+const String _album = 'X Shelf';
 
 String _translate(GalException e) {
   switch (e.type) {

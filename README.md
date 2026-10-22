@@ -1,5 +1,10 @@
 # X Shelf
 
+> **非官方项目。** 与 X Corp. 无任何关联，未获其授权或背书。
+> 它的用途只有一个：**把你自己账号里的喜欢与书签备份到你自己设备上**。
+> 仓库**只提供源码** —— 不附带安装包、不内置任何账号或 cookie、不运营任何在线服务。
+> 使用前请先读文末的[风险声明](#️-风险声明务必读)。
+
 把 X（Twitter）账号里的**全部喜欢与书签**抓进本地，以 **X 风格图文列表 + 全屏竖滑播放页**的方式浏览、按时间/类型/作者/全文检索，并能逐条取消喜欢、加入/移除书签；另带本地与 X 全网两种搜索。
 一套 Flutter 代码，同时产出 Windows 桌面版与 Android APK。本地优先，离线可看。
 
@@ -105,6 +110,16 @@ docs/                    设计与实测文档
 - 签名密钥（`android/key.properties`、`android/keystore/`）与抓取产物（`build/_private/`）都在 `.gitignore` 里。
 - 测试夹具 `test/fixtures/likes_real_slim.json` 来自真实响应，但**账号、姓名、正文、id、链接、媒体地址已全部替换成合成值**，只保留结构。
 
+### 本项目不提供什么
+
+这一节不是免责套话，是使用前必须清楚的边界：
+
+- **不提供现成安装包。** 仓库里只有源码，请自行构建。CI 的构建产物用于验证「代码能编译通过」，不作为分发渠道，也不做签名保证。
+- **不内置任何账号、cookie 或 token。** 登录态由你在运行时自己输入，只保存在本机钥匙串里；仓库里不存在任何可用的凭据，历史提交里也没有。
+- **不提供任何在线服务。** 没有后端、没有中转 API、没有遥测上报。它就是一个纯粹的本地客户端。
+- **不承载、不搬运任何内容。** 它只读取**你自己账号**本来就有的数据、存到你自己设备上，不向第三方提供任何内容。
+- **不接受用于商业分发。** 打包上架应用商店、二次售卖、做成收费服务，都与本项目无关，也超出许可证与风险声明覆盖的范围。
+
 ### ⚠️ 风险声明（务必读）
 
 1. **本项目使用 X 的非公开网页接口**，不是官方 API。这不被 X 的开发者协议允许，**可能导致账号被限流、风控甚至封禁**。请自行评估，建议只使用自己的账号。
@@ -152,6 +167,16 @@ adb install -r build\app\outputs\flutter-apk\app-arm64-v8a-release.apk
 
 Nothing is uploaded anywhere. Likes, cookies and media stay on your machine; cookies are stored via the platform keystore (DPAPI / Keystore). Signing keys and raw captures are git-ignored, and the test fixture is fully synthetic (only the response *shape* is real).
 
+### What this project does not do
+
+Not boilerplate — these are the boundaries you need to know before using it:
+
+- **No prebuilt binaries.** Source only; build it yourself. CI artifacts exist to prove the code compiles, not as a distribution channel, and carry no signing guarantees.
+- **No bundled account, cookie or token.** You sign in at runtime with your own credentials; they live only in your device keystore. There are no usable credentials in this repo, and none in its history.
+- **No online service.** No backend, no relay API, no telemetry. It is a purely local client.
+- **No content hosting or redistribution.** It reads data **your own account already has** and stores it on **your own device**. Nothing is served to anyone else.
+- **Not for commercial redistribution.** Shipping it to an app store, reselling it, or building a paid service on it is outside what this project's license and risk statement cover.
+
 ### ⚠️ Risks
 
 1. This project talks to X through **undocumented web endpoints**, not the official API. That violates X's developer terms and **may get your account rate-limited, flagged or suspended**. Use your own account and at your own risk.
@@ -162,3 +187,9 @@ Nothing is uploaded anywhere. Likes, cookies and media stay on your machine; coo
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+Copyright (c) 2026 xlikemanage contributors.
+
+By using this software you acknowledge that you have read and accepted the
+[risk statement](#️-risks) above. The authors are not liable for account
+penalties, data loss, or any other consequence of using it.
