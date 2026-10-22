@@ -12,7 +12,7 @@
 #define AppName "X Shelf"
 #define AppExe "xlikemanage.exe"
 #define AppPublisher "xlikemanage contributors"
-#define AppUrl "https://github.com/xlikemanage/xlikemanage"
+#define AppUrl "https://github.com/Tonited/xshelf"
 
 [Setup]
 AppId={{7C4E1B52-9D3A-4E6B-9A1C-5F0D2B8E4A11}
