@@ -45,8 +45,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:media_kit/media_kit.dart';
-import 'package:media_kit_video/media_kit_video.dart';
 import 'package:video_player/video_player.dart' as vp;
 
 import '../core/l10n.dart';
@@ -306,9 +304,6 @@ class VideoSurface extends StatefulWidget {
 
 class _VideoSurfaceState extends State<VideoSurface>
     with SingleTickerProviderStateMixin {
-  bool get _isDesktop =>
-      Platform.isWindows || Platform.isLinux || Platform.isMacOS;
-
   // ---- 移动端 ----
   vp.VideoPlayerController? _cur;
 
@@ -324,10 +319,6 @@ class _VideoSurfaceState extends State<VideoSurface>
     value: 1,
   );
   Timer? _prevReleaseTimer;
-
-  // ---- 桌面端 ----
-  Player? _mpv;
-  VideoController? _mpvController;
 
   PlaybackSource? _source;
   String? _error;
@@ -481,11 +472,7 @@ class _VideoSurfaceState extends State<VideoSurface>
     _source = plan;
     _publishQuality();
     try {
-      if (_isDesktop) {
-        await _initDesktop(plan);
-      } else {
-        await _initMobile(plan);
-      }
+      await _initMobile(plan);
     } finally {
       _initializing = false;
     }
@@ -613,37 +600,6 @@ class _VideoSurfaceState extends State<VideoSurface>
     });
   }
 
-  // ------------------------------------------------------------- 桌面端实现
-
-  Future<void> _initDesktop(PlaybackSource src) async {
-    try {
-      final player = Player();
-      _mpv = player;
-      final controller = VideoController(player);
-      _mpvController = controller;
-      player.stream.playing.listen(
-        (_) => widget.handle?._push(playing: player.state.playing),
-      );
-      player.stream.buffering.listen((b) => widget.handle?._push(buffering: b));
-      player.stream.position.listen((p) => widget.handle?._push(position: p));
-      player.stream.duration.listen((d) {
-        widget.handle?._push(duration: d);
-      });
-      player.stream.error.listen((e) => _fail(e));
-      await player.setPlaylistMode(
-        widget.loop ? PlaylistMode.single : PlaylistMode.none,
-      );
-      if (!mounted) return;
-      setState(() => _inited = true);
-      widget.handle?._push(ready: true);
-      _bindHandle();
-      await player.open(Media(src.url), play: widget.active);
-      if (widget.active) _rememberPlayed();
-    } catch (e) {
-      _fail('$e');
-    }
-  }
-
   // ------------------------------------------------------------------ 控制
 
   void _bindHandle() {
@@ -667,13 +623,9 @@ class _VideoSurfaceState extends State<VideoSurface>
     );
   }
 
-  Duration get _duration => _isDesktop
-      ? (_mpv?.state.duration ?? Duration.zero)
-      : (_cur?.value.duration ?? Duration.zero);
+  Duration get _duration => _cur?.value.duration ?? Duration.zero;
 
-  Duration get _position => _isDesktop
-      ? (_mpv?.state.position ?? Duration.zero)
-      : (_cur?.value.position ?? Duration.zero);
+  Duration get _position => _cur?.value.position ?? Duration.zero;
 
   /// 旧实例已经缓冲到多远（当前位置之后的余量）。
   Duration get _bufferAhead {
@@ -699,41 +651,23 @@ class _VideoSurfaceState extends State<VideoSurface>
   }
 
   Future<void> _seekTo(Duration target) async {
-    if (_isDesktop) {
-      await _mpv?.seek(target);
-      return;
-    }
     final c = _cur;
     if (c == null) return;
     await c.seekTo(target);
   }
 
   Future<void> _setSpeed(double speed) async {
-    if (_isDesktop) {
-      await _mpv?.setRate(speed);
-      return;
-    }
     await _cur?.setPlaybackSpeed(speed);
     widget.handle?._push(speed: speed);
   }
 
   void _togglePlay() {
-    if (_isDesktop) {
-      final p = _mpv;
-      if (p == null) return;
-      p.state.playing ? p.pause() : p.play();
-      return;
-    }
     final c = _cur;
     if (c == null) return;
     c.value.isPlaying ? c.pause() : c.play();
   }
 
   Future<void> _play() async {
-    if (_isDesktop) {
-      await _mpv?.play();
-      return;
-    }
     if (!_inited) {
       await _bootstrap();
       return;
@@ -748,10 +682,6 @@ class _VideoSurfaceState extends State<VideoSurface>
   Future<void> _pause() async {
     _adaptTimer?.cancel();
     _adaptTimer = null;
-    if (_isDesktop) {
-      await _mpv?.pause();
-      return;
-    }
     await _cur?.pause();
   }
 
@@ -768,7 +698,6 @@ class _VideoSurfaceState extends State<VideoSurface>
     _adaptTimer = null;
     _weakSamples = 0;
     _healthySamples = 0;
-    if (_isDesktop) return;
     if (widget.dataSaver) return; // 低数据模式：不采样、不换档
     if (widget.muted) return; // 列表里的静音预览不升画质，也没必要采样
     _adaptTimer = Timer.periodic(
@@ -904,7 +833,6 @@ class _VideoSurfaceState extends State<VideoSurface>
 
   /// 自动升清晰：排一次「试试往上走」。
   void _planUpgrade() {
-    if (_isDesktop) return; // 桌面不是重点，也不值得为它多开一个解码器
     if (widget.dataSaver) return; // 低数据模式：不升档
     if (!widget.autoUpgrade) return;
     if (!widget.active) return;
@@ -983,9 +911,6 @@ class _VideoSurfaceState extends State<VideoSurface>
     _upgradeTimer?.cancel();
     widget.handle?._setSwitching(true, target.displayLabel);
     try {
-      if (_isDesktop) {
-        return await _switchDesktop(target);
-      }
       final old = _cur;
       if (old == null) {
         // 还没有播放器：直接重来一遍初始化更干净。
@@ -1018,18 +943,6 @@ class _VideoSurfaceState extends State<VideoSurface>
     _upgradeTimer = Timer(const Duration(milliseconds: 120), () {
       unawaited(_applyChosen());
     });
-  }
-
-  Future<bool> _switchDesktop(PlaybackSource target) async {
-    final wasPlaying = _mpv?.state.playing ?? false;
-    final resumeAt = _position;
-    _source = target;
-    _publishQuality();
-    final p = _mpv;
-    if (p == null) return false;
-    await p.open(Media(target.url), play: wasPlaying);
-    if (resumeAt > Duration.zero) await p.seek(resumeAt);
-    return true;
   }
 
   Future<bool> _switchMobile(
@@ -1243,9 +1156,6 @@ class _VideoSurfaceState extends State<VideoSurface>
     _fade.value = 1;
     _cur?.dispose();
     _cur = null;
-    _mpv?.dispose();
-    _mpv = null;
-    _mpvController = null;
     // 必须一起重置：不重置的话 _bootstrap 里的 `if (_initializing) return`
     // 或 `_play()` 里的 `if (!_inited)` 会误判，出现「永久转圈」。
     _inited = false;
@@ -1301,11 +1211,6 @@ class _VideoSurfaceState extends State<VideoSurface>
   }
 
   Widget _videoLayer() {
-    if (_isDesktop) {
-      final c = _mpvController;
-      if (c == null || !_inited) return _spinner();
-      return Video(controller: c, controls: NoVideoControls, fit: widget.fit);
-    }
     final cur = _cur;
     if (cur == null || !cur.value.isInitialized) return _spinner();
 

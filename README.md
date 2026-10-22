@@ -6,7 +6,7 @@
 > 使用前请先读文末的[风险声明](#️-风险声明务必读)。
 
 把 X（Twitter）账号里的**全部喜欢与书签**抓进本地，以 **X 风格图文列表 + 全屏竖滑播放页**的方式浏览、按时间/类型/作者/全文检索，并能逐条取消喜欢、加入/移除书签；另带本地与 X 全网两种搜索。
-一套 Flutter 代码，同时产出 Windows 桌面版与 Android APK。本地优先，离线可看。
+一套 Flutter 代码，产出 Android APK。本地优先，离线可看。
 
 > 设计细节见 [docs/DESIGN.md](docs/DESIGN.md)，接口与登录的实测记录见 [docs/X-LOGIN-FINDINGS.md](docs/X-LOGIN-FINDINGS.md)。
 
@@ -32,23 +32,18 @@
 
 ### 平台与依赖
 
-- Windows 10 1809+（桌面版，主要用于开发调试）
-- Android 8.0+（主要使用场景）
+- Android 8.0+（arm64-v8a / armeabi-v7a）
 
 ### 构建
 
 ```powershell
 flutter pub get
-flutter run -d windows     # 或 -d <android-device-id>
+flutter run -d <android-device-id>
 ```
 
-出安装包：
+出安装包（自签 release APK；首次运行会生成 keystore）：
 
 ```powershell
-# Windows：Inno Setup 安装包 + 便携版（需要 Inno Setup 6）
-.\tool\build_windows.ps1
-
-# Android：自签 release APK（首次运行会生成 keystore）
 .\tool\build_apk.ps1 -SplitPerAbi
 ```
 
@@ -81,7 +76,6 @@ flutter test
 - 国内网络：`tool/patch-flutter-sdk-mirrors.ps1` 把 Flutter SDK 自带子构建的仓库换成镜像；
   `android/` 下已配阿里云 Maven 镜像。`flutter upgrade` 后需要重跑一次补丁脚本。
 - 低内存机器（8GB）务必保持 `android/gradle.properties` 里的 `-Xmx2048m`，模板默认的 8G 会让 JVM 直接崩。
-- Windows 构建的完整踩坑记录见 [docs/BUILD-ENV.md](docs/BUILD-ENV.md)（本机环境备忘，可按需忽略）。
 
 ### 项目结构
 
@@ -110,15 +104,26 @@ docs/                    设计与实测文档
 - 签名密钥（`android/key.properties`、`android/keystore/`）与抓取产物（`build/_private/`）都在 `.gitignore` 里。
 - 测试夹具 `test/fixtures/likes_real_slim.json` 来自真实响应，但**账号、姓名、正文、id、链接、媒体地址已全部替换成合成值**，只保留结构。
 
+### 下载
+
+到 [Releases](https://github.com/Tonited/xshelf/releases) 下载对应 ABI 的 APK：
+
+| 设备 | 文件 |
+|---|---|
+| 绝大多数手机（arm64-v8a） | `app-arm64-v8a-release.apk` |
+| 老设备（armeabi-v7a） | `app-armeabi-v7a-release.apk` |
+
+装好后首次启动需要登录你自己的 X 账号。想自己签名构建也行，见[构建](#构建)。
+
 ### 本项目不提供什么
 
 这一节不是免责套话，是使用前必须清楚的边界：
 
-- **不提供现成安装包。** 仓库里只有源码，请自行构建。CI 的构建产物用于验证「代码能编译通过」，不作为分发渠道，也不做签名保证。
+- **只在 GitHub Releases 分发安装包。** 不上架任何应用商店，也不在第三方站点发布；除此之外你能拿到的只有源码，自行构建即可。
 - **不内置任何账号、cookie 或 token。** 登录态由你在运行时自己输入，只保存在本机钥匙串里；仓库里不存在任何可用的凭据，历史提交里也没有。
 - **不提供任何在线服务。** 没有后端、没有中转 API、没有遥测上报。它就是一个纯粹的本地客户端。
 - **不承载、不搬运任何内容。** 它只读取**你自己账号**本来就有的数据、存到你自己设备上，不向第三方提供任何内容。
-- **不接受用于商业分发。** 打包上架应用商店、二次售卖、做成收费服务，都与本项目无关，也超出许可证与风险声明覆盖的范围。
+- **不接受用于商业分发。** 上架应用商店、二次售卖、做成收费服务，都与本项目无关，也超出许可证与风险声明覆盖的范围。
 
 ### ⚠️ 风险声明（务必读）
 
@@ -129,7 +134,7 @@ docs/                    设计与实测文档
 
 ## English
 
-Browse **all of your X (Twitter) likes and bookmarks** locally through an X-style timeline that opens into a fullscreen vertical-swipe player, filter by time / media type / author, full-text search, unlike posts, and keep bookmarks in sync. One Flutter codebase ships a Windows desktop build and an Android APK. Local-first and works offline once cached.
+Browse **all of your X (Twitter) likes and bookmarks** locally through an X-style timeline that opens into a fullscreen vertical-swipe player, filter by time / media type / author, full-text search, unlike posts, and keep bookmarks in sync. Ships as a single Android APK. Local-first and works offline once cached.
 
 ### What it does
 
@@ -151,8 +156,7 @@ Browse **all of your X (Twitter) likes and bookmarks** locally through an X-styl
 
 ```powershell
 flutter pub get
-flutter run -d windows
-.\tool\build_windows.ps1      # Inno Setup installer + portable zip
+flutter run -d <android-device-id>
 .\tool\build_apk.ps1 -SplitPerAbi   # self-signed release APKs
 ```
 
@@ -167,11 +171,22 @@ adb install -r build\app\outputs\flutter-apk\app-arm64-v8a-release.apk
 
 Nothing is uploaded anywhere. Likes, cookies and media stay on your machine; cookies are stored via the platform keystore (DPAPI / Keystore). Signing keys and raw captures are git-ignored, and the test fixture is fully synthetic (only the response *shape* is real).
 
+### Download
+
+Grab the APK for your ABI from [Releases](https://github.com/Tonited/xshelf/releases):
+
+| Device | File |
+|---|---|
+| Most phones (arm64-v8a) | `app-arm64-v8a-release.apk` |
+| Older devices (armeabi-v7a) | `app-armeabi-v7a-release.apk` |
+
+First launch asks you to sign in to your own X account. Prefer to build and sign it yourself? See [Build](#build).
+
 ### What this project does not do
 
 Not boilerplate — these are the boundaries you need to know before using it:
 
-- **No prebuilt binaries.** Source only; build it yourself. CI artifacts exist to prove the code compiles, not as a distribution channel, and carry no signing guarantees.
+- **Binaries are distributed only via GitHub Releases.** Not on any app store, not on third-party mirrors; anything else you get is source you build yourself.
 - **No bundled account, cookie or token.** You sign in at runtime with your own credentials; they live only in your device keystore. There are no usable credentials in this repo, and none in its history.
 - **No online service.** No backend, no relay API, no telemetry. It is a purely local client.
 - **No content hosting or redistribution.** It reads data **your own account already has** and stores it on **your own device**. Nothing is served to anyone else.

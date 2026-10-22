@@ -18,12 +18,12 @@
 | 维度 | 决定 |
 |---|---|
 | 取数通道 | 登录态直连 X 网页 GraphQL（`Likes`）；官方 API 不用；X 数据归档降级为可选 ID 索引、后置 |
-| 技术栈 | Flutter 单工程（Windows + Android） |
-| 播放器 | Windows `media_kit`(libmpv)；Android `video_player`(ExoPlayer) |
+| 技术栈 | Flutter 单工程（Android） |
+| 播放器 | `video_player`(ExoPlayer)，带画质档位与自动升降 |
 | 写操作 | 单个取消喜欢（取消即删本地记录）；关注/取关只保留在「作者空间」页（播放页右侧的关注按钮已按用户要求移除）；不做批量、不做重新喜欢 |
 | 账号 | 单账号，`account_id` 字段预留多账号 |
-| 登录 | 内嵌 WebView（Windows WebView2 / Android WebView）登录取 `auth_token`+`ct0`；默认抹掉 UA 里的 WebView 标记（`; wv`、`Version/x`）绕开 Google 对嵌入式浏览器的 OAuth 拦截，可在登录页切回桌面 UA；`flutter_secure_storage` 存储；**失败回退手动粘贴 cookie / 跨设备导入登录态** |
-| 代理 | 默认跟随系统代理（WinINET/环境变量），可手动填 HTTP / SOCKS5（含认证）；视频共用；设置页带连通性自检 |
+| 登录 | 内嵌 WebView 登录取 `auth_token`+`ct0`；默认抹掉 UA 里的 WebView 标记（`; wv`、`Version/x`）绕开 Google 对嵌入式浏览器的 OAuth 拦截，可在登录页切回桌面 UA；`flutter_secure_storage` 存储；**失败回退手动粘贴 cookie / 跨设备导入登录态** |
+| 代理 | 默认跟随系统代理（环境变量），可手动填 HTTP / SOCKS5（含认证）；视频共用；设置页带连通性自检 |
 | 媒体 | 仅 X 原生媒体，外链用浏览器打开；图片 + 视频离线缓存，上限 5GB 可调，LRU，可改存储目录 |
 | 播放器功能 | 画质档位（自动先低后高，平滑交叉淡化）/ 进度条可拖动 / 单击暂停 / 双击左右 ±N 秒（可配）/ 长按临时倍速（可配）/ 循环 / 上下切条；多图推文带抖音式横线指示器 |
 | 布局 | **只有移动端单列**；列表最大宽 720dp 居中；无桌面双栏、无竖向时间轴 |
@@ -34,9 +34,9 @@
 | 删除语义 | 作者删推 → 保留记录与已缓存媒体，标「已删除」；自己取消喜欢 → 删本地记录 |
 | 位置记忆 | 视图模式 + 筛选条件 + 滚动锚点 + 当前选中/播放条 |
 | 接口长寿性 | 内置 queryId + 运行时从 x.com 前端 JS 自动提取 + 失效明确提示 |
-| 打包 | Windows：Inno Setup 安装包 + 便携 zip；Android：自签 release APK（keystore 本地、不入库） |
-| 目标 | Win10 1809+ / Android 8.0+（minSdk 26）；≤5 万条 |
-| 仓库 | 本地 `git init`，公开仓库发布时再建 |
+| 打包 | 自签 release APK（keystore 本地、不入库），按 ABI 分档 |
+| 目标 | Android 8.0+（minSdk 26）；≤5 万条 |
+| 仓库 | https://github.com/Tonited/xshelf |
 
 ## 3. 关键事实（来自调研，删改前请复核）
 

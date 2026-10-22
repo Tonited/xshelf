@@ -1,7 +1,9 @@
-# 双端构建。可以在没有 Windows/Linux 工具链的机器上出 exe 与 apk。
+# 构建并发布 Android APK。
 #
 # 触发：推 tag（v*）或手动 workflow_dispatch。
-# 用到的仓库 secret（都不配置也能跑，只是产物会退化成 debug 签名）：
+#
+# 用到的仓库 secret（不配置也能跑，只是产物会退化成 debug 签名，
+# 和本地 release 签名的包无法互相覆盖升级）：
 #   ANDROID_KEYSTORE_BASE64  release.jks 的 base64
 #   ANDROID_KEYSTORE_PASSWORD
 #   ANDROID_KEY_ALIAS
@@ -15,48 +17,6 @@ on:
   workflow_dispatch:
 
 jobs:
-  windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-
-      - name: Version from tag
-        id: ver
-        shell: pwsh
-        run: |
-          $v = "${{ github.ref_name }}" -replace '^v', ''
-          if (-not $v) { $v = '0.1.0' }
-          "version=$v" >> $env:GITHUB_OUTPUT
-
-      - name: Build Windows
-        run: flutter build windows --release
-
-      - name: Portable zip
-        shell: pwsh
-        run: |
-          Compress-Archive -Path 'build\windows\x64\runner\Release\*' `
-            -DestinationPath "dist\xlikemanage-${{ steps.ver.outputs.version }}-windows-portable.zip"
-
-      - name: Installer (Inno Setup)
-        shell: pwsh
-        run: |
-          choco install innosetup --no-progress -y
-          & 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' `
-            "/DAppVersion=${{ steps.ver.outputs.version }}" `
-            "/DSourceDir=$((Resolve-Path 'build\windows\x64\runner\Release').Path)" `
-            'tool\installer\xlikemanage.iss'
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: windows
-          path: |
-            dist/*setup.exe
-            dist/*portable.zip
-
   android:
     runs-on: ubuntu-latest
     steps:
@@ -105,9 +65,22 @@ jobs:
           name: android
           path: build/app/outputs/flutter-apk/*.apk
 
-# 刻意**没有** release job。
-#
-# 这个项目的定位是「备份你自己账号的本地工具」，仓库只出源码：
-# 自动把 APK / exe 挂到 GitHub Release 上等于开了个分发渠道，
-# 和 README「本项目不提供什么」里的承诺冲突，也没法保证签名与内容一致。
-# 上面的构建产物只作为 artifact 留存（需登录且会过期），用于验证代码可编译。
+  # 推 tag 时把 APK 挂到 Release。
+  #
+  # 这是**唯一的**分发渠道：README 里写明了本项目提供什么（源码 + 构建产物）
+  # 和不提供什么（不上架应用商店、不接受商业分发、不承载他人内容）。
+  release:
+    needs: [android]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: android
+          path: apk
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: apk/*.apk
+          generate_release_notes: true

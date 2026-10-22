@@ -43,27 +43,18 @@ dependencies:
   # 在这台机器上 hook 会卡住；改用稳定组合：sqlite3 2.x + sqlite3_flutter_libs。
   sqlite3: ^2.9.0
   sqlite3_flutter_libs: ^0.5.38
-  media_kit: ^1.2.6
-  media_kit_video: ^2.0.1
-  media_kit_libs_windows_video: ^1.0.11
   video_player: ^2.14.1
   url_launcher: ^6.3.3
   flutter_inappwebview: ^6.1.5
   gal: ^2.3.3
 
-# 本地补丁，两处：
-# 1. 官方 flutter_inappwebview_android 1.1.3 用了
-#    getDefaultProguardFile('proguard-android.txt')，AGP 9.x 已移除该默认文件，
-#    导致 Android 构建直接失败。third_party 里是只改了这一行的副本。
-# 2. 官方 flutter_secure_storage_windows 的「向后兼容」C++ 层依赖 ATL
-#    （atlstr.h），没装 VS 的 ATL 组件时 Windows 构建直接 C1083。
-#    本项目没有历史数据要迁移，只保留它的 Dart/DPAPI 实现，去掉 pluginClass。
+# 本地补丁：官方 flutter_inappwebview_android 1.1.3 用了
+# getDefaultProguardFile('proguard-android.txt')，AGP 9.x 已移除该默认文件，
+# 导致 Android 构建直接失败。third_party 里是只改了这一行的副本。
 # 上游修好后删掉对应 overrides 与 third_party/ 目录即可。
 dependency_overrides:
   flutter_inappwebview_android:
     path: third_party/flutter_inappwebview_android
-  flutter_secure_storage_windows:
-    path: third_party/flutter_secure_storage_windows
 
 dev_dependencies:
   flutter_test:

@@ -120,26 +120,6 @@ resolveSystemProxy() async {
     if (parsed != null) return parsed;
   }
 
-  if (Platform.isWindows) {
-    try {
-      final r = await Process.run('reg', [
-        'query',
-        r'HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings',
-        '/v',
-        'ProxyServer',
-      ]);
-      if (r.exitCode == 0) {
-        final out = r.stdout.toString();
-        final m = RegExp(r'ProxyServer\s+REG_SZ\s+(\S+)').firstMatch(out);
-        if (m != null) {
-          final parsed = _parseWinInetServer(m.group(1)!);
-          if (parsed != null) return parsed;
-        }
-      }
-    } catch (_) {
-      // 读不到就算了，按直连处理
-    }
-  }
   return null;
 }
 
@@ -174,22 +154,6 @@ _parseProxyUrl(String raw) {
   final port = int.tryParse(rest.substring(colon + 1));
   if (port == null || port <= 0) return null;
   return (type: type, host: host, port: port, user: user, pass: pass);
-}
-
-/// WinINET 的 `ProxyServer` 可能是 `host:port`、`http=host:port;https=host:port`。
-({ProxyType type, String host, int port, String? user, String? pass})?
-_parseWinInetServer(String value) {
-  if (value.contains('=')) {
-    for (final part in value.split(';')) {
-      final kv = part.split('=');
-      if (kv.length == 2 && (kv[0] == 'https' || kv[0] == 'http')) {
-        final parsed = _parseProxyUrl(kv[1]);
-        if (parsed != null) return parsed;
-      }
-    }
-    return null;
-  }
-  return _parseProxyUrl(value);
 }
 
 /// 构造走代理的 HttpClient。

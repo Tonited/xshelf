@@ -35,10 +35,8 @@ class _LoginPageState extends State<LoginPage> {
   bool _busy = false;
   String? _error;
 
-  /// Windows 也用 WebView2 内嵌登录：它的 UA 本来就是 Edge，没有 `wv` 标记，
-  /// Google 对它的拦截比 Android WebView 宽松得多。
-  final bool _webViewAvailable =
-      Platform.isAndroid || Platform.isIOS || Platform.isWindows;
+  /// 移动端都有可用的内嵌 WebView，走内嵌登录。
+  final bool _webViewAvailable = Platform.isAndroid || Platform.isIOS;
 
   @override
   Widget build(BuildContext context) {

@@ -18,15 +18,6 @@ coverage/
 /test-*.txt
 /test-*.log
 
-# Windows
-windows/flutter/ephemeral/
-windows/**/generated_plugin_registrant.*
-windows/**/generated_plugins.cmake
-*.exe
-*.msi
-*.msix
-*.zip
-
 # Android
 android/.gradle/
 android/local.properties

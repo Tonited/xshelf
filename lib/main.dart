@@ -1,9 +1,6 @@
-import 'dart:io';
-
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:media_kit/media_kit.dart';
 
 import 'src/app_controller.dart';
 import 'src/core/l10n.dart';
@@ -12,18 +9,10 @@ import 'src/ui/root.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // 手机端默认锁竖屏。列表、搜索、设置都是竖排布局，一旦系统「自动旋转」开着，
+  // 默认锁竖屏。列表、搜索、设置都是竖排布局，一旦系统「自动旋转」开着，
   // 退出播放页就会跟着转成横屏 —— 而横屏根本没适配过（内容挤在左边、
-  // 右侧大片空白）。桌面端保持可自由缩放。
-  if (Platform.isAndroid || Platform.isIOS) {
-    await SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-    ]);
-  }
-  // 桌面端的播放器后端（libmpv）在这里初始化；移动端用平台原生播放器。
-  if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-    MediaKit.ensureInitialized();
-  }
+  // 右侧大片空白）。只有播放页能主动切横屏。
+  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   runApp(XLikeApp(controller: AppController()));
 }
 

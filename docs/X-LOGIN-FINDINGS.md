@@ -70,20 +70,7 @@
 - 正文仍在 `tweet.legacy.full_text`；媒体在 `legacy.extended_entities.media`。
 - Like 页 URL 是 `https://x.com/i/history/likes`（访问 `/<sid>/likes` 会被重定向过去）。
 
-## 7. 本机构建坑（Windows）
-
-- 项目路径含空格且很长（仓库所在路径），
-  MSBuild 会撞 260 字符上限：`MSB3491 ... 超过 OS 最大路径限制`。
-- `subst X:` 到项目目录后 CMake 能过，但 `flutter_assemble` 退出码 **255** ——
-  subst 虚拟盘跑不通 Flutter 构建。**结论：不要在 subst 盘上构建。**
-- 可行做法：复制到**真实的短路径**（如 `C:\xlk`）再构建。
-  复制时要排除 `build`、`.dart_tool`、`windows\flutter\ephemeral`
-  （后者是 260MB 的构建缓存，带上会让复制变得极慢）。
-- 删 `build` 目录遇到长路径报「目录不是空的」时，用 `cmd /c rd /s /q "<path>"`。
-- `E:\dev\git\cmd` 必须在 PATH 上，否则 flutter 报
-  `Unable to determine engine version`。
-
-## 8. 复现脚本
+## 7. 复现脚本
 
 仓库里保留了**与个人账号无关**的复现工具：
 
