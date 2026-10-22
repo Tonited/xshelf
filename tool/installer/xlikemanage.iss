@@ -9,7 +9,7 @@
   #define SourceDir "..\..\build\windows\x64\runner\Release"
 #endif
 
-#define AppName "X Like Manage"
+#define AppName "X Shelf"
 #define AppExe "xlikemanage.exe"
 #define AppPublisher "xlikemanage contributors"
 #define AppUrl "https://github.com/xlikemanage/xlikemanage"

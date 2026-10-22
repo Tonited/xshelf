@@ -85,15 +85,13 @@
 
 ## 8. 复现脚本
 
-`tool/` 下这些是一次性验证工具，可以直接复用：
+仓库里保留了**与个人账号无关**的复现工具：
 
 | 脚本 | 用途 |
 |---|---|
 | `xhttp.js` | 走本地代理的最小 HTTP 客户端（**必须按字节解 chunked**，否则中文会截坏） |
-| `xlogin.js` | 打开 X 登录页并 dump DOM / 截图 |
-| `xauto.js` | 真实鼠标事件 + Google 登录全流程（`google-dump` / `google-login`） |
 | `find_queryids.js` | 在浏览器上下文里扫 client-web JS，提取 queryId（裸 HTTP 会被 CF 挡） |
-| `test_viewer.js` | 验证 Viewer / Likes 是否可用 |
-| `verify_in_chrome.js` | 在已登录 Chrome 里抓现行 GraphQL 请求与真实响应 |
-| `app_login.js` | 通过 WebView2 的 CDP 端口操作 app 内登录 |
-| `run_app.ps1` | 启动桌面端并截屏（带 `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` 开 CDP） |
+| `probe_endpoints.js` / `probe_home.js` / `probe_proxy.js` | 探测各 endpoint 与代理连通性 |
+
+登录流程的自动化脚本（自动填账号密码、经 CDP 驱动浏览器走完登录流程、验证会话）**没有入库** ——
+它们不可避免要接触真实凭据，不适合分发。本文档前面几节记录的现象和步骤已足够自行复现。

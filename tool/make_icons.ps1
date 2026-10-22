@@ -1,4 +1,4 @@
-# Generates the launcher icon PNGs (+ a big preview) for X Like Manage.
+# Generates the launcher icon PNGs (+ a big preview) for X Shelf.
 #
 # Design: X's mark (two crossing strokes) on a dark navy rounded tile.
 # The "\" stroke is white, the "/" stroke is the app accent blue (#6CC7F5).
