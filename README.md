@@ -110,8 +110,8 @@ docs/                    设计与实测文档
 
 | 设备 | 文件 |
 |---|---|
-| 绝大多数手机（arm64-v8a） | `app-arm64-v8a-release.apk` |
-| 老设备（armeabi-v7a） | `app-armeabi-v7a-release.apk` |
+| 绝大多数手机（arm64-v8a） | `xshelf-<版本>-arm64-v8a.apk` |
+| 老设备 / 32 位（armeabi-v7a） | `xshelf-<版本>-armeabi-v7a.apk` |
 
 装好后首次启动需要登录你自己的 X 账号。想自己签名构建也行，见[构建](#构建)。
 
@@ -177,8 +177,8 @@ Grab the APK for your ABI from [Releases](https://github.com/Tonited/xshelf/rele
 
 | Device | File |
 |---|---|
-| Most phones (arm64-v8a) | `app-arm64-v8a-release.apk` |
-| Older devices (armeabi-v7a) | `app-armeabi-v7a-release.apk` |
+| Most phones (arm64-v8a) | `xshelf-<version>-arm64-v8a.apk` |
+| Older devices (armeabi-v7a) | `xshelf-<version>-armeabi-v7a.apk` |
 
 First launch asks you to sign in to your own X account. Prefer to build and sign it yourself? See [Build](#build).
 
